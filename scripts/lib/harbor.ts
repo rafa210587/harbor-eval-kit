@@ -50,6 +50,7 @@ export * from "./tasks.ts";
 export * from "./litellm.ts";
 export * from "./cost.ts";
 export * from "./exec.ts";
+export * from "./bundle.ts";
 export * from "./materialize.ts";
 
 
@@ -122,27 +123,6 @@ export function writeReport(rows: ResultRow[], outPrefix: string): void {
   writeFileSync(`${outPrefix}.csv`, lines.join("\n") + "\n");
 }
 
-// ---------- State dir / registries ----------
-
-export function getRegistryPath(name: RegistryName): string {
-  return join(getStateDir(), "registries", `${name}.json`);
-}
-
-export function readRegistry<T>(name: RegistryName): T[] {
-  const p = getRegistryPath(name);
-  if (!existsSync(p)) return [];
-  try {
-    return JSON.parse(readFileSync(p, "utf-8")) as T[];
-  } catch {
-    return [];
-  }
-}
-
-export function writeRegistry<T>(name: RegistryName, items: T[]): void {
-  const p = getRegistryPath(name);
-  mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(items, null, 2));
-}
 /**
  * Reads `<path>/analysis.json` if `harbor analyze` wrote one there (confirmed in
  * analyzer.py:_write_analysis_json). Best-effort: returns null rather than throwing if the

@@ -40,6 +40,7 @@
   .row .row-actions button.danger { color: var(--err); }
   .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 0; }
   .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; }
+  .checkbox-group-filter { flex: 1 0 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 5px 8px; font-size: 12px; margin-bottom: 2px; }
   .checkbox-inline { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; }
   .checkbox-inline label { margin: 0; color: var(--text); }
   .radio-inline { display: flex; gap: 16px; margin: 6px 0; }

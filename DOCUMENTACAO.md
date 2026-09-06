@@ -708,6 +708,43 @@ limite real em execução, use o kwarg do próprio adapter no campo "Extra harbo
 Teto `0` = sem teto. Rotas: `POST /api/compare/estimate` (prévia) e o mesmo estimador dentro do
 `POST /api/compare` (enforcement) — o número mostrado é o número aplicado.
 
+### 10.10-c Cancelar uma run
+
+Botão **Cancelar** aparece ao lado de "Run comparison" assim que uma run de verdade (não dry
+run) começa. Envia `POST /api/compare/cancel { runId }` — o `runId` é gerado no **navegador**
+(`crypto.randomUUID()`) e mandado junto no `POST /api/compare` original, porque o cliente
+precisa conhecê-lo antes daquele POST responder.
+
+**É melhor esforço, dito na própria tela.** O cancelamento mata o processo `harbor` (SIGTERM) e
+tenta parar os containers Podman daquela run, mas o Harbor limpa containers como parte do
+término **normal** de uma run (`--delete` por padrão) — um processo morto no meio nunca chega
+lá. Por isso existe `stopContainersForJob()` (`scripts/lib/exec.ts`): lê os diretórios de trial
+já criados em disco sob `<jobsDir>/<jobName>` e para qualquer container Podman cujo nome comece
+com o nome de um desses diretórios.
+
+**Achado testando de verdade**: a primeira versão comparava os nomes com case sensível e nunca
+batia nada — Podman/Compose **normalizam o nome do container pra minúsculas**
+(`soma-fracoes__ntpdigk__env-main-1`), enquanto o diretório do trial no disco mantém o id
+mixed-case original que o Harbor gerou (`soma-fracoes__ntPdiGK`). Corrigido comparando em
+minúsculas dos dois lados; validado matando uma run real em andamento e confirmando via
+`podman ps` que o container específico (não outro) foi parado.
+
+### 10.10-d Config Bundle — compartilhar configuração entre máquinas
+
+Aba **Config**. Agents, Models, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em
+`~/.harbor-eval-kit/`, por máquina — sem isso um time não versiona essa configuração em git nem
+revisa em PR. **Exportar** baixa um `.json` com todas as registries (`GET /api/config/export`);
+**Importar** aplica um bundle (`POST /api/config/import`, `scripts/lib/bundle.ts`).
+
+**Nunca inclui secret** — um Model é só `label` + `provider/modelo`, nunca uma chave; testado
+explicitamente (`bundle.test.ts`, "nunca inclui nada parecido com secret").
+
+**Idempotente por id**: o bundle preserva o id original de cada item, e importar faz *upsert*
+(atualiza se o id já existe localmente, insere se não existe) — importar o mesmo bundle duas
+vezes não duplica nada, e um item que só existe naquela máquina (não veio do bundle) nunca é
+apagado. Isso é o que torna o fluxo "commita no repo do time, todo mundo importa" seguro de
+repetir.
+
 ### 10.11 Datasets
 **O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
 própria task do zero na aba Tasks. **Quando usar**: pra comparar contra um benchmark
@@ -886,25 +923,27 @@ Harbor por baixo, só a forma de montar a chamada muda.
 ```
 Harbor_install/skills/        skills do Claude Code p/ instalar/diagnosticar/limpar o Harbor
 Harbor_install/agents/        papéis/sub-agentes usados junto com as skills acima
-scripts/lib/*.ts              lógica compartilhada, 11 módulos (ver docs/ENGENHARIA.md §3):
+scripts/lib/*.ts              lógica compartilhada, 13 módulos (ver docs/ENGENHARIA.md §3):
                                types, catalog, paths, naming, exec, secrets, materialize,
-                               joblogs, tasks, litellm + harbor.ts (superfície pública)
-                               materialização de skills/rubrics, DOCKER_HOST fix, telemetria
+                               joblogs, tasks, litellm, cost, bundle + harbor.ts (superfície
+                               pública) -- materialização de skills/rubrics, DOCKER_HOST fix,
+                               telemetria, guarda de gasto, export/import de config
 scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
-gui/index.html                markup das 14 abas (só HTML)
+gui/index.html                markup das 15 abas (só HTML)
 gui/styles.css                estilos
-gui/app/*.js                  13 módulos ES nativos, sem build (main, core, state, forms,
+gui/app/*.js                  14 módulos ES nativos, sem build (main, core, state, forms,
                                models-skills, agents, judging, compare, secrets, tasks,
-                               datasets, logs, misc) — ver docs/ENGENHARIA.md §3
-scripts/check-imports.mjs      checa builtins/nomes usados sem import e ciclos (backend + GUI)
+                               datasets, config-bundle, logs, misc) — ver docs/ENGENHARIA.md §3
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)
 scripts/test.sh/.ps1          roda a suíte inteira: node --test + scan de credenciais
 scripts/scan-secrets.sh       detector de credencial (modo --staged usado pelo pre-commit)
 scripts/setup-hooks.sh/.ps1   ativa .githooks/ neste clone (core.hooksPath)
-scripts/lib/*.test.ts         testes unitários (node:test, sem framework): harbor + cost
+scripts/check-imports.mjs     checa builtins/nomes usados sem import e ciclos (backend + GUI)
+scripts/lib/*.test.ts         testes unitários (node:test, sem framework): harbor + cost + bundle
+docs/PENDENCIAS.md            próximos passos, escrito pra qualquer agente pegar (não só Claude)
 .githooks/pre-commit          bloqueia commit que contenha credencial
 .gitattributes                fixa LF nos .sh (CRLF quebraria o hook num clone Windows)
 .claude/skills/               skills de projeto: ship-change, secret-guard, cross-platform

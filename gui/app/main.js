@@ -12,6 +12,7 @@ import "./judging.js";
 import "./compare.js";
 import "./secrets.js";
 import "./datasets.js";
+import "./config-bundle.js";
 import "./logs.js";
 
 // ---------- init ----------

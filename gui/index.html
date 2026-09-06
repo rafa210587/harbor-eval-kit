@@ -23,6 +23,7 @@
   <button data-tab="judges">8. Judges</button>
   <button data-tab="tasks">9. Tasks</button>
   <button data-tab="datasets">Datasets</button>
+  <button data-tab="config-bundle">Config</button>
   <button data-tab="compare">10. Compare</button>
   <button data-tab="logs">Logs</button>
   <button data-tab="trajectories">Trajectories</button>
@@ -88,8 +89,10 @@
         </div>
 
         <button class="primary" type="submit" id="compare-submit-btn">Run comparison</button>
+        <button class="secondary" type="button" id="compare-cancel-btn" hidden>Cancelar</button>
       </form>
       <p class="hint">Chaves de API cadastradas em "Secrets" são injetadas automaticamente nesta run.</p>
+      <p class="hint">"Cancelar" para os processos <code>harbor</code> e tenta parar os containers daquela run — mas é <strong>melhor esforço</strong>, não garantido: o Harbor limpa containers como parte do término normal de uma run, que um processo morto no meio não alcança. Confira <code>podman ps</code> depois se quiser ter certeza.</p>
       <pre id="compare-output" class="output"></pre>
 
       <!-- Live tail of whatever harbor is writing to disk right now. The run itself is still
@@ -500,6 +503,21 @@ Por que é ruim: explique a consequência concreta.
       </form>
       <pre id="dataset-output" class="output"></pre>
       <div id="dataset-discovered" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= CONFIG BUNDLE ================= -->
+  <section id="tab-config-bundle" class="tab">
+    <div class="panel">
+      <h2>Config Bundle — compartilhar configuração de avaliação entre máquinas</h2>
+      <p class="hint"><strong>O que é:</strong> Agents, Models, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em <code>~/.harbor-eval-kit/</code>, por máquina — sem isto, um time não consegue versionar essa configuração em git, revisar em PR, nem garantir que todo mundo está comparando com o mesmo Judge/Rubric. <strong>Secrets nunca entram aqui</strong> — um Model é só um rótulo + <code>provider/modelo</code>, nunca uma chave.</p>
+      <p class="hint"><strong>Como usar:</strong> "Exportar" baixa um <code>.json</code> com tudo — commite esse arquivo no repo do time. Quem for aplicar clica "Importar" e escolhe o arquivo. É <strong>idempotente por id</strong>: importar o mesmo bundle de novo atualiza em vez de duplicar, e um item que só existe localmente (não veio do bundle) nunca é apagado.</p>
+      <button class="primary" type="button" id="config-export-btn">Exportar bundle (.json)</button>
+      <div style="margin-top:14px;">
+        <label>Importar bundle</label>
+        <input type="file" id="config-import-file" accept="application/json">
+      </div>
+      <p class="hint" id="config-bundle-status"></p>
     </div>
   </section>
 

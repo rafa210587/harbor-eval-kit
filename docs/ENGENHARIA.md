@@ -90,7 +90,15 @@ módulos, todos abaixo do alvo:
 | `joblogs.ts` | tail incremental dos logs do Harbor |
 | `tasks.ts` | tasks em disco, descoberta, pin de judge/rubric |
 | `litellm.ts` | o encaixe (desligado) do gateway LiteLLM |
+| `cost.ts` | estimativa de custo + guarda de gasto pré-voo do Compare |
+| `bundle.ts` | export/import idempotente de config entre máquinas |
 | `harbor.ts` | superfície pública: re-exporta tudo + o que ainda não foi separado |
+
+`readRegistry`/`writeRegistry`/`getRegistryPath` migraram de `harbor.ts` para `paths.ts` quando
+`bundle.ts` precisou deles: importar de `harbor.ts` teria criado um ciclo (`harbor.ts` já
+re-exporta `bundle.ts` via `export *`). Regra geral: se um módulo novo precisa de algo que só
+existe no barrel, é sinal de que aquilo deveria estar num módulo folha, não motivo para importar
+do barrel.
 
 `harbor.ts` continuar sendo o ponto único de import (via `export *`) foi deliberado: a quebra
 não obrigou a tocar em `gui-server.ts` nem em `compare-matrix.ts`, então cada módulo pôde ser

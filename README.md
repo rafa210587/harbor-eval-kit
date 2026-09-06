@@ -20,6 +20,12 @@ the deterministic test reward.
 > is the prerequisite map: required vs. optional per operation (Run / Compare / Analyze), why
 > each registry exists, why a Judge forces a curated high-tier model, the zero-cost first run
 > via the `oracle` agent, and every real error message with its fix.
+>
+> 🚧 **What's next, and why?
+> [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md)** (in Portuguese) is the open punch list —
+> layout, accessibility, the licensing decision — written to be picked up by any coding agent
+> (not just the one that wrote it), with the measurements behind each item so progress can be
+> checked without re-deriving them.
 
 ## Why this exists
 
@@ -173,16 +179,27 @@ full explanation of every tab (what it's for, exactly how to use it, edge cases)
     point at a Task, run. Reward, cost, tokens, and duration show up per row; an optional
     **Analyze** panel judges any result afterward (never automatic).
 
-Three support tools, not numbered because they're used situationally, not sequentially:
+Four support tools, not numbered because they're used situationally, not sequentially:
 
 - **Datasets** — pull a published third-party task suite (`harbor dataset download`); its
   tasks then show up automatically alongside your own in Tasks/Compare.
+- **Config** — export every registry (Agents, Models, Skills, Skill Sets, Criteria, Judge
+  Rubrics, Judges) to one JSON file, or import one back in. Never includes secrets. Import is
+  idempotent, upserting by id, so a team can commit the file and everyone can re-import it
+  without duplicating entries or losing anything local.
 - **Logs** — live tail of the log files harbor writes into the jobs dir (image build, agent
   install, the test running). Follows a run in progress and stays available afterwards; works
   for runs started by the CLI too, since the state is read from disk rather than kept in
   memory.
 - **Trajectories** — opens Harbor's own step-by-step viewer (`harbor view`) for a finished
   job, so you can see exactly what an agent did inside the container, not just its reward.
+
+Compare also has a **Cancel** button once a real run starts, and a live cost estimate (from
+this machine's own run history) with a configurable cap that refuses to start a run before
+anything is spawned if it would exceed it, or if too many paid trials would run blind with no
+pricing history. Both are best-effort where Harbor itself gives no hook to be exact: cancelling
+kills the `harbor` process and tries to stop its containers, but Harbor's own container cleanup
+runs on normal completion, which a killed process never reaches.
 
 On agents: Harbor accepts **42** `--agent` adapters, and the Agents tab autocompletes them,
 flagging which are **model-agnostic** (LiteLLM-backed: `mini-swe-agent`, `terminus`, `aider`,
@@ -255,7 +272,9 @@ harbor-eval-kit/
 ├── DOCUMENTACAO.md                the full reference (PT-BR)
 ├── .githooks/pre-commit          blocks any commit carrying a credential
 ├── .gitattributes                pins .sh to LF (CRLF would break the hook on Windows)
+├── .github/workflows/ci.yml      unit tests + import checker + credential scan, 3 OSes
 ├── .claude/skills/               project skills: ship-change, secret-guard, cross-platform
+├── docs/PENDENCIAS.md            open punch list (layout, a11y, licensing) for any agent
 ├── config/defaults.env           non-secret default env var names/paths
 ├── manifests/                    example installation-manifest schema
 ├── docs/screenshots/             images used in this README
@@ -268,11 +287,13 @@ harbor-eval-kit/
 │   ├── harbor-eval.sh / .ps1     original bootstrap/doctor scripts
 │   ├── compare-matrix.ts         CLI sweep tool (cartesian product via repeatable flags)
 │   ├── gui-server.ts             local HTTP server + all /api/* routes
-│   └── lib/harbor.ts             shared logic: exec, registries, secrets, materialization
+│   ├── check-imports.mjs        finds missing cross-module imports + cycles, offline
+│   └── lib/*.ts                 13 modules: exec, registries, secrets, materialization,
+│                                   cost guard, config bundle, ... (harbor.ts is the barrel)
 ├── gui/
-│   ├── index.html                markup for the 14 tabs
+│   ├── index.html                markup for the 15 tabs
 │   ├── styles.css                styles
-│   └── app/*.js                  13 native ES modules, no build step
+│   └── app/*.js                  14 native ES modules, no build step
 └── evals/{java,typescript,python}/   your own tasks (the seed-task/ in each is an empty stub)
 ```
 

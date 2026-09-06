@@ -4,6 +4,8 @@
 // place -- see docs/ENGENHARIA.md §1 and §4.
 
 import { spawn, execFileSync } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 import type { ExecOptions, ExecResult } from "./types.ts";
 import { getLitellmGatewayConfig, litellmGatewayEnv } from "./litellm.ts";
@@ -140,6 +142,7 @@ export function execCommand(
       ? buildHarborEnv(opts.extraEnv)
       : withPythonUtf8(withTelemetryDisabled({ ...process.env, ...opts.extraEnv }));
     const child = spawn(cmd, args, { env, cwd: opts.cwd });
+    opts.onSpawn?.(child);
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -157,12 +160,19 @@ export function execCommand(
       stderr += d.toString();
       if (opts.echo) process.stderr.write(d);
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       if (timer) clearTimeout(timer);
+      // code is null when the process was killed by a signal rather than exiting on its own --
+      // via the timeout above, or via an external child.kill() (e.g. /api/compare/cancel).
+      // Distinguishing the two in the message is what lets a cancelled row read "cancelled by
+      // user" instead of the more alarming "exit 1" a plain code-only check would show.
+      let note = "";
+      if (timedOut) note = `\n[killed: exceeded ${opts.timeoutMs}ms timeout]`;
+      else if (code === null && signal) note = `\n[killed: signal ${signal}]`;
       resolvePromise({
-        code: timedOut ? 1 : code ?? 1,
+        code: code ?? 1,
         stdout,
-        stderr: timedOut ? `${stderr}\n[killed: exceeded ${opts.timeoutMs}ms timeout]` : stderr,
+        stderr: note ? `${stderr}${note}` : stderr,
         durationSec: (Date.now() - start) / 1000,
       });
     });
@@ -180,6 +190,66 @@ export function execCommand(
 
 export function execHarbor(args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
   return execCommand("harbor", args, opts);
+}
+
+/**
+ * Best-effort cleanup for a cancelled `harbor run`: SIGTERM/SIGKILL on the `harbor` CLI process
+ * stops that process, but Harbor's own container teardown runs as part of its normal
+ * completion path (the `--delete`-by-default cleanup mentioned in `harbor run --help`), which a
+ * killed process never reaches -- observed directly in this project's own testing, where an
+ * interrupted run left `<task>__<trial>__env-main-1` containers behind that needed a manual
+ * `podman stop`.
+ *
+ * This does the same match a human would: read the trial directories Harbor already created
+ * under `<jobsDir>/<jobName>` (each is a container-name prefix), list running containers, and
+ * stop whichever ones start with a trial directory's name. Every failure is swallowed --
+ * "container already gone", "podman not reachable" and "nothing to clean up" all look the same
+ * from here, and none of them should surface as an error on top of the cancellation itself.
+ *
+ * Returns the names it attempted to stop, for the cancel response to report honestly rather
+ * than claim a clean stop it cannot verify.
+ */
+export function stopContainersForJob(jobsDir: string, jobName: string): string[] {
+  const jobDir = join(jobsDir, jobName);
+  if (!existsSync(jobDir)) return [];
+  let trialPrefixes: string[] = [];
+  try {
+    trialPrefixes = readdirSync(jobDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+  } catch {
+    return [];
+  }
+  if (trialPrefixes.length === 0) return [];
+
+  let names: string[] = [];
+  try {
+    names = execFileSync("podman", ["ps", "--format", "{{.Names}}"], { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+
+  // Case-insensitive on purpose: Podman/Compose lowercase the project name that becomes the
+  // container name prefix, while the trial directory on disk keeps Harbor's original mixed-case
+  // id (e.g. dir `soma-fracoes__ntPdiGK`, container `soma-fracoes__ntpdigk__env-main-1`) --
+  // confirmed by testing this against a real cancelled run, where the case-sensitive version
+  // matched nothing and left the container running.
+  const toStopLower = new Set<string>();
+  const prefixesLower = trialPrefixes.map((p) => p.toLowerCase());
+  for (const n of names) if (prefixesLower.some((p) => n.toLowerCase().startsWith(p))) toStopLower.add(n);
+  const toStop = [...toStopLower];
+  for (const name of toStop) {
+    try {
+      execFileSync("podman", ["stop", "-t", "2", name], { stdio: "ignore" });
+    } catch {
+      // Already stopped, already gone, or podman hiccupped -- not this function's job to report.
+    }
+  }
+  return toStop;
 }
 
 export function isHarborAvailable(): boolean {

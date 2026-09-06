@@ -47,6 +47,9 @@ import {
   readRegistry,
   readTaskFiles,
   resolveAgentInstructionsPath,
+  stopContainersForJob,
+  exportConfigBundle,
+  importConfigBundle,
   checkCostGuard,
   estimateCompareCost,
   getLitellmGatewayConfig,
@@ -201,6 +204,16 @@ addRoute("GET", "/api/harbor-agents", (_req, res) => {
   sendJson(res, 200, { agents: HARBOR_AGENTS, freeAgents: FREE_AGENTS });
 });
 
+// ---------- config bundle (export/import, so a team can version its eval setup in git) ----------
+
+addRoute("GET", "/api/config/export", (_req, res) => {
+  sendJson(res, 200, exportConfigBundle());
+});
+
+addRoute("POST", "/api/config/import", (_req, res, _params, body) => {
+  sendJson(res, 200, importConfigBundle(body));
+});
+
 // ---------- job logs (live tail) ----------
 
 addRoute("GET", "/api/logs/jobs", (req, res) => {
@@ -296,6 +309,45 @@ addRoute("POST", "/api/compare/estimate", (_req, res, _params, body) => {
   sendJson(res, 200, estimateCompareCost(String(body.jobsDir || "jobs"), combos, Number(body.nAttempts) || 1));
 });
 
+// ---------- run cancellation ----------
+//
+// Keyed by a runId the BROWSER generates (crypto.randomUUID()) and sends with the /api/compare
+// body -- not something the server invents, because the client must know the id before the
+// POST resolves in order to ever call /api/compare/cancel while that POST is still in flight.
+interface ActiveRun {
+  children: Set<ChildProcess>;
+  cancelled: boolean;
+  jobsDir: string;
+  /** Job names spawned so far, for best-effort container cleanup on cancel. */
+  jobNames: Set<string>;
+}
+const activeRuns = new Map<string, ActiveRun>();
+
+addRoute("POST", "/api/compare/cancel", (_req, res, _params, body) => {
+  const runId = String(body.runId ?? "");
+  const run = activeRuns.get(runId);
+  if (!run) return sendJson(res, 404, { ok: false, error: "run not found (already finished, or wrong id)" });
+
+  run.cancelled = true;
+  for (const child of run.children) child.kill(); // SIGTERM; execCommand's own timeout, if any, still applies
+
+  // Best-effort: Harbor's own container teardown runs on normal completion, which a killed
+  // process never reaches. See stopContainersForJob's own comment for what was observed.
+  const stopped = new Set<string>();
+  for (const jobName of run.jobNames) {
+    for (const name of stopContainersForJob(run.jobsDir, jobName)) stopped.add(name);
+  }
+  sendJson(res, 200, {
+    ok: true,
+    stoppedProcesses: run.children.size,
+    stoppedContainers: [...stopped],
+    note:
+      stopped.size > 0
+        ? "processos e containers parados -- confira `podman ps` se quiser ter certeza"
+        : "processos parados; nenhum container correspondente encontrado ainda rodando (pode já ter terminado sozinho, ou a run estava entre containers)",
+  });
+});
+
 addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
   const {
     path: taskPath,
@@ -307,6 +359,7 @@ addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
     concurrency = 1,
     dryRun = false,
     extra = "",
+    runId,
   } = body;
 
   if (!taskPath || !Array.isArray(entries) || entries.length === 0) {
@@ -371,44 +424,62 @@ addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
   const secretsEnv = loadSecretsEnv();
   const concurrencyN = Math.max(1, Number(concurrency) || 1);
 
-  const rows: ResultRow[] = await runPool(combos, concurrencyN, async (c: ResolvedCombo) => {
-    const name = jobName(jobPrefix, c);
-    const args = buildHarborRunArgs({
-      taskPath,
-      combo: c,
-      jobsDir,
-      name,
-      env,
-      nAttempts: String(nAttempts),
-      extra: extraArgs,
-      autoYes: true,
-      printConfigOnly: Boolean(dryRun),
-    });
-    const execRes = await execHarbor(args, { extraEnv: secretsEnv });
-    const row: ResultRow = {
-      jobName: name,
-      agent: c.agentEntry.label,
-      model: c.model ?? "(default)",
-      skillset: c.skillset.label,
-      ok: execRes.code === 0,
-      durationSec: execRes.durationSec,
-    };
-    if (execRes.code !== 0) {
-      row.error = execRes.stderr.trim().slice(-2000) || `exit ${execRes.code}`;
-      return row;
-    }
-    if (!dryRun) Object.assign(row, parseResult(join(jobsDir, name)));
-    return row;
-  });
+  const run: ActiveRun | null = runId
+    ? { children: new Set(), cancelled: false, jobsDir: String(jobsDir), jobNames: new Set() }
+    : null;
+  if (run) activeRuns.set(String(runId), run);
 
-  const outPrefix = join(jobsDir, `${jobPrefix}-report`);
-  writeReport(rows, outPrefix);
-  sendJson(res, 200, {
-    ok: true,
-    rows,
-    reportJson: `${outPrefix}.json`,
-    reportCsv: `${outPrefix}.csv`,
-  });
+  try {
+    const rows: ResultRow[] = await runPool(combos, concurrencyN, async (c: ResolvedCombo) => {
+      const name = jobName(jobPrefix, c);
+      // Cancelled between combos (not mid-combo): don't start a new paid trial, but do say so
+      // in the row instead of silently omitting it from the report.
+      if (run?.cancelled) return { jobName: name, agent: c.agentEntry.label, model: c.model ?? "(default)", skillset: c.skillset.label, ok: false, durationSec: 0, error: "cancelado antes de iniciar" };
+      run?.jobNames.add(name);
+      const args = buildHarborRunArgs({
+        taskPath,
+        combo: c,
+        jobsDir,
+        name,
+        env,
+        nAttempts: String(nAttempts),
+        extra: extraArgs,
+        autoYes: true,
+        printConfigOnly: Boolean(dryRun),
+      });
+      const execRes = await execHarbor(args, {
+        extraEnv: secretsEnv,
+        onSpawn: run ? (child) => run.children.add(child) : undefined,
+      });
+      const row: ResultRow = {
+        jobName: name,
+        agent: c.agentEntry.label,
+        model: c.model ?? "(default)",
+        skillset: c.skillset.label,
+        ok: execRes.code === 0,
+        durationSec: execRes.durationSec,
+      };
+      if (execRes.code !== 0) {
+        row.error =
+          (run?.cancelled ? "cancelado pelo usuário -- " : "") + (execRes.stderr.trim().slice(-2000) || `exit ${execRes.code}`);
+        return row;
+      }
+      if (!dryRun) Object.assign(row, parseResult(join(jobsDir, name)));
+      return row;
+    });
+
+    const outPrefix = join(jobsDir, `${jobPrefix}-report`);
+    writeReport(rows, outPrefix);
+    sendJson(res, 200, {
+      ok: true,
+      cancelled: run?.cancelled ?? false,
+      rows,
+      reportJson: `${outPrefix}.json`,
+      reportCsv: `${outPrefix}.csv`,
+    });
+  } finally {
+    if (runId) activeRuns.delete(String(runId));
+  }
 });
 
 // ---------- job history ----------

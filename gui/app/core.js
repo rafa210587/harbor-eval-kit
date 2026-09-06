@@ -73,13 +73,40 @@ export function makeRow(item, { title, sub, onEdit, onDelete }) {
   return row;
 }
 
+// Above this many items, a checkbox group grows a filter box instead of just getting longer.
+// Judge Rubrics' criterion picker, a Skill Set's skill picker and the rest all share this one
+// function, so fixing "gets cluttered with many items" here fixes it everywhere at once rather
+// than one tab at a time.
+const CHECKBOX_FILTER_THRESHOLD = 8;
+
 export function checkboxGroup(container, items, { name, checkedIds = [] }) {
-  container.innerHTML = items.length ? "" : '<span class="muted">nada cadastrado ainda</span>';
-  for (const item of items) {
+  container.innerHTML = "";
+  if (items.length === 0) {
+    container.innerHTML = '<span class="muted">nada cadastrado ainda</span>';
+    return;
+  }
+
+  const labels = items.map((item) => {
     const label = document.createElement("label");
     const checked = checkedIds.includes(item.id) ? "checked" : "";
     label.innerHTML = `<input type="checkbox" name="${name}" value="${item.id}" ${checked}> ${escapeHtml(item.label)}`;
-    container.appendChild(label);
+    label.dataset.searchText = item.label.toLowerCase();
+    return label;
+  });
+
+  if (items.length > CHECKBOX_FILTER_THRESHOLD) {
+    const filter = document.createElement("input");
+    filter.type = "search";
+    filter.className = "checkbox-group-filter";
+    filter.placeholder = `Filtrar entre ${items.length}…`;
+    // Hiding rather than removing keeps a checked-but-filtered-out item checked underneath --
+    // clearing the filter brings it back exactly as it was, selection intact.
+    filter.addEventListener("input", () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const label of labels) label.hidden = q !== "" && !label.dataset.searchText.includes(q);
+    });
+    container.appendChild(filter);
   }
+  for (const label of labels) container.appendChild(label);
 }
 

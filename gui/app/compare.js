@@ -242,6 +242,9 @@ $("#compare-form").addEventListener("submit", async (e) => {
     dryRun: fd.get("dryRun") === "on",
     extra: fd.get("extra") || "",
     costCapUsd: fd.get("costCapUsd") || "0",
+    // Generated here, not by the server: the browser must know this id before the POST below
+    // resolves, or there would be no way to call /api/compare/cancel while it's in flight.
+    runId: crypto.randomUUID(),
   };
   const out = $("#compare-output");
   $("#compare-table").innerHTML = "";
@@ -254,13 +257,30 @@ $("#compare-form").addEventListener("submit", async (e) => {
   // page looks frozen and a second click would fire a second harbor run into the same job
   // name. Disable the button, show elapsed time, and tail the job's log while we wait.
   const submitBtn = $("#compare-submit-btn");
+  const cancelBtn = $("#compare-cancel-btn");
   const startedAt = Date.now();
   submitBtn.disabled = true;
   const originalLabel = submitBtn.textContent;
   submitBtn.textContent = "Rodando…";
+  if (!body.dryRun) cancelBtn.hidden = false;
+  let cancelRequested = false;
+  const onCancelClick = async () => {
+    cancelRequested = true;
+    cancelBtn.disabled = true;
+    cancelBtn.textContent = "Cancelando…";
+    try {
+      const r = await api("POST", "/api/compare/cancel", { runId: body.runId });
+      out.textContent = `Cancelamento pedido: ${r.note}`;
+    } catch (err) {
+      out.textContent = "Cancelamento não teve efeito (a run provavelmente já tinha terminado): " + err.message;
+    }
+  };
+  cancelBtn.addEventListener("click", onCancelClick);
   const tick = setInterval(() => {
     const secs = Math.round((Date.now() - startedAt) / 1000);
-    out.textContent = `Rodando há ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s… ${body.dryRun ? "(dry run)" : "pode demorar — acompanhe o log abaixo ou na aba Logs."}`;
+    if (!cancelRequested) {
+      out.textContent = `Rodando há ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s… ${body.dryRun ? "(dry run)" : "pode demorar — acompanhe o log abaixo, na aba Logs, ou cancele ao lado."}`;
+    }
   }, 1000);
   out.textContent = "Rodando…";
   const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir);
@@ -300,6 +320,10 @@ $("#compare-form").addEventListener("submit", async (e) => {
     if (liveStop) liveStop();
     submitBtn.disabled = false;
     submitBtn.textContent = originalLabel;
+    cancelBtn.hidden = true;
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = "Cancelar";
+    cancelBtn.removeEventListener("click", onCancelClick);
   }
 });
 

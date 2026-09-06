@@ -55,6 +55,13 @@ export interface ExecOptions {
   cwd?: string;
   /** Kill the child if it hasn't exited after this many ms (default: no timeout). */
   timeoutMs?: number;
+  /**
+   * Called with the live child process right after spawn, before this call resolves. This is
+   * the seam a caller uses to cancel a run in progress (see gui-server.ts's /api/compare/cancel):
+   * without a hook here, the only handle to a spawned `harbor run` is inside this promise, and a
+   * long-running compare can't be stopped from outside it.
+   */
+  onSpawn?: (child: import("node:child_process").ChildProcess) => void;
 }
 
 export interface ExecResult {

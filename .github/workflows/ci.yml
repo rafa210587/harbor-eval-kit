@@ -1,0 +1,41 @@
+# Runs the same suite `bash scripts/test.sh` runs locally: unit tests, the cross-module import
+# checker, and the credential scanner over the whole diff/repo. All three are deterministic and
+# offline (no podman, no harbor, no network) -- see scripts/lib/harbor.test.ts's own header for
+# why that scope was chosen deliberately.
+#
+# Matrix across the three OSes this kit claims to support (see docs/ENGENHARIA.md §2): the
+# `node --test` and `check-imports.mjs` steps are pure Node and portable, but `scan-secrets.sh`
+# is bash with an OS-dependent fallback chain (lsof/fuser/netstat), and that fallback path is
+# exactly the kind of thing that only breaks on the platform nobody tested it on.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Unit tests (node:test)
+        run: node --test scripts/lib/*.test.ts
+
+      - name: Import checker (backend + GUI, cross-module + cycles)
+        run: node scripts/check-imports.mjs
+
+      # bash ships on all three GitHub-hosted runners (Git Bash on windows-latest), matching the
+      # cross-platform contract in docs/ENGENHARIA.md §2 -- one hook implementation, no PS variant.
+      - name: Credential scan
+        shell: bash
+        run: bash scripts/scan-secrets.sh
