@@ -278,6 +278,36 @@ auditar. Com os números desta task, DeepSeek resolveu por menos de um terço de
 o torna um bom filtro de primeira passada, deixando o model caro para as tasks onde o custo de
 errar supera o custo do token.
 
+## 4.13 — Validação completa da UI, medida (2026-09-06)
+
+Passagem manual por **todas as 14 abas**, com o modelo mais barato do DeepSeek, para confirmar
+que a cadeia inteira funciona junta e não só cada peça isolada.
+
+| Etapa | Resultado |
+|---|---|
+| 1. Secrets → Test | ✅ `ANTHROPIC_API_KEY` responde `ok: true` |
+| 3. Skills | ✅ skill autorada **com arquivo extra** (`examples/bom.py`) |
+| 4. Skill Sets | ✅ agrupou a skill |
+| 5. Agents | ✅ `mini-swe-agent` + `deepseek/deepseek-v4-flash` + skill set padrão |
+| 10. Compare | ✅ skill veio **pré-marcada** na linha via agent; reward **1.0**, **$0,0029**, 10.471/1.501 tokens |
+| Analyze | ✅ `clean_code: pass`, `no_prolixity: pass` (modo validação, 66s) |
+| Logs | ✅ popula sozinha ao trocar de aba, tail incremental |
+| Trajectories | ✅ viewer ativo listado |
+
+O nome do job registra a cadeia inteira e serve de prova de que a skill chegou na run:
+`final__agent-mini-swe-agent__model-deepseek-deepseek-v4-flash__skill-Qualidade-Python`.
+
+> **Os nomes de modelo do DeepSeek mudaram.** `deepseek-chat` — que funcionou de manhã — passou
+> a ser recusado pela API deles no mesmo dia: *"The supported API model names are
+> deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-flash-vision-exp, deepseek-r1"*. O mais barato
+> hoje é **`deepseek/deepseek-v4-flash`**.
+>
+> Consequência prática, e uma limitação real do botão **Test**: ele usa o primeiro model que o
+> `litellm.get_valid_models()` conhece para o provider, e esse catálogo do LiteLLM ainda lista o
+> `deepseek-chat`. Então o Test pode falhar **com uma chave boa**, apenas porque o catálogo do
+> LiteLLM está defasado em relação à API do provider. Se o Test falhar com erro de *model*
+> (e não de autenticação), a chave provavelmente está certa — confirme rodando um Compare.
+
 ## 5. Onde ir a partir daqui
 
 - **O que precisa estar cadastrado antes de cada operação, e por quê**:

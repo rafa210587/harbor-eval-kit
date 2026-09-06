@@ -21,6 +21,7 @@
 //   materialize.ts  writing GUI-authored skills/rubrics/prompts to disk for Harbor
 
 
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   writeFileSync,
@@ -31,6 +32,9 @@ import { join, basename, dirname } from "node:path";
 
 import type { AgentEntry, CriterionEntry, ExecOptions, ExecResult, RegistryName, ResultRow, RubricCriterion, SkillEntry } from "./types.ts";
 import { getStateDir, newId, safeJoinUnderDir } from "./paths.ts";
+// `export *` below re-exports these for callers; it does NOT bring them into this file's own
+// scope, so anything used here has to be imported here too.
+import { execCommand } from "./exec.ts";
 
 import { loadSecretsEnv } from "./secrets.ts";
 import { isJudgeModelAllowed } from "./catalog.ts";
@@ -179,7 +183,13 @@ export function getHarborPythonPath(): string | null {
         ? join(toolsDir, "harbor", "Scripts", "python.exe")
         : join(toolsDir, "harbor", "bin", "python");
     result = existsSync(candidate) ? candidate : null;
-  } catch {
+  } catch (err) {
+    // Only "uv isn't installed / didn't answer" is an expected failure here. A ReferenceError
+    // or TypeError means THIS code is broken, and swallowing it reports the misleading
+    // "Harbor isn't installed" to the user instead. That is exactly what happened once: a
+    // refactor dropped the execFileSync import, and the resulting ReferenceError was caught
+    // here and shown as an install problem. Let a coding error surface as a coding error.
+    if (err instanceof ReferenceError || err instanceof TypeError) throw err;
     result = null;
   }
   cachedHarborPythonPath = result;

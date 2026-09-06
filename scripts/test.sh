@@ -21,8 +21,8 @@ if ! node --test scripts/lib/*.test.ts; then
 fi
 
 echo
-echo "== Módulos da GUI (imports e ciclos) =="
-if ! node scripts/check-gui-imports.mjs; then
+echo "== Imports e ciclos (backend + GUI) =="
+if ! node scripts/check-imports.mjs; then
   status=1
 fi
 

@@ -32,7 +32,7 @@ $$("#tabs button").forEach((btn) => {
     $$(".tab").forEach((s) => s.classList.remove("active"));
     btn.classList.add("active");
     $("#tab-" + btn.dataset.tab).classList.add("active");
-    setLogsPolling(btn.dataset.tab === "logs");
+    for (const hook of tabSwitchHooks) hook(btn.dataset.tab);
     const fn = tabRefreshers[btn.dataset.tab];
     if (fn) fn();
   });

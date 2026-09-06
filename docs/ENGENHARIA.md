@@ -122,6 +122,37 @@ faixa parte um comentário de bloco ao meio (aconteceu: o `/**` de uma função 
 e o `*/` ficou no outro). Importar cada módulo isoladamente (`node -e "import('./x.ts')"`)
 localiza isso em segundos; a suíte inteira só diz que algo quebrou.
 
+**A classe de bug que a quebra introduz, e o que a pega.** Modularizar cria erros de
+*referência*, não de sintaxe: o arquivo compila, o teste passa, e o programa só quebra quando
+alguém percorre aquele caminho. Aconteceu quatro vezes aqui, e todas foram silenciosas de
+formas diferentes:
+
+| O que aconteceu | Como se manifestou |
+|---|---|
+| `harbor.ts` perdeu `import { execFileSync }` | um `catch {}` engoliu o `ReferenceError` e a GUI disse **"Harbor não está instalado"** — resposta errada para uma pergunta real |
+| `harbor.ts` chamava `execCommand` só re-exportado | `execCommand is not defined` ao clicar em Test |
+| `core.js` chamava `setLogsPolling`, privada de `logs.js` | erro dentro do handler de clique: a aba trocava mas **nunca carregava**, sem nada no console até clicar exatamente ali |
+| `refreshAll` chamando renderizadores de 5 módulos | resolvido antes de quebrar, virando registro (`onRefresh`) |
+
+Daí `scripts/check-imports.mjs`, na suíte: acha, offline e de uma vez, builtins usados sem
+import, nomes de módulos irmãos usados sem import, chamadas a funções **privadas** de outro
+módulo, e ciclos. `export *` re-exporta um nome para quem **chama** o módulo — não o traz para
+o escopo do próprio arquivo, e é essa sutileza que produziu dois dos quatro casos.
+
+Duas versões desse checador foram descartadas antes de acertar, e o motivo vale mais que o
+código: **as duas falharam em silêncio, em direções opostas.** A que removia comentários por
+regex leu o `/*` dentro de `/api/*` num comentário de cabeçalho como início de bloco, apagou
+todos os imports até o próximo `*/` e acusou cinco imports "faltando" que estavam lá. A que
+usava um scanner de caracteres travou em "dentro de string" por causa de uma crase dentro de um
+comentário `//`, e apagou um bug de verdade da existência. Uma terceira ideia — "identificador
+que não existe em lugar nenhum" — foi abandonada por acusar strings de UI (`nenhum`, `juiz`),
+`async (` e `$`. A versão que ficou é por linha e casa apenas contra nomes realmente definidos
+noutro módulo: **um checador que grita à toa é um checador que ninguém roda.**
+
+**Corolário sobre `catch`:** engolir toda exceção transforma erro de programação em diagnóstico
+mentiroso. Onde o `catch` existe para tolerar uma falha *esperada* (ferramenta ausente), deixe
+`ReferenceError`/`TypeError` subirem — é o que `getHarborPythonPath` faz hoje.
+
 ---
 
 ## 4. SOLID e desacoplamento, na prática desta base

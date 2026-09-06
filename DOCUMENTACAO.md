@@ -514,6 +514,13 @@ como Models (aba 2), sem digitar `provider/modelo` à mão um por um. Nem todo p
 listagem ao vivo nesta versão do LiteLLM — lista vazia aí não significa key inválida (o botão
 já teria mostrado ✗ nesse caso), só que não tinha catálogo pra buscar.
 
+ATENÇÃO — limitação real: o Test usa o primeiro model que o `litellm.get_valid_models()` conhece
+para aquele provider, e esse catálogo pode estar defasado em relação à API do provider. Em
+2026-09-06 o DeepSeek passou a recusar `deepseek-chat` ("The supported API model names are
+deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-flash-vision-exp, deepseek-r1") enquanto o
+LiteLLM ainda o listava — ou seja, **o Test pode falhar com uma chave boa**. Se o erro for de
+*model* e não de autenticação, a chave provavelmente está certa; confirme com um Compare.
+
 Testado nos dois caminhos: com uma key inválida (reporta o `AuthenticationError` real vindo da
 API do provider — ex.: `DeepseekException — Authentication Fails, Your api key: ****1532 is
 invalid`, que foi como se descobriu que uma key salva tinha sido revogada no painel), e, em
@@ -863,7 +870,7 @@ gui/styles.css                estilos
 gui/app/*.js                  13 módulos ES nativos, sem build (main, core, state, forms,
                                models-skills, agents, judging, compare, secrets, tasks,
                                datasets, logs, misc) — ver docs/ENGENHARIA.md §3
-scripts/check-gui-imports.mjs  checa imports faltando e ciclos entre esses módulos
+scripts/check-imports.mjs      checa builtins/nomes usados sem import e ciclos (backend + GUI)
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)

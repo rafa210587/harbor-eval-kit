@@ -14,8 +14,8 @@ node --test @testFiles
 if ($LASTEXITCODE -ne 0) { $status = 1 }
 
 Write-Host ""
-Write-Host "== Módulos da GUI (imports e ciclos) =="
-node scripts/check-gui-imports.mjs
+Write-Host "== Imports e ciclos (backend + GUI) =="
+node scripts/check-imports.mjs
 if ($LASTEXITCODE -ne 0) { $status = 1 }
 
 Write-Host ""
