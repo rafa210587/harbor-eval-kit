@@ -8,6 +8,12 @@ the deterministic test reward.
 > 📖 **Full documentation, step-by-step install, and the reasoning behind every decision:
 > [`DOCUMENTACAO.md`](./DOCUMENTACAO.md)** (in Portuguese). This README is the quick tour;
 > that file is the complete reference.
+>
+> 🗺️ **Prefer diagrams and a worked example?
+> [`docs/COMO_FUNCIONA.md`](./docs/COMO_FUNCIONA.md)** (in Portuguese) walks through the
+> architecture, what happens end-to-end on a Compare run, and a full story comparing
+> DeepSeek vs. Claude on the same task — including a real invalid-API-key error and how it
+> got fixed via the Secrets tab's **Test** button.
 
 ## Why this exists
 
@@ -130,7 +136,9 @@ node .\scripts\compare-matrix.ts `
 ![Compare tab of the Harbor Eval Kit GUI](./docs/screenshots/compare-tab.jpg)
 
 The nav is numbered 1→10 to guide first-time setup; every tab also works standalone
-afterward. Each one has inline hints in the UI itself — this is just the map.
+afterward. Each one has inline hints in the UI itself — this is just the map. For the
+full explanation of every tab (what it's for, exactly how to use it, edge cases) see
+[`DOCUMENTACAO.md` §10](./DOCUMENTACAO.md#10-cada-aba-em-detalhe).
 
 1. **Secrets** — provider API keys, stored only in `~/.harbor-eval-kit/secrets.env` (never in
    this repo, never returned by the API after saving). A **Test** button next to each saved
