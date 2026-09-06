@@ -2,6 +2,16 @@ jobs/
 jobs-test/
 node_modules/
 
+# Secrets: by design these already live outside the repo, in the state dir
+# (~/.harbor-eval-kit/secrets.env -- see getStateDir() in scripts/lib/harbor.ts), never
+# written inside the project tree. These patterns are defense-in-depth only, in case
+# HARBOR_EVAL_STATE_DIR ever points inside the repo or a .env gets created by hand.
+secrets.env
+**/secrets.env
+.env
+.env.*
+!.env.example
+
 # OS/editor cruft
 .DS_Store
 Thumbs.db

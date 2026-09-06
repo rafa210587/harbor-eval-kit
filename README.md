@@ -1,330 +1,228 @@
 # Harbor Eval Kit
 
-Pacote agnóstico de modelo para instalar, validar, operar e remover um ambiente de evals com Harbor Framework usando Podman como runtime disponível no host.
+A **Podman-only** (no Docker) local GUI + CLI for installing, running, and comparing
+coding-agent evals with the [Harbor Framework](https://github.com/harbor-framework/harbor) —
+model vs. model, agent vs. agent, skill ablation, and an optional LLM-judge layer on top of
+the deterministic test reward.
 
-## Objetivos
+> 📖 **Full documentation, step-by-step install, and the reasoning behind every decision:
+> [`DOCUMENTACAO.md`](./DOCUMENTACAO.md)** (in Portuguese). This README is the quick tour;
+> that file is the complete reference.
 
-- Bootstrap automático de dependências.
-- Nenhuma instalação de Docker.
-- Validação explícita da compatibilidade Podman <-> Docker API/CLI exigida pelo Harbor local.
-- Evals reprodutíveis para:
-  - Java
-  - TypeScript
-  - Python
-- Comparação:
-  - model vs model
-  - agent vs agent
-  - skill ablation: com/sem skill
-- Suporte operacional para:
-  - Claude Code
-  - Codex / GPT coding agents
-- Uninstall conservador:
-  - remove apenas o que o kit criou;
-  - preserva ferramentas preexistentes;
-  - suporta `--dry-run`.
+## Why this exists
 
-## Layout
+Harbor itself is model/runtime-agnostic, but its Docker-oriented backend doesn't just work
+against Podman on Windows out of the box (a Docker-pipe mismatch breaks `--env docker` even
+with Podman running fine). This kit:
 
-```text
-harbor-eval-kit/
-├── AGENTS.md
-├── CLAUDE.md
-├── README.md
-├── DOCUMENTACAO.md
-├── config/
-│   └── defaults.env
-├── manifests/
-│   └── installation-manifest.example.json
-├── Harbor_install/            (skills/agents PARA instalar/operar o kit -- não confundir
-│   │                            com as abas "Skills"/"Agents" da GUI, que são outra coisa)
-│   ├── skills/
-│   │   ├── harbor-bootstrap/
-│   │   ├── harbor-doctor/
-│   │   ├── harbor-eval-designer/
-│   │   ├── harbor-eval-runner/
-│   │   ├── harbor-result-analyzer/
-│   │   └── harbor-cleanup/
-│   └── agents/
-│       ├── environment-doctor.md
-│       ├── harbor-installer.md
-│       ├── eval-designer.md
-│       ├── eval-runner.md
-│       ├── result-analyzer.md
-│       └── cleanup-guardian.md
-├── scripts/
-│   ├── harbor-eval.sh
-│   ├── harbor-eval.ps1
-│   ├── compare-matrix.ts
-│   ├── gui-server.ts
-│   └── lib/
-│       └── harbor.ts
-├── gui/
-│   └── index.html
-└── evals/
-    ├── java/
-    ├── typescript/
-    └── python/
-```
+- Never installs Docker — validates and uses **Podman** as the container runtime.
+- Explicitly gates on Podman↔Harbor compatibility before declaring anything "ready".
+- Wraps `harbor run`/`harbor analyze`/`harbor init --task`/`harbor dataset` behind a local
+  GUI and a couple of scripts, so you don't need to memorize CLI flags to run a comparison.
+- Disables Harbor's own default telemetry (PostHog) and hardens where secrets live — see
+  [Security](#security) below.
 
-## Princípio operacional
+## Prerequisites
 
-Harbor é instalado como CLI Python no host/WSL via `uv tool install harbor`.
+- Windows, macOS, or Linux with [Podman](https://podman.io/) installed and its machine
+  running (`podman machine init && podman machine start` on Windows/macOS).
+- [`uv`](https://docs.astral.sh/uv/) to install Harbor in an isolated environment.
+- Node.js 22.6+ (native TypeScript execution — no `tsc`/`ts-node`/build step for anything
+  in `scripts/`).
+- API keys for whichever model providers you plan to use (Anthropic, OpenAI, etc.) — entered
+  into the GUI's Secrets tab, never as a global environment variable or in any tracked file.
 
-Podman é o runtime de containers. Como o backend local do Harbor é Docker-oriented, o kit nunca presume compatibilidade. O comando `doctor` valida:
+## Quick start
 
-- `podman`
-- socket
-- API Docker-compatible quando disponível
-- build
-- run
-- exec
-- bind mount
-- named volume
-- network
-- cleanup
+There are two ways to get Harbor itself installed: let a coding agent do it via the bundled
+skills, or run the commands yourself. Either way, ends with the same local GUI.
 
-Se esse gate falhar, o kit não declara Harbor pronto.
+### Option A — let Claude Code (or Codex/another agent) install it for you
 
-## Comandos
+This repo ships its own install runbook as a **skill**: `Harbor_install/skills/harbor-bootstrap/SKILL.md`.
+It's plain markdown with a numbered procedure (snapshot existing tools → install `uv` if
+missing → `uv tool install harbor` → validate → gate on Podman compatibility with a real
+minimal task → persist what was done) — any coding agent that can read a file and run shell
+commands can follow it, not just Claude Code specifically:
 
-Linux/WSL/macOS:
+- **Claude Code**: open this repo and ask `"install Harbor Eval Kit"` — `CLAUDE.md` at the
+  root already points Claude Code at the right skill file for install/doctor/eval/cleanup
+  requests, so it picks up `harbor-bootstrap` on its own.
+- **Codex / GPT-based agents**: point it at the file directly, e.g. *"follow the procedure in
+  `Harbor_install/skills/harbor-bootstrap/SKILL.md` step by step, asking me before anything
+  destructive"*. There's nothing Claude-specific in the file itself.
+
+The doctor/cleanup counterparts (`harbor-doctor`, `harbor-cleanup`) work the same way —
+`"diagnose my Harbor setup"` / `"uninstall Harbor Eval Kit"`.
+
+### Option B — do it yourself
 
 ```bash
-./scripts/harbor-eval.sh doctor
-./scripts/harbor-eval.sh install
-./scripts/harbor-eval.sh status
-./scripts/harbor-eval.sh init-evals
-./scripts/harbor-eval.sh eval
-./scripts/harbor-eval.sh uninstall --dry-run
-./scripts/harbor-eval.sh uninstall
+# 1. Install Harbor in an isolated environment
+uv tool install harbor
+
+# 2. Make sure Podman is up and compatible with Harbor's Docker-oriented backend
+podman machine init && podman machine start   # if not already running
 ```
 
-PowerShell:
+### Enable and start the GUI
+
+Either option above gets you to the same place — a script that checks Harbor/Podman are
+actually usable and then launches the server:
+
+```bash
+# macOS/Linux
+./scripts/start-gui.sh
+```
+```powershell
+# Windows
+.\scripts\start-gui.ps1
+```
+
+Both scripts are idempotent (safe to re-run), print exactly what's missing if something isn't
+ready yet, and exit with a clear error instead of a stack trace if Harbor/Podman aren't found.
+Once running: **http://127.0.0.1:4173**.
+
+Then follow the GUI's own tab order, 1 → 10 (Secrets → Models → Skills → Skill Sets →
+Agents → Criteria → Judge Rubrics → Judges → Tasks → Compare). See
+[`DOCUMENTACAO.md` §2](./DOCUMENTACAO.md#2-instalação-e-configuração--passo-a-passo) for the
+fully detailed walkthrough, including the Podman↔Harbor compatibility gate and how to harden
+`secrets.env`'s file permissions.
+
+> Anything that goes wrong in `harbor`/`podman` *themselves* (a CLI flag, an adapter, a
+> provider integration, a Harbor bug) is outside what this kit controls — check
+> [harbor-framework/harbor](https://github.com/harbor-framework/harbor) upstream (issues,
+> `harbor --help`, `harbor <command> --help`) before assuming it's this kit's doing. Anything
+> about *this repo's own* GUI/scripts/skills is fair game here.
+
+## Two ways to use it
+
+| | GUI (`gui-server.ts`) | CLI (`compare-matrix.ts`) |
+|---|---|---|
+| Best for | interactive exploration, one-off comparisons, editing tasks/rubrics without leaving the browser | scripting, CI, reproducible sweeps from the terminal |
+| Combinations | explicit list of entries (agent + model/skillset overrides), built by hand | full cartesian product via repeatable `--agent`/`--model`/`--skillset` flags |
+| State | persists agents/models/skills/rubrics/judges as JSON registries in `~/.harbor-eval-kit/` | stateless — everything passed as flags |
+| Output | live table in the browser + CSV/JSON report | terminal table + CSV/JSON report |
+
+Both are thin orchestrators around real `harbor` CLI calls — neither reimplements anything
+Harbor already does. Both run **locally**, never as a hosted page, because they need to reach
+your local Podman/Harbor installation.
 
 ```powershell
-.\scripts\harbor-eval.ps1 doctor
-.\scripts\harbor-eval.ps1 install
-.\scripts\harbor-eval.ps1 status
-.\scripts\harbor-eval.ps1 init-evals
-.\scripts\harbor-eval.ps1 eval -- --path .\evals\python\seed-task --agent oracle --env docker
-.\scripts\harbor-eval.ps1 uninstall -DryRun
-.\scripts\harbor-eval.ps1 uninstall
-```
-
-`eval` forwards everything after `--` verbatim to `harbor run`. On Windows it also injects
-`DOCKER_HOST=npipe:////./pipe/docker_engine` for that single `harbor` call only (restored
-afterward via `finally`), so `--env docker` reaches the Podman machine instead of a stopped
-Docker Desktop — no need to set `DOCKER_HOST` yourself or touch your PowerShell profile.
-The `--` is required: without it, short flags like `-o` collide with PowerShell's own
-common parameters (e.g. `-OutVariable`).
-
-## Estratégia de dependências
-
-O host é classificado em três tipos:
-
-1. preexisting: já existia antes do kit;
-2. installed_by_kit: foi instalado pelo kit;
-3. container_only: usado apenas dentro dos ambientes de eval.
-
-O uninstall só remove itens `installed_by_kit`.
-
-Por padrão:
-
-- Harbor: host/user-level via uv.
-- Python: reutiliza se compatível; senão tenta instalar user-level.
-- uv: user-level.
-- Java/Node: preferencialmente utilizados dentro dos containers dos evals.
-- Maven/Gradle/npm: preferencialmente dentro dos containers.
-- Podman: nunca é removido pelo kit.
-
-## Secrets
-
-Nunca grave API keys no manifest.
-
-Use somente variáveis de ambiente:
-
-```bash
-export ANTHROPIC_API_KEY=...
-export OPENAI_API_KEY=...
-```
-
-## Execução Harbor
-
-Exemplo:
-
-```bash
-harbor run \
-  --dataset ./evals/python \
-  --agent claude-code \
-  --model anthropic/<modelo> \
-  --skill ./skills/python-engineering
-```
-
-Para Codex:
-
-```bash
-harbor run \
-  --dataset ./evals/python \
-  --agent codex \
-  --model openai/<modelo>
-```
-
-Use `harbor agent list` e `harbor agent schema <agent>` para confirmar nomes e kwargs da versão instalada.
-
-## Skill ablation
-
-Rode a mesma task:
-
-```text
-modelo A + agente A + sem skill
-modelo A + agente A + skill X
-modelo B + agente A + sem skill
-modelo B + agente A + skill X
-modelo B + agente B + sem skill
-modelo B + agente B + skill X
-```
-
-Mantenha constantes:
-
-- task
-- seed quando suportado
-- timeout
-- imagem base
-- testes
-- limites de recursos
-- prompts da task
-
-## Matriz de comparação (`compare-matrix.ts`)
-
-`harbor run` só roda uma combinação por vez. `scripts/compare-matrix.ts` gera o produto
-cartesiano de agentes × modelos × conjuntos de skill, dispara uma run por combinação e
-agrega os `result.json` num relatório único (tabela no terminal + CSV + JSON).
-
-Zero instalação: usa o type-stripping nativo do Node 22.6+/24 (já presente neste host) —
-sem `tsc`, sem `ts-node`, sem `tsconfig.json`, sem dependências externas.
-
-```powershell
+# CLI sweep example (PowerShell)
 node .\scripts\compare-matrix.ts `
   --path .\evals\python\seed-task `
   --agent claude-code --agent codex `
   --model anthropic/claude-sonnet-5 --model openai/gpt-5.1 `
-  --skillset "" --skillset ".\skills\python-eng" --skillset ".\skills\python-eng,.\skills\testing" `
+  --skillset "" --skillset ".\skills\python-eng" `
   --dry-run
 ```
 
-- `--skillset` é como você compara **conjuntos** de skill, não só uma por vez: cada
-  `--skillset` é uma lista separada por vírgula (ou `""` para o baseline sem skill).
-- `--dry-run` valida todas as combinações via `harbor run --print-config` (sem rodar
-  trial, sem custo, sem container) antes de gastar tokens de verdade.
-- No Windows, injeta `DOCKER_HOST` automaticamente só no processo `harbor` filho de cada
-  combinação (mesmo mecanismo do `harbor-eval.ps1 eval`), sem tocar a sessão do shell.
-- `--concurrency N` roda N combinações em paralelo (default 1, sequencial).
-- Saída: `<jobs-dir>/<job-prefix>-report.csv` e `.json`, além da tabela no terminal.
+`node .\scripts\compare-matrix.ts --help` lists every option.
 
-`node .\scripts\compare-matrix.ts --help` lista todas as opções.
+## The GUI, tab by tab
 
-## Interface gráfica local (`gui-server.ts`)
+![Compare tab of the Harbor Eval Kit GUI](./docs/screenshots/compare-tab.jpg)
 
-Servidor HTTP local (Node puro, sem framework, sem dependências) que serve uma página em
-`gui/index.html` e uma API em `/api/*`. **Não é um Claude Artifact** — roda como processo na
-sua máquina porque precisa chamar `harbor`/`podman` localmente; uma página hospedada não
-teria esse acesso.
+The nav is numbered 1→10 to guide first-time setup; every tab also works standalone
+afterward. Each one has inline hints in the UI itself — this is just the map.
 
-```powershell
-node .\scripts\gui-server.ts        # abre http://127.0.0.1:4173
+1. **Secrets** — provider API keys, stored only in `~/.harbor-eval-kit/secrets.env` (never in
+   this repo, never returned by the API after saving).
+2. **Models** — `label → provider/model` shortcuts; badges show whether the expected key is
+   already in Secrets.
+3. **Skills** — a `SKILL.md`'s worth of instructions an agent can receive (write inline,
+   attach a `.md`, or point at an existing folder).
+4. **Skill Sets** — bundle 1+ Skills into a named package to compare as a unit.
+5. **Agents** — a "usage profile": which `--agent` Harbor runs, its default model, its own
+   instructions, and default skill sets.
+6. **Criteria** — one reusable, atomic evaluation question (`name`/`description`/`guidance`)
+   an LLM judge answers PASS/FAIL/N-A about a finished run.
+7. **Judge Rubrics** — bundle 1+ Criteria into a named rubric, reused across languages/tasks.
+8. **Judges** — a judge's "usage profile": which `--agent` executes the judging, which
+   (curated, high-tier-only) model, optional custom instructions, and default rubrics.
+9. **Tasks** — `harbor init --task` plus an in-browser editor for `instruction.md`,
+   `Dockerfile`, `solve.sh`, `test.sh` — no external editor needed. A task can also pin a
+   default Judge + rubrics, auto-suggested later in Compare.
+10. **Compare** — the core: add an Agent (repeatable, with per-row model/skillset overrides),
+    point at a Task, run. Reward, cost, tokens, and duration show up per row; an optional
+    **Analyze** panel judges any result afterward (never automatic).
+
+Two support tools, not numbered because they're used situationally, not sequentially:
+
+- **Datasets** — pull a published third-party task suite (`harbor dataset download`); its
+  tasks then show up automatically alongside your own in Tasks/Compare.
+- **Trajectories** — opens Harbor's own step-by-step viewer (`harbor view`) for a finished
+  job, so you can see exactly what an agent did inside the container, not just its reward.
+
+## How comparison actually works
+
+The **reward** from `tests/test.sh` (deterministic — pytest/shell/asserts writing 0/1 to
+`/logs/verifier/reward.txt`) *is* the real comparison, the same method SWE-bench/HumanEval
+use. **Analyze** (the LLM judge) is a strictly opt-in layer on top, for the cases the cheap
+test can't catch: reward hacking, or breaking a tie between candidates that all passed. The
+judge model is always locked to a small curated high-tier list — never Harbor's own cheap
+default (`claude-haiku-4-5`). Full mechanism, including the N-rubric-per-analysis and
+Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-de-avaliação--reward-vs-juiz).
+
+## Security
+
+- **Provider API keys** live only in `~/.harbor-eval-kit/secrets.env`, outside this repo, and
+  are only ever injected into the environment of the `harbor`/`podman` child process at run
+  time — never written to any file this kit tracks or reports.
+- **`.gitignore`** defensively excludes `secrets.env`/`.env*` even though they're never
+  created inside the repo by design.
+- **Harbor's own telemetry is disabled unconditionally** (`HARBOR_TELEMETRY=disabled`
+  injected into every `harbor` child process) — confirmed via the installed package's source
+  that no API key ever enters that payload, but usage data (models tried, cost, reward) would
+  leave the machine by default otherwise.
+- Full threat-model writeup, including what *isn't* guaranteed (plain-text file on disk,
+  Windows ACL hardening steps): [`DOCUMENTACAO.md` §7](./DOCUMENTACAO.md#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é).
+
+## Repo layout
+
+```text
+harbor-eval-kit/
+├── AGENTS.md, CLAUDE.md          entrypoints for coding agents operating this repo
+├── README.md                     you are here
+├── DOCUMENTACAO.md                the full reference (PT-BR)
+├── config/defaults.env           non-secret default env var names/paths
+├── manifests/                    example installation-manifest schema
+├── docs/screenshots/             images used in this README
+├── Harbor_install/               skills/agents for INSTALLING/OPERATING Harbor itself
+│   ├── skills/                     (harbor-bootstrap, harbor-doctor, harbor-cleanup, ...)
+│   └── agents/                     — not to be confused with the GUI's own "Agents" tab,
+│                                     which is about agent profiles used *inside* evals.
+├── scripts/
+│   ├── start-gui.sh / .ps1       checks Harbor/Podman, then launches the GUI
+│   ├── harbor-eval.sh / .ps1     original bootstrap/doctor scripts
+│   ├── compare-matrix.ts         CLI sweep tool (cartesian product via repeatable flags)
+│   ├── gui-server.ts             local HTTP server + all /api/* routes
+│   └── lib/harbor.ts             shared logic: exec, registries, secrets, materialization
+├── gui/index.html                the entire frontend (HTML+CSS+JS, no build step)
+└── evals/{java,typescript,python}/   your own tasks (the seed-task/ in each is an empty stub)
 ```
 
-Abas:
+`jobs/` (Compare/Analyze output) is git-ignored — it's local run history, not project content.
+`datasets/` (downloaded task suites), if present, is deliberately **not** ignored — like
+`evals/`, it's real project content once you've pulled it down.
 
-- **Compare** — monta a matriz por linha: escolha um Agent, clique "Adicionar" (pode repetir o
-  mesmo agent com overrides diferentes), e cada linha já vem com o model/skill-set pré-preenchidos
-  do que está configurado nesse agent, sobrescrevíveis só naquela linha. Sem cross-product cego —
-  cada avaliação julga a combinação inteira, então você monta exatamente as combinações que quer.
-- **Skills** — uma skill é um `SKILL.md`: escreva as instruções direto na UI (ou anexe um `.md`)
-  e o kit materializa o arquivo sozinho em `~/.harbor-eval-kit/skills/skill-<id>/`, ou aponte para
-  uma pasta de skill já existente no disco.
-- **Skill Sets** — agrupa uma ou mais Skills num pacote nomeado, pra comparar como unidade ou
-  vincular a um Agent.
-- **Agents** — um "perfil de uso": qual `--agent` do Harbor, qual **model** padrão (usado quando
-  a run não sobrepõe modelo em Compare), **instructions** próprias do agent (viram uma skill
-  implícita sempre anexada) e **default skill sets** sempre anexados.
-- **Models** — atalho de label → `provider/modelo`.
-- **Criteria** — um critério reutilizável (name/description/guidance) que um juiz LLM usa pra
-  avaliar uma run já rodada (PASS/FAIL/N-A). Cadastrado uma vez, reaproveitado em vários rubrics.
-- **Judge Rubrics** — agrupa Criteria por checkbox (igual Skill → Skillset) num pacote nomeado.
-  Materializado sob demanda como `.toml` no schema exato que o Harbor espera. Bom pra padrões de
-  código por linguagem (clean code, sem prolixidade) ou pra detectar reward hacking.
-- **Tasks** — wizard sobre `harbor init --task` **com editor de arquivos direto no navegador**
-  (instruction.md, Dockerfile, solve.sh, test.sh) — não precisa abrir editor externo.
-- **Datasets** — tasks baixadas em `datasets/<nome>/` aparecem automaticamente junto das suas na
-  aba Tasks e no seletor do Compare — não é um mundo separado.
-- **Compare** ganhou, depois do reward aparecer: botão **"Ver trajetórias"** (abre o `harbor view`
-  já apontado pro jobs-dir daquela run) e um painel opcional **"Analisar"** por resultado (ou
-  todos) com um Judge Rubric + modelo da lista curada — nunca automático, é um desempate/auditoria
-  por cima do reward, não o mecanismo de comparação em si.
-- Agents/Models/Skills/Skillsets/Rubrics têm todos edição em lugar (botão **Edit** recarrega o
-  formulário; **Cancel edit** volta pro modo de criação) e persistem em
-  `~/.harbor-eval-kit/registries/*.json`.
-- **Secrets** — cadastro de chaves de provider (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.).
-  Gravadas em texto puro em `~/.harbor-eval-kit/secrets.env` (nunca no manifest, nunca em git,
-  nunca devolvidas pela API depois de salvas — só os nomes aparecem na lista).
-- **Tasks** — wizard fino sobre `harbor init --task`, e lista o que já existe em `evals/*` com
-  sinalização de "stub" vs "pronto".
-- **Datasets** — `harbor dataset list`/`download` (saída bruta do Harbor, sem reformatar).
-- **Trajectories** — inicia/para `harbor view <jobs-dir>` (processo de vida longa; a lista de
-  viewers ativos não sobrevive a um restart do `gui-server`).
-- **Analyze** — `harbor analyze` (avaliação por rubrica via LLM); precisa de uma chave cadastrada
-  em Secrets para o agente avaliador.
+## Uninstall safety
 
-Vínculo com o Docker-compatibility gate: todas as chamadas ao `harbor` feitas pelo servidor já
-injetam `DOCKER_HOST` automaticamente por processo filho no Windows, igual ao `compare-matrix.ts`
-e ao `harbor-eval.ps1 eval`.
+Cleanup only ever touches what this kit itself created — a fixed resource prefix
+(`harbor-eval-kit-`) and label (`io.harbor-eval-kit.managed=true`), tracked in a local
+manifest, with `--dry-run` support. It deliberately never runs `podman rm -a`,
+`podman system prune -a`, or any other broad-destructive command, and never touches Podman
+itself (Podman is preexisting infrastructure, not something this kit installed).
 
-## Critérios mínimos
+## Known limitations
 
-Java:
-- compila;
-- testes passam;
-- não quebra API pública sem instrução;
-- static analysis opcional;
-- diff dentro do escopo.
+- Compare in the GUI is synchronous — no live streaming progress, the page just waits.
+- `harbor dataset list` (this Harbor version) only prints a Hub link, not a browsable list.
+- A Judge can't be given a real tool-accessible skill (no `--skill` flag on `harbor analyze`)
+  — only custom instructions via `--prompt`. Confirmed against Harbor's own source, not a gap
+  in this GUI.
+- `durationSec` in Compare is wall-clock time for the whole `harbor run` call, not the finer
+  per-trial agent-execution timing Harbor records internally.
 
-TypeScript:
-- `npm test`;
-- typecheck;
-- lint;
-- sem `any` novo não justificado quando o benchmark proibir.
-
-Python:
-- pytest;
-- ruff;
-- type check quando configurado.
-
-## Instalação de skills nos agentes
-
-Harbor aceita skills como diretórios com `SKILL.md`.
-
-Para uso fora do Harbor:
-
-- Claude Code pode receber estas skills pelo mecanismo de Agent Skills/plugin da instalação usada.
-- Codex/GPT pode usar a mesma pasta de skills e `AGENTS.md` como instrução de repositório.
-
-O conteúdo foi escrito para ser independente do modelo.
-
-## Segurança do uninstall
-
-O cleanup usa:
-
-- prefixo `harbor-eval-kit-`
-- label `io.harbor-eval-kit.managed=true`
-- manifest local
-
-Ele não usa:
-
-```bash
-podman rm -a
-podman system prune -a
-rm -rf ~/.cache
-```
-
-Esses comandos são deliberadamente proibidos.
+Full list with rationale: [`DOCUMENTACAO.md` §13](./DOCUMENTACAO.md#13-limitações-conhecidas-decisões-conscientes-não-esquecimento).

@@ -508,15 +508,16 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-datasets" class="tab">
     <div class="panel">
       <h2>Datasets</h2>
-      <p class="hint">Um dataset é um pacote de tasks prontas de terceiros. Depois de baixar, as tasks dele aparecem automaticamente junto das suas na aba Tasks e no seletor da aba Compare — não é um mundo separado. Opcional — pule se for só usar suas próprias tasks (aba 8).</p>
+      <p class="hint"><strong>O que é:</strong> um dataset é um pacote de tasks já prontas, publicado por terceiros (benchmarks conhecidos, coleções de exercícios de outros times) — o oposto de criar sua própria task do zero na aba Tasks. <strong>Quando usar:</strong> quando você quer comparar agents/models contra um benchmark já validado e conhecido (em vez de uma task sua), ou só quer ver exemplos de tasks bem escritas antes de criar as suas. <strong>Quando pular:</strong> se você só vai usar tasks próprias (aba 9), esta aba inteira é opcional — não é um pré-requisito de nada.</p>
+      <p class="hint"><strong>Como usar:</strong> 1) baixe um dataset pelo nome (form abaixo); 2) as tasks dele aparecem sozinhas em <code>datasets/&lt;nome&gt;/&lt;task&gt;/</code> — o mesmo escaneamento que lista suas tasks próprias (aba Tasks) também lista essas, e elas entram automaticamente no seletor de task da aba Compare. Não existe um "modo dataset" separado: depois de baixado, uma task de dataset se comporta exatamente como uma task sua.</p>
       <button class="secondary" id="dataset-list-btn">List registry datasets</button>
-      <p class="hint">Nesta versão do Harbor isso só imprime um link pro Hub, não uma lista navegável — é uma limitação do CLI, não desta UI.</p>
+      <p class="hint">Este botão só imprime um link pro Hub do Harbor (catálogo de datasets publicados) — nesta versão do Harbor o CLI ainda não lista os nomes disponíveis diretamente no terminal, então é preciso abrir esse link no navegador pra descobrir o nome exato do dataset que você quer baixar. Limitação do `harbor dataset list` em si, não desta UI.</p>
       <form id="dataset-download-form" style="margin-top:14px;">
         <div class="row-inline">
-          <div><label>Dataset (name ou name@version)</label><input type="text" name="name" required></div>
+          <div><label>Dataset (name ou name@version)</label><input type="text" name="name" required placeholder="ex.: swe-bench-lite ou nome@1.2.0"></div>
           <div><label>Output dir</label><input type="text" name="outputDir" value="datasets"></div>
         </div>
-        <p class="hint">O nome vem do Hub do Harbor (o botão "List registry datasets" acima só imprime um link pra ver os nomes disponíveis, não uma lista aqui dentro). "Output dir" é a pasta onde as tasks baixadas vão ficar — depois de baixar, elas aparecem sozinhas na aba Tasks e no seletor da aba Compare.</p>
+        <p class="hint">O nome vem do link do Hub acima (não tem preenchimento automático — copie o nome exato de lá). "Output dir" é a pasta onde as tasks baixadas vão ficar; o padrão "datasets" é o que a aba Tasks/Compare já sabe escanear — só troque se tiver um motivo específico pra organizar em outro lugar.</p>
         <button class="primary" type="submit">Download</button>
       </form>
       <pre id="dataset-output" class="output"></pre>
@@ -528,7 +529,8 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-trajectories" class="tab">
     <div class="panel">
       <h2>Trajectory viewer (harbor view)</h2>
-      <p class="hint">Depois de rodar uma comparação (aba 10), use isto pra abrir um visualizador web e ver passo a passo o que cada agent fez dentro do container — útil pra entender <em>por que</em> um reward ficou baixo, não só <em>que</em> ficou.</p>
+      <p class="hint"><strong>O que é:</strong> um segundo servidor web (do próprio Harbor, não desta GUI) que abre numa aba nova e mostra, passo a passo, tudo que o agent fez dentro do container numa run: comandos executados, arquivos lidos/editados, saída de cada ferramenta, a resposta do modelo em cada turno. É a evidência bruta por trás do número de reward. <strong>Quando usar:</strong> depois de rodar uma comparação (aba 10), quando o reward sozinho não explica o suficiente — reward baixo e você quer ver onde o agent travou, reward alto e você quer confirmar que não foi um atalho/gambiarra, ou só quer entender o estilo de trabalho de um agent específico. É complementar ao Analyze (aba Analyze/painel do Compare): Analyze dá um veredito resumido de um LLM juiz; aqui você vê a trajetória inteira com os próprios olhos, sem intermediário.</p>
+      <p class="hint"><strong>Como usar:</strong> aponte pro mesmo "Jobs dir" que você usou na run do Compare (o botão "Ver trajetórias" que aparece ali já faz isso sozinho, sem precisar vir nesta aba) e clique "Start viewer" — abre um link pra uma aba nova. É um processo de vida longa (fica rodando escutando numa porta) até você clicar "Stop" na lista abaixo ou fechar o `gui-server`.</p>
       <form id="view-form">
         <label>Jobs dir</label>
         <input type="text" name="jobsDir" value="jobs" required>
@@ -536,6 +538,7 @@ Por que é ruim: explique a consequência concreta.
       </form>
       <div id="view-output" class="hint" style="margin-top:8px;"></div>
       <h2 style="margin-top:18px;">Running viewers</h2>
+      <p class="hint">Cada linha aqui é um `harbor view` ainda rodando — clique "Stop" quando terminar de olhar (senão fica consumindo uma porta indefinidamente). Esta lista só existe em memória: um restart do `gui-server` esquece os viewers que estavam rodando (eles continuam de pé como processo, só a lista que some — pare manualmente pelo gerenciador de tarefas se precisar).</p>
       <div id="view-list"></div>
     </div>
   </section>

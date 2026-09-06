@@ -114,10 +114,26 @@ o histórico completo de decisões desta instalação.
 
 ### 2.6 Subir a interface gráfica
 
+Use `scripts/start-gui.sh` (macOS/Linux) ou `scripts\start-gui.ps1` (Windows) — eles conferem
+se `harbor`/`podman` existem e se `podman info` responde antes de subir o servidor, e falham
+com uma mensagem clara em vez de um stack trace se algo não estiver pronto. Idempotente,
+pode rodar de novo a qualquer momento:
+
 ```powershell
 cd caminho\pro\harbor-eval-kit
+.\scripts\start-gui.ps1
+```
+```bash
+cd caminho/pro/harbor-eval-kit
+./scripts/start-gui.sh
+```
+
+Se preferir pular a checagem e só subir o servidor direto (equivalente ao que os scripts
+acima fazem por baixo, na última linha):
+```powershell
 node .\scripts\gui-server.ts
 ```
+
 Deixa essa janela aberta (é o servidor rodando — `Ctrl+C` desliga). Abre no navegador:
 ```
 http://127.0.0.1:4173
@@ -307,6 +323,11 @@ mora ali; tudo que é sobre **as evals em si** mora na GUI + `~/.harbor-eval-kit
 - **A ACL do arquivo foi travada** (seção 2.8) pra só a conta do usuário — nem
   Administradores, nem SYSTEM têm mais acesso explícito (antes era herdado do perfil, que já
   bloqueava outras contas, mas não era explícito).
+- **`secrets.env` nunca fica dentro da pasta do projeto** (fica em `~/.harbor-eval-kit/`,
+  fora do repo git) — por isso nunca é versionado. O `.gitignore` do repo ainda assim tem uma
+  regra defensiva pra `secrets.env`/`.env`/`.env.*` (defesa em profundidade: cobre o caso de
+  alguém apontar `HARBOR_EVAL_STATE_DIR` pra dentro do projeto, ou criar um `.env` à mão por
+  engano) — mas isso é cinto-e-suspensório, a proteção real é o arquivo nunca existir ali.
 
 **O que NÃO é garantido tecnicamente** (sendo honesto, não vendendo segurança que não existe):
 
@@ -513,13 +534,29 @@ rodada tiver Judge/rubrics pinados (seção 10.9), o painel já abre com eles pr
 pode ajustar antes de clicar.
 
 ### 10.11 Datasets
-Baixa tasks de terceiros (`harbor dataset download`) em `datasets/<nome>/` — que
-`listTasks()` escaneia junto de `evals/`, então elas aparecem automaticamente no picker do
-Compare, sem virar um conceito separado.
+**O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
+própria task do zero na aba Tasks. **Quando usar**: pra comparar contra um benchmark
+conhecido/validado em vez de uma task sua, ou pra ver exemplos de tasks bem escritas.
+**Quando pular**: opcional inteira — se só for usar tasks próprias, não é pré-requisito de
+nada. O botão "List registry datasets" só imprime um link pro Hub do Harbor (ainda não existe
+um jeito de listar os nomes disponíveis direto no terminal nesta versão) — copie o nome de lá
+pro campo de download. Depois de baixar (`harbor dataset download`) em `datasets/<nome>/`,
+`listTasks()` escaneia essa pasta junto de `evals/`, então as tasks baixadas aparecem
+automaticamente no picker do Compare — não virou um conceito ou fluxo separado.
 
 ### 10.12 Trajectories
-Uso ad-hoc do `harbor view <jobs-dir>` (processo de vida longa; lista de viewers ativos não
-sobrevive a um restart do `gui-server`).
+**O que é**: um segundo servidor web, do próprio Harbor (`harbor view`, não desta GUI), que
+mostra passo a passo tudo que o agent fez dentro do container numa run — comandos, arquivos
+tocados, saída de cada ferramenta, resposta do modelo a cada turno. É a evidência bruta atrás
+do número de reward. **Quando usar**: depois de uma run do Compare, quando o reward sozinho
+não basta — reward baixo e você quer ver onde travou, reward alto e quer confirmar que não foi
+um atalho, ou só quer entender o estilo de trabalho do agent. Complementa o Analyze: Analyze
+dá um veredito resumido de um LLM juiz; aqui você vê a trajetória inteira direto, sem
+intermediário. **Como usar**: aponte pro mesmo jobs-dir da run (o botão "Ver trajetórias" no
+Compare já faz isso sozinho) e clique "Start viewer" — abre um link numa aba nova. É um
+processo de vida longa (fica escutando numa porta) até clicar "Stop" na lista abaixo; a lista
+de viewers ativos é só em memória e não sobrevive a um restart do `gui-server` (os processos
+continuam de pé, só a lista que esquece deles — pare manualmente se precisar).
 
 ### 10.13 Analyze
 Uso ad-hoc do `harbor analyze` num path específico, escolhendo um Judge (aba 8) já cadastrado —
@@ -648,4 +685,6 @@ scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
 gui/index.html                frontend inteiro (HTML+CSS+JS num arquivo só, sem build)
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
+scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
+docs/screenshots/             imagens usadas no README.md
 ```
