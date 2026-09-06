@@ -83,9 +83,13 @@
   <button data-tab="tasks">9. Tasks</button>
   <button data-tab="datasets">Datasets</button>
   <button data-tab="compare">10. Compare</button>
+  <button data-tab="logs">Logs</button>
   <button data-tab="trajectories">Trajectories</button>
   <button data-tab="analyze">Analyze</button>
 </nav>
+<!-- Shared by the Agents and Judges forms: the --agent values the installed Harbor accepts,
+     fetched once from /api/harbor-agents (server-side list, mirrors `harbor run --help`). -->
+<datalist id="harbor-agents-list"></datalist>
 <p class="hint" style="text-align:center;padding:6px 16px 0;">Siga a ordem 1→10 na primeira vez: cadastre chaves, modelos, skills, agentes, critérios/rubrics de avaliação, um juiz e uma task antes de comparar. Datasets/Trajectories/Analyze são ferramentas de apoio, use quando precisar.</p>
 
 <main>
@@ -135,10 +139,18 @@
           <label for="dryRun">Dry run — só valida a configuração (harbor run --print-config), sem gastar nada. Recomendado na primeira vez.</label>
         </div>
 
-        <button class="primary" type="submit">Run comparison</button>
+        <button class="primary" type="submit" id="compare-submit-btn">Run comparison</button>
       </form>
       <p class="hint">Chaves de API cadastradas em "Secrets" são injetadas automaticamente nesta run.</p>
       <pre id="compare-output" class="output"></pre>
+
+      <!-- Live tail of whatever harbor is writing to disk right now. The run itself is still
+           synchronous (one POST that only answers at the end) -- this reads the job's own log
+           files from the jobs dir in parallel, so a multi-minute run stops looking frozen. -->
+      <div id="compare-live" hidden style="margin-top:10px;">
+        <label>Log ao vivo <span class="hint" style="display:inline;margin:0;">— o que o <code>harbor</code> está escrevendo agora. Atualiza a cada 2s; a aba "Logs" mostra o mesmo, inclusive depois que a run termina.</span></label>
+        <pre id="compare-live-log" class="output" style="max-height:260px;overflow:auto;"></pre>
+      </div>
       <div id="compare-post-actions" hidden style="margin-top:10px;">
         <button class="secondary" type="button" id="compare-view-btn">Ver trajetórias</button>
       </div>
@@ -150,8 +162,14 @@
         <p class="hint">O reward acima já é a comparação real. Use isto só quando quiser desempatar candidatos que empataram no reward, ou auditar se algum "hackeou" o teste — não precisa rodar em tudo.</p>
         <label>Judge <span class="hint" style="display:inline;margin:0;">— cadastrado na aba 8. Escolher um pré-marca os rubrics padrão dele abaixo (ainda editável).</span></label>
         <select id="compare-judge-picker"></select>
+        <p class="hint" id="compare-judge-missing" hidden style="color:var(--warn);">⚠ Você já tem rubrics cadastrados, mas nenhum <strong>Judge</strong> — e o Analyze precisa de um. Falta só esse passo: aba <strong>8. Judges</strong> → escolha um model da lista curada high-tier (se o dropdown lá estiver vazio, cadastre antes um desses na aba 2. Models).</p>
         <label>Rubrics <span class="hint" style="display:inline;margin:0;">— marque um ou mais. Nenhum marcado = usa o padrão do Harbor (reward_hacking + task_specification). Cada um marcado vira uma chamada de análise separada por resultado.</span></label>
         <div class="checkbox-group" id="compare-rubric-picker"></div>
+
+        <div class="checkbox-inline" style="margin-top:8px;">
+          <input type="checkbox" id="analyze-validation-mode">
+          <label for="analyze-validation-mode">Modo validação — permitir um model <strong>fora</strong> da lista curada high-tier (ex.: um DeepSeek barato) só pra testar se o pipeline do juiz funciona. O veredito sai marcado como não-válido e <strong>não deve</strong> ser usado como avaliação de verdade.</label>
+        </div>
         <p class="hint">"Analisar" (na tabela acima) roda só aquela linha. "Analisar todas" roda o mesmo Judge + Rubrics marcados aqui em toda linha com <code>ok</code> na tabela, uma de cada vez.</p>
         <button class="secondary" type="button" id="compare-analyze-all-btn">Analisar todas</button>
         <button class="secondary" type="button" id="compare-sort-btn">Ordenar por avaliação</button>
@@ -169,9 +187,9 @@
         <input type="hidden" name="id">
         <div class="row-inline">
           <div><label>Label (apelido)</label><input type="text" name="label" placeholder="Claude Code — padrão" required></div>
-          <div><label>harbor --agent value</label><input type="text" name="agentValue" placeholder="claude-code" required></div>
+          <div><label>harbor --agent value</label><input type="text" name="agentValue" placeholder="claude-code" list="harbor-agents-list" required></div>
         </div>
-        <p class="hint">Valores aceitos pelo Harbor instalado: claude-code, codex, oracle, nop, e outros (veja <code>harbor run --help</code>). "oracle" e "nop" não gastam API — bons para testar o kit.</p>
+        <p class="hint">Comece a digitar para ver os <strong id="harbor-agents-count">…</strong> adapters que o Harbor instalado aceita (o campo continua livre — dá pra passar um import path customizado). <strong>Model-agnostic</strong> (marcados na lista, ex.: <code>mini-swe-agent</code>, <code>terminus</code>, <code>aider</code>) rodam qualquer <code>provider/modelo</code> — são os que você usa pra comparar DeepSeek vs Claude no mesmo agent. Os demais (<code>claude-code</code>, <code>codex</code>, <code>gemini-cli</code>…) são CLIs de um fornecedor específico e falam a API dele; combinar com um model de outro provider é problema do adapter, não algo que este kit garanta. <code>oracle</code> e <code>nop</code> não gastam API — bons pra testar o kit.</p>
 
         <label>Model padrão (opcional)</label>
         <select name="modelId" id="agent-model-select"><option value="">— nenhum (usa o padrão do Harbor) —</option></select>
@@ -268,13 +286,17 @@ NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente n
         <input type="hidden" name="id">
         <div class="row-inline">
           <div><label>Label (apelido)</label><input type="text" name="label" placeholder="Juiz padrão — alto rigor" required></div>
-          <div><label>harbor --agent value (quem executa o julgamento)</label><input type="text" name="agentValue" value="claude-code" required></div>
+          <div><label>harbor --agent value (quem executa o julgamento)</label><input type="text" name="agentValue" value="claude-code" list="harbor-agents-list" required></div>
         </div>
         <p class="hint">É um agente Harbor de verdade rodando com acesso a arquivos (não uma chamada de LLM crua) — ele lê <code>result.json</code>, <code>agent/trajectory.json</code>, <code>test-stdout.txt</code> dentro do trial antes de responder. "claude-code" é o mesmo valor aceito em Agents; troque só se quiser outro agente avaliando.</p>
 
         <label>Judge model</label>
         <select name="modelId" id="judge-model-select"><option value="">— nenhum —</option></select>
         <p class="hint">Só aparecem aqui models (cadastrados na aba Models) cujo <code>provider/modelo</code> bate com a lista curada high-tier do kit — nunca o padrão barato do próprio Harbor (<code>claude-haiku-4-5</code>). Se a lista estiver vazia, volte na aba Models e cadastre um desses: <code id="judge-model-values-hint"></code>.</p>
+        <div class="checkbox-inline">
+          <input type="checkbox" id="judge-validation-mode">
+          <label for="judge-validation-mode">Modo validação — mostrar <strong>todos</strong> os models, inclusive fora da lista curada. Só pra confirmar que o pipeline do juiz roda (ex.: com um DeepSeek barato). Um Judge salvo assim só funciona em análises que também marquem "Modo validação", e o veredito sai carimbado como não-válido.</label>
+        </div>
 
         <label>Instruções do juiz (opcional — substitui o texto padrão do Harbor por completo)</label>
         <textarea name="promptTemplate">You are analyzing an agent trial run. Evaluate the trial against the criteria below, and provide a short rationale for each.
@@ -533,6 +555,27 @@ Por que é ruim: explique a consequência concreta.
     </div>
   </section>
 
+  <!-- ================= LOGS ================= -->
+  <section id="tab-logs" class="tab">
+    <div class="panel">
+      <h2>Logs das execuções</h2>
+      <p class="hint"><strong>O que é:</strong> os arquivos de log que o próprio <code>harbor</code> grava dentro do jobs dir enquanto (e depois que) uma run acontece — <code>job.log</code> do job inteiro, <code>trial.log</code> de cada tentativa, a saída bruta do agent e a do verificador. <strong>Quando usar:</strong> pra acompanhar uma run em andamento (a aba Compare fica esperando sem detalhar o que está acontecendo), ou pra investigar depois por que uma linha deu erro. <strong>Diferença pra "Trajectories":</strong> lá você vê a trajetória estruturada do agent (turnos, ferramentas, edições) no viewer do Harbor; aqui é o log cru de execução, incluindo build da imagem, instalação do agent e o teste rodando — que é onde falha de container/rede/dependência aparece.</p>
+      <div class="row-inline">
+        <div><label>Jobs dir</label><input type="text" id="logs-jobs-dir" value="jobs"></div>
+        <div><label>Job</label><select id="logs-job-picker"></select></div>
+      </div>
+      <label>Arquivo de log</label>
+      <select id="logs-file-picker"></select>
+      <div class="checkbox-inline" style="margin-top:6px;">
+        <input type="checkbox" id="logs-follow" checked>
+        <label for="logs-follow">Seguir (atualiza a cada 2s e rola pro fim) — desmarque pra ler parado sem o texto pular.</label>
+      </div>
+      <button class="secondary" type="button" id="logs-refresh-btn">Atualizar lista</button>
+      <p class="hint" id="logs-status"></p>
+      <pre id="logs-content" class="output" style="max-height:520px;overflow:auto;"></pre>
+    </div>
+  </section>
+
   <!-- ================= TRAJECTORIES ================= -->
   <section id="tab-trajectories" class="tab">
     <div class="panel">
@@ -600,6 +643,7 @@ $$("#tabs button").forEach((btn) => {
     $$(".tab").forEach((s) => s.classList.remove("active"));
     btn.classList.add("active");
     $("#tab-" + btn.dataset.tab).classList.add("active");
+    setLogsPolling(btn.dataset.tab === "logs");
     const fn = tabRefreshers[btn.dataset.tab];
     if (fn) fn();
   });
@@ -663,7 +707,25 @@ function keyStatusBadge(modelValue) {
 }
 
 // ---------- shared registry state ----------
-const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [] };
+const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [], harborAgents: [] };
+
+// The --agent values the installed Harbor accepts, offered as autocomplete on both the Agents
+// and Judges forms. Kept as a <datalist> rather than a <select> on purpose: harbor also takes
+// a custom import path (module.path:ClassName) and ACP shorthands, so the field must stay free.
+function renderHarborAgentsDatalist() {
+  const dl = $("#harbor-agents-list");
+  if (!dl) return;
+  dl.innerHTML = state.harborAgents
+    .map((a) => {
+      const tags = [];
+      if (a.modelAgnostic) tags.push("model-agnostic");
+      if (a.value === "oracle" || a.value === "nop") tags.push("sem custo de API");
+      return `<option value="${escapeHtml(a.value)}"${tags.length ? ` label="${escapeHtml(tags.join(" · "))}"` : ""}></option>`;
+    })
+    .join("");
+  const countEl = $("#harbor-agents-count");
+  if (countEl) countEl.textContent = String(state.harborAgents.length);
+}
 
 async function refreshAll() {
   state.models = await api("GET", "/api/models");
@@ -676,6 +738,11 @@ async function refreshAll() {
   state.secretNames = await api("GET", "/api/secrets");
   if (state.judgeModels.length === 0) state.judgeModels = await api("GET", "/api/judge-models");
   if (PROVIDERS.length === 0) { PROVIDERS = await api("GET", "/api/providers"); renderProviderSelect(); }
+  if (state.harborAgents.length === 0) {
+    const ha = await api("GET", "/api/harbor-agents");
+    state.harborAgents = ha.agents || [];
+    renderHarborAgentsDatalist();
+  }
 
   renderModelsList();
   renderSkillsList();
@@ -1042,15 +1109,28 @@ const judgesEdit = wireEditableForm(judgesForm, {
 function renderJudgeModelSelect(selectedId = "") {
   const sel = $("#judge-model-select");
   const allowedValues = new Set(state.judgeModels.map((m) => m.value));
-  const options = state.models.filter((m) => allowedValues.has(m.value));
+  // Normally only the curated high-tier models are offered. "Modo validação" widens it to every
+  // registered model so the analyze pipeline can be smoke-tested with something cheap -- a judge
+  // saved that way only works on analyze calls that also ask for validationMode, and its verdict
+  // is stamped as not-a-real-evaluation.
+  const validation = $("#judge-validation-mode") && $("#judge-validation-mode").checked;
+  const options = validation ? state.models : state.models.filter((m) => allowedValues.has(m.value));
   sel.innerHTML = '<option value="">— nenhum —</option>' +
-    options.map((m) => `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)} (${escapeHtml(m.value)})</option>`).join("");
+    options.map((m) => {
+      const nonCurated = !allowedValues.has(m.value);
+      const suffix = nonCurated ? " ⚠ fora da lista curada" : "";
+      return `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)} (${escapeHtml(m.value)})${suffix}</option>`;
+    }).join("");
   $("#judge-model-values-hint").textContent = state.judgeModels.map((m) => m.value).join(", ");
 }
 
 function renderJudgeDefaultRubricPicker(checkedIds = []) {
   checkboxGroup($("#judge-default-rubrics"), state.rubrics, { name: "defaultRubricIds", checkedIds });
 }
+
+$("#judge-validation-mode").addEventListener("change", () => {
+  renderJudgeModelSelect($("#judge-model-select").value);
+});
 
 function renderJudgesList() {
   const list = $("#judges-list");
@@ -1080,6 +1160,10 @@ function renderJudgesList() {
 
 // ---------- judge pickers used across Compare / Analyze / Task editor ----------
 function renderJudgePickers() {
+  // Having rubrics but no judge is a dead end the UI used to just show as an empty dropdown --
+  // say which single step is missing instead.
+  const missing = $("#compare-judge-missing");
+  if (missing) missing.hidden = !(state.rubrics.length > 0 && state.judges.length === 0);
   const opts = state.judges.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(j.label)}</option>`).join("");
   const placeholder = state.judges.length
     ? '<option value="">— nenhum —</option>'
@@ -1233,8 +1317,12 @@ async function analyzeRow(idx) {
       ? "padrão do Harbor"
       : state.rubrics.find((r) => r.id === rubricId)?.label || rubricId;
     try {
-      const res = await api("POST", "/api/analyze", { path, rubricId, judgeId });
+      const validationMode = $("#analyze-validation-mode") ? $("#analyze-validation-mode").checked : false;
+      const res = await api("POST", "/api/analyze", { path, rubricId, judgeId, validationMode });
       const analysis = res.analysis;
+      if (res.validationMode) {
+        block.innerHTML += `<p class="hint" style="color:var(--warn);">⚠ Modo validação: julgado por <code>${escapeHtml(res.judgeModel || "?")}</code>, que está fora da lista curada high-tier. Serve pra confirmar que o pipeline roda — <strong>não</strong> vale como avaliação.</p>`;
+      }
       row.analyses.push({ rubricLabel, analysis });
       const cost = analysis && typeof analysis.estimated_cost_usd === "number" ? analysis.estimated_cost_usd : null;
       if (cost !== null) totalJudgeCostUsd += cost;
@@ -1306,7 +1394,22 @@ $("#compare-form").addEventListener("submit", async (e) => {
   $("#compare-post-actions").hidden = true;
   $("#compare-analyze-panel").hidden = true;
   $("#compare-analysis-results").innerHTML = "";
-  out.textContent = "Rodando… pode demorar se não for dry run.";
+
+  // A real run takes minutes and the POST only answers at the very end, so without this the
+  // page looks frozen and a second click would fire a second harbor run into the same job
+  // name. Disable the button, show elapsed time, and tail the job's log while we wait.
+  const submitBtn = $("#compare-submit-btn");
+  const startedAt = Date.now();
+  submitBtn.disabled = true;
+  const originalLabel = submitBtn.textContent;
+  submitBtn.textContent = "Rodando…";
+  const tick = setInterval(() => {
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    out.textContent = `Rodando há ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s… ${body.dryRun ? "(dry run)" : "pode demorar — acompanhe o log abaixo ou na aba Logs."}`;
+  }, 1000);
+  out.textContent = "Rodando…";
+  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir);
+
   try {
     const result = await api("POST", "/api/compare", body);
     lastCompareJobsDir = jobsDir;
@@ -1324,8 +1427,49 @@ $("#compare-form").addEventListener("submit", async (e) => {
     }
   } catch (err) {
     out.textContent = "Erro: " + err.message;
+  } finally {
+    clearInterval(tick);
+    if (liveStop) liveStop();
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
   }
 });
+
+// Tails whichever job dir harbor touched most recently while a Compare run is in flight. The
+// job name isn't known to the page in advance (the server derives it from the combo), so it
+// follows "newest job dir" rather than a name -- good enough for a progress view, and the Logs
+// tab is there for picking a specific job/file deliberately.
+function startCompareLiveLog(jobsDir) {
+  const box = $("#compare-live");
+  const pre = $("#compare-live-log");
+  box.hidden = false;
+  pre.textContent = "";
+  let job = null;
+  let file = null;
+  let offset = 0;
+  const timer = setInterval(async () => {
+    try {
+      if (!job) {
+        const jobs = await api("GET", `/api/logs/jobs?jobsDir=${encodeURIComponent(jobsDir)}`);
+        const running = jobs.find((j) => j.running) || jobs[0];
+        if (!running) return;
+        job = running.name;
+      }
+      if (!file) {
+        const files = await api("GET", `/api/logs/files?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}`);
+        file = files.find((f) => f.endsWith("trial.log")) || files.find((f) => f === "job.log") || files[0];
+        if (!file) return;
+      }
+      const tail = await api(
+        "GET",
+        `/api/logs/tail?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}&file=${encodeURIComponent(file)}&offset=${offset}`
+      );
+      if (tail.content) { pre.textContent += tail.content; pre.scrollTop = pre.scrollHeight; }
+      offset = tail.nextOffset;
+    } catch { /* job dir not created yet, or file rotated -- next tick retries */ }
+  }, 2000);
+  return () => clearInterval(timer);
+}
 
 // ================= SECRETS =================
 function renderSecretsList() {
@@ -1445,7 +1589,9 @@ $("#task-form").addEventListener("submit", async (e) => {
     out.textContent = (res.stdout || "") + (res.stderr || "");
     await refreshTaskList();
     const match = (res.stdout || "").replace(/\r?\n/g, "").match(/Task initialized in\s+(.+?)(?:\s*Next steps|$)/);
-    if (match) openTaskEditor(match[1].trim());
+    // openTaskEditor scrolls the editor into view itself -- without it the editor opens ~1300px
+    // below the fold and clicking "Create task" looks like it did nothing.
+    if (match) await openTaskEditor(match[1].trim());
   } catch (err) { out.textContent = "Error: " + err.message; }
 });
 
@@ -1472,6 +1618,11 @@ async function refreshTaskList() {
   const picker = $("#compare-task-picker");
   picker.innerHTML = '<option value="">— escolher uma task cadastrada —</option>' +
     tasks.map((t) => `<option value="${escapeHtml(t.path)}">[${t.source}] ${escapeHtml(t.path)}${t.stub ? " (stub — precisa preencher)" : ""}</option>`).join("");
+  // Re-rendering the options resets the selection, which left the picker showing the
+  // placeholder while the path field below still held a task -- two widgets disagreeing about
+  // the same value. Re-select whatever the path field actually points at.
+  const currentPath = $("#compare-form input[name=path]").value;
+  if (currentPath && tasks.some((t) => t.path === currentPath)) picker.value = currentPath;
 }
 tabRefreshers.tasks = refreshTaskList;
 $("#task-refresh").addEventListener("click", refreshTaskList);
@@ -1629,6 +1780,94 @@ $("#dataset-download-form").addEventListener("submit", async (e) => {
   } catch (err) { out.textContent = "Error: " + err.message; }
 });
 
+// ================= LOGS =================
+// Reads the log files harbor writes into the jobs dir. Polling (not SSE/websocket) on purpose:
+// the run is a plain child process writing to disk, so tailing the file is the same mechanism
+// whether the run was started here, by the CLI, or by a gui-server that has since restarted.
+
+const logsState = { offset: 0, timer: null, job: null, file: null };
+
+async function refreshLogJobs() {
+  const jobsDir = $("#logs-jobs-dir").value || "jobs";
+  let jobs = [];
+  try {
+    jobs = await api("GET", `/api/logs/jobs?jobsDir=${encodeURIComponent(jobsDir)}`);
+  } catch (err) {
+    $("#logs-status").textContent = "Erro ao listar jobs: " + err.message;
+    return;
+  }
+  const picker = $("#logs-job-picker");
+  const previous = picker.value;
+  picker.innerHTML = jobs.length
+    ? jobs.map((j) => `<option value="${escapeHtml(j.name)}">${j.running ? "▶ " : ""}${escapeHtml(j.name)}</option>`).join("")
+    : '<option value="">— nenhuma run neste jobs dir ainda —</option>';
+  if (previous && jobs.some((j) => j.name === previous)) picker.value = previous;
+  if (picker.value !== logsState.job) await refreshLogFiles();
+}
+
+async function refreshLogFiles() {
+  const jobsDir = $("#logs-jobs-dir").value || "jobs";
+  const job = $("#logs-job-picker").value;
+  logsState.job = job;
+  if (!job) { $("#logs-file-picker").innerHTML = ""; return; }
+  let files = [];
+  try {
+    files = await api("GET", `/api/logs/files?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}`);
+  } catch { files = []; }
+  const picker = $("#logs-file-picker");
+  const previous = picker.value;
+  picker.innerHTML = files.length
+    ? files.map((f) => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join("")
+    : '<option value="">— sem arquivos de log ainda —</option>';
+  if (previous && files.includes(previous)) picker.value = previous;
+  else {
+    // Files are listed newest-first, which puts tiny artifacts like verifier/reward.txt (one
+    // byte) on top. What you actually want open is the execution log, so prefer that.
+    const preferred = files.find((f) => f.endsWith("trial.log")) || files.find((f) => f === "job.log");
+    if (preferred) picker.value = preferred;
+    logsState.offset = 0;
+    $("#logs-content").textContent = "";
+  }
+  await pollLogTail(true);
+}
+
+async function pollLogTail(reset) {
+  const jobsDir = $("#logs-jobs-dir").value || "jobs";
+  const job = $("#logs-job-picker").value;
+  const file = $("#logs-file-picker").value;
+  if (!job || !file) return;
+  if (reset || file !== logsState.file) { logsState.offset = 0; logsState.file = file; $("#logs-content").textContent = ""; }
+  try {
+    const tail = await api(
+      "GET",
+      `/api/logs/tail?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}&file=${encodeURIComponent(file)}&offset=${logsState.offset}`
+    );
+    if (tail.content) {
+      const el = $("#logs-content");
+      el.textContent += tail.content;
+      if ($("#logs-follow").checked) el.scrollTop = el.scrollHeight;
+    }
+    logsState.offset = tail.nextOffset;
+    $("#logs-status").textContent =
+      `${(tail.size / 1024).toFixed(1)} KB` + (tail.truncated ? " (mostrando só os últimos 200 KB)" : "") + " — " + new Date().toLocaleTimeString();
+  } catch (err) {
+    $("#logs-status").textContent = "Erro ao ler log: " + err.message;
+  }
+}
+
+$("#logs-refresh-btn").addEventListener("click", () => refreshLogJobs());
+$("#logs-jobs-dir").addEventListener("change", () => refreshLogJobs());
+$("#logs-job-picker").addEventListener("change", () => refreshLogFiles());
+$("#logs-file-picker").addEventListener("change", () => pollLogTail(true));
+$("#logs-follow").addEventListener("change", () => { if ($("#logs-follow").checked) pollLogTail(false); });
+
+// One interval for the whole tab, started only while it's the visible tab -- no background
+// polling of a tab nobody is looking at.
+function setLogsPolling(on) {
+  if (logsState.timer) { clearInterval(logsState.timer); logsState.timer = null; }
+  if (on) logsState.timer = setInterval(() => { if ($("#logs-follow").checked) pollLogTail(false); }, 2000);
+}
+
 // ================= TRAJECTORIES =================
 $("#view-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1653,6 +1892,7 @@ async function refreshViewList() {
   $$(".stop-view").forEach((btn) => btn.onclick = async () => { await api("POST", `/api/view/${btn.dataset.id}/stop`); refreshViewList(); });
 }
 tabRefreshers.trajectories = refreshViewList;
+tabRefreshers.logs = refreshLogJobs;
 
 // ================= ANALYZE =================
 $("#analyze-form").addEventListener("submit", async (e) => {

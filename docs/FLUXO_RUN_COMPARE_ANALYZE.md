@@ -32,6 +32,27 @@ harbor run \
 Repare: `--model` e `--skill` são **condicionais**. É isso que torna Model e Skill opcionais
 em vez de obrigatórios — o que a tabela abaixo detalha.
 
+### 1.1 Nem todo agent aceita qualquer model
+
+O Harbor instalado aceita **42 valores** de `--agent`, e a diferença entre eles decide se uma
+comparação model-vs-model é possível:
+
+- **Model-agnostic** (LiteLLM por baixo — aceitam qualquer `provider/modelo`):
+  `mini-swe-agent`, `terminus`/`terminus-1`/`terminus-2`, `aider`, `opencode`, `openhands`,
+  `openhands-sdk`, `swe-agent`, `goose`, `langgraph`, `cline-cli`, `dspy-rlm`, `deerflow`,
+  `trae-agent`. **Use um destes** para trocar só o model mantendo o resto igual.
+- **CLIs de um fornecedor** (falam a API do próprio fornecedor): `claude-code`, `codex`,
+  `gemini-cli`, `cursor-cli`, `copilot-cli`, `qwen-coder`, `kimi-cli`… Passar um model de
+  outro provider para eles é problema do adapter, não algo que este kit garanta.
+- **Sem custo de API**: `oracle` (aplica o `solution/solve.sh` da própria task) e `nop` (não
+  faz nada).
+
+O campo `--agent value` na aba Agents tem autocomplete com os 42, marcando quais são
+model-agnostic — a fonte é `HARBOR_AGENTS` em `scripts/lib/harbor.ts`, servida por
+`GET /api/harbor-agents`. É um espelho mantido à mão de `harbor run --help` (o Harbor não expõe
+essa lista de forma legível por máquina — `harbor agent list` não existe), então revalide ao
+atualizar o Harbor.
+
 ## 2. Tabela mestre de pré-requisitos
 
 | Cadastro | Run/Compare | Analyze | Por que existe |
@@ -41,6 +62,7 @@ em vez de obrigatórios — o que a tabela abaixo detalha.
 | **3. Skill** | opcional | ignorado | instruções extras entregues ao agent (`--skill`) |
 | **4. Skill Set** | opcional | ignorado | agrupa skills pra tratar como uma unidade comparável |
 | **5. Agent** | **obrigatório** | opcional | é a linha do Compare; define quem resolve, com que model padrão |
+| **Adapter model-agnostic** | necessário p/ comparar providers | idem | só `mini-swe-agent`, `terminus`, `aider` e cia. aceitam qualquer `provider/modelo` — ver §2.1 |
 | **6. Criteria** | não usado | opcional | as perguntas individuais que o juiz responde |
 | **7. Judge Rubric** | não usado | opcional | agrupa critérios; sem rubric, o Harbor usa o padrão dele |
 | **8. Judge** | não usado | **obrigatório na prática** | quem julga: agent + model high-tier + instruções |
@@ -151,6 +173,16 @@ A lista (`JUDGE_MODELS` em `scripts/lib/harbor.ts`) é hoje:
 **Motivo:** o juiz existe justamente para pegar o que o teste barato não pegou. Um juiz barato
 derrota o propósito — por isso o padrão do próprio Harbor (`claude-haiku-4-5`) é bloqueado aqui
 de propósito.
+
+**Escape hatch — "Modo validação".** Para *conferir se o Analyze funciona na sua máquina* sem
+pagar um model high-tier, marque "Modo validação" nos **dois** lugares: na aba 8 (Judges), que
+libera o dropdown a listar todos os models cadastrados, cada um fora da lista marcado com
+`⚠ fora da lista curada`; e no painel Analisar (aba Compare), que envia `validationMode: true`
+na chamada. Sem o flag nas duas pontas o gate recusa normalmente — não existe afrouxamento
+silencioso — e a resposta sai carimbada (`validationMode: true` + aviso na tela) para que o
+veredito nunca seja confundido com avaliação real. Validado em 2026-09-06 com
+`deepseek/deepseek-chat` julgando uma run real: `clean_code: pass`, `no_prolixity: pass`,
+`analysis.json` gravado e renderizado corretamente por centavos.
 
 **Consequência prática — a cadeia inteira que um Judge exige:**
 

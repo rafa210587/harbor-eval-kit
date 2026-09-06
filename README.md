@@ -173,12 +173,23 @@ full explanation of every tab (what it's for, exactly how to use it, edge cases)
     point at a Task, run. Reward, cost, tokens, and duration show up per row; an optional
     **Analyze** panel judges any result afterward (never automatic).
 
-Two support tools, not numbered because they're used situationally, not sequentially:
+Three support tools, not numbered because they're used situationally, not sequentially:
 
 - **Datasets** — pull a published third-party task suite (`harbor dataset download`); its
   tasks then show up automatically alongside your own in Tasks/Compare.
+- **Logs** — live tail of the log files harbor writes into the jobs dir (image build, agent
+  install, the test running). Follows a run in progress and stays available afterwards; works
+  for runs started by the CLI too, since the state is read from disk rather than kept in
+  memory.
 - **Trajectories** — opens Harbor's own step-by-step viewer (`harbor view`) for a finished
   job, so you can see exactly what an agent did inside the container, not just its reward.
+
+On agents: Harbor accepts **42** `--agent` adapters, and the Agents tab autocompletes them,
+flagging which are **model-agnostic** (LiteLLM-backed: `mini-swe-agent`, `terminus`, `aider`,
+`opencode`, `openhands`, …). Those are the ones that let you hold the agent fixed and swap only
+the model — a vendor CLI adapter (`claude-code`, `codex`, `gemini-cli`) speaks its own vendor's
+API. Verified on 2026-09-06: `mini-swe-agent` + `deepseek/deepseek-chat` solved a real task at
+reward 1.0 for $0.0017 in 63s.
 
 ## How comparison actually works
 
@@ -242,7 +253,10 @@ itself (Podman is preexisting infrastructure, not something this kit installed).
 
 ## Known limitations
 
-- Compare in the GUI is synchronous — no live streaming progress, the page just waits.
+- Compare in the GUI is still synchronous — one POST that only answers once every combination
+  finished, so there are no partial per-row results and no way to cancel mid-run. It is no
+  longer *blind*, though: the button locks while running, an elapsed-time counter ticks, and a
+  live tail of harbor's own log files shows what's happening (also in the **Logs** tab).
 - `harbor dataset list` (this Harbor version) only prints a Hub link, not a browsable list.
 - A Judge can't be given a real tool-accessible skill (no `--skill` flag on `harbor analyze`)
   — only custom instructions via `--prompt`. Confirmed against Harbor's own source, not a gap

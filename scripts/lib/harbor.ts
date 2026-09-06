@@ -9,6 +9,10 @@ import {
   readFileSync,
   existsSync,
   readdirSync,
+  statSync,
+  openSync,
+  readSync,
+  closeSync,
 } from "node:fs";
 import { join, basename, dirname, relative, isAbsolute } from "node:path";
 import { homedir } from "node:os";
@@ -936,6 +940,177 @@ export function writeTaskFiles(taskDir: string, files: Partial<TaskFiles>): void
     const full = join(taskDir, TASK_FILE_MAP[key]);
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, content, "utf-8");
+  }
+}
+
+// ---------- Harbor agent adapters ----------
+/**
+ * The `--agent` values the installed Harbor accepts, from `harbor run --help` (Harbor 0.22.0).
+ * The GUI used to only hint at four of these in prose, which made the most useful question
+ * unanswerable from the UI: *which adapter can drive a non-Anthropic model?* Not every adapter
+ * is model-agnostic -- a vendor CLI adapter (claude-code, codex, gemini-cli, ...) speaks its
+ * own vendor's API, so pairing it with an arbitrary `--model` is not something this kit can
+ * promise. `modelAgnostic: true` marks the LiteLLM-backed adapters that take any
+ * `provider/model` string; those are the ones to pick when comparing across providers.
+ *
+ * Validated end-to-end on 2026-09-06: `mini-swe-agent` + `deepseek/deepseek-chat` scored
+ * reward 1.0 on a real task for $0.0017.
+ *
+ * This is a hand-maintained mirror of Harbor's own list, not something Harbor exposes
+ * machine-readably (`harbor agent list` does not exist -- confirmed: "No such command").
+ * Re-check it against `harbor run --help` when upgrading Harbor.
+ */
+export const HARBOR_AGENTS: { value: string; modelAgnostic: boolean }[] = [
+  { value: "aider", modelAgnostic: true },
+  { value: "antigravity-cli", modelAgnostic: false },
+  { value: "antigravity-sdk", modelAgnostic: false },
+  { value: "claude-code", modelAgnostic: false },
+  { value: "cline-cli", modelAgnostic: true },
+  { value: "codex", modelAgnostic: false },
+  { value: "computer-1", modelAgnostic: false },
+  { value: "copilot-cli", modelAgnostic: false },
+  { value: "cortex-code", modelAgnostic: false },
+  { value: "cursor-cli", modelAgnostic: false },
+  { value: "deerflow", modelAgnostic: true },
+  { value: "devin", modelAgnostic: false },
+  { value: "dspy-rlm", modelAgnostic: true },
+  { value: "eve", modelAgnostic: false },
+  { value: "fx", modelAgnostic: false },
+  { value: "gemini-cli", modelAgnostic: false },
+  { value: "goose", modelAgnostic: true },
+  { value: "grok-build", modelAgnostic: false },
+  { value: "hermes", modelAgnostic: false },
+  { value: "junie", modelAgnostic: false },
+  { value: "kimi-cli", modelAgnostic: false },
+  { value: "kimi-code", modelAgnostic: false },
+  { value: "langgraph", modelAgnostic: true },
+  { value: "mcode", modelAgnostic: false },
+  { value: "mimo", modelAgnostic: false },
+  { value: "mini-swe-agent", modelAgnostic: true },
+  { value: "nemo-agent", modelAgnostic: false },
+  { value: "nop", modelAgnostic: false },
+  { value: "openclaw", modelAgnostic: false },
+  { value: "opencode", modelAgnostic: true },
+  { value: "openhands", modelAgnostic: true },
+  { value: "openhands-sdk", modelAgnostic: true },
+  { value: "oracle", modelAgnostic: false },
+  { value: "pi", modelAgnostic: false },
+  { value: "qwen-coder", modelAgnostic: false },
+  { value: "rovodev-cli", modelAgnostic: false },
+  { value: "swe-agent", modelAgnostic: true },
+  { value: "terminus", modelAgnostic: true },
+  { value: "terminus-1", modelAgnostic: true },
+  { value: "terminus-2", modelAgnostic: true },
+  { value: "trae-agent", modelAgnostic: true },
+  { value: "vibe", modelAgnostic: false },
+];
+
+/** `oracle` (applies the task's own solution/solve.sh) and `nop` (does nothing) call no LLM at
+ *  all -- the zero-cost way to check a task's test.sh rewards correctly before spending API. */
+export const FREE_AGENTS = ["oracle", "nop"];
+
+// ---------- Job logs ----------
+
+export interface JobLogListing {
+  /** Path relative to the jobs dir, usable as the `job` query param of the tail endpoint. */
+  name: string;
+  /** Epoch ms of the most recently touched log file inside this job dir. */
+  mtimeMs: number;
+  running: boolean;
+}
+
+/**
+ * Lists job directories under `jobsDir`, newest first. `running` is read from the job's own
+ * result.json (`finished_at: null` while harbor is still working) rather than from any state
+ * this server keeps -- so a job started by the CLI, or one still going after a `gui-server`
+ * restart, is reported just as accurately as one this process spawned.
+ */
+export function listJobLogs(jobsDir: string): JobLogListing[] {
+  if (!existsSync(jobsDir)) return [];
+  const out: JobLogListing[] = [];
+  for (const entry of readdirSync(jobsDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+    const dir = join(jobsDir, entry.name);
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(dir).mtimeMs;
+    } catch {
+      continue;
+    }
+    let running = false;
+    const resultPath = join(dir, "result.json");
+    if (existsSync(resultPath)) {
+      try {
+        running = JSON.parse(readFileSync(resultPath, "utf-8")).finished_at === null;
+      } catch {
+        running = false;
+      }
+    }
+    out.push({ name: entry.name, mtimeMs, running });
+  }
+  return out.sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+/**
+ * Every `.log` file inside one job dir (the job's own `job.log` plus each trial's `trial.log`),
+ * newest first, as paths relative to the job dir.
+ */
+export function listJobLogFiles(jobsDir: string, job: string): string[] {
+  const jobDir = safeJoinUnderDir(jobsDir, job);
+  if (!jobDir || !existsSync(jobDir)) return [];
+  const out: { rel: string; mtimeMs: number }[] = [];
+  const walk = (dir: string, prefix: string, depth: number): void => {
+    if (depth > 3) return;
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, e.name);
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(abs, rel, depth + 1);
+      else if (e.name.endsWith(".log") || e.name.endsWith(".txt")) {
+        try {
+          out.push({ rel, mtimeMs: statSync(abs).mtimeMs });
+        } catch { /* file vanished mid-scan (harbor rotating artifacts) -- skip it */ }
+      }
+    }
+  };
+  walk(jobDir, "", 0);
+  return out.sort((a, b) => b.mtimeMs - a.mtimeMs).map((f) => f.rel);
+}
+
+export interface LogTail {
+  content: string;
+  /** Byte offset to pass back as `offset` next poll, so only new bytes cross the wire. */
+  nextOffset: number;
+  size: number;
+  truncated: boolean;
+}
+
+/**
+ * Reads a log file from `offset` to EOF. Both path segments are guarded with
+ * safeJoinUnderDir, so a crafted `job`/`file` can never escape the jobs dir. A file that
+ * shrank since the last poll (harbor rewrote it) resets the offset to 0 instead of returning
+ * garbage.
+ */
+export function tailJobLog(jobsDir: string, job: string, file: string, offset: number): LogTail | null {
+  const jobDir = safeJoinUnderDir(jobsDir, job);
+  if (!jobDir) return null;
+  const target = safeJoinUnderDir(jobDir, file);
+  if (!target || !existsSync(target)) return null;
+  const size = statSync(target).size;
+  const MAX_BYTES = 200_000;
+  let start = offset > size ? 0 : Math.max(0, offset);
+  let truncated = false;
+  if (size - start > MAX_BYTES) {
+    start = size - MAX_BYTES;
+    truncated = true;
+  }
+  const fd = openSync(target, "r");
+  try {
+    const length = size - start;
+    if (length <= 0) return { content: "", nextOffset: size, size, truncated: false };
+    const buf = Buffer.alloc(length);
+    readSync(fd, buf, 0, length, start);
+    return { content: buf.toString("utf-8"), nextOffset: size, size, truncated };
+  } finally {
+    closeSync(fd);
   }
 }
 

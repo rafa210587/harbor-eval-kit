@@ -24,7 +24,12 @@ Report each of these as up/down/unknown, cheaply, with no side effects:
    report the GUI as down (not an error) — that's a normal "not started yet" state.
 3. **Harbor CLI**: `harbor --version` (already covered by the GUI's own `/api/status` if the
    GUI is up — only shell out to it directly if the GUI is down).
-4. Do **not** run `harbor run`/`harbor init --task`/any smoke test, and do not start or stop
+4. **Runs in progress**: `GET /api/logs/jobs?jobsDir=jobs` lists the job directories with a
+   `running` flag read from each job's own `result.json` (`finished_at: null`). Use it to
+   answer "is an eval running right now?" without starting anything. `GET /api/logs/files` and
+   `GET /api/logs/tail` (byte-offset incremental) read the logs themselves if the user asks
+   what a running job is doing — the GUI's own **Logs** tab uses these same three routes.
+5. Do **not** run `harbor run`/`harbor init --task`/any smoke test, and do not start or stop
    anything — this is read-only. If something is down, hand off to `harbor-up` to bring it up
    or `harbor-doctor` to actually diagnose why, rather than fixing it inline here.
 

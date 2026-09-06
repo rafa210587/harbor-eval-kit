@@ -1,0 +1,30 @@
+schema_version = "1.4"
+artifacts = []
+
+[task]
+name = "harbor-eval-kit/soma-fracoes"
+version = "1.0.0"
+description = "Soma duas fracoes e devolve o resultado simplificado"
+authors = []
+keywords = []
+
+[metadata]
+
+[verifier]
+timeout_sec = 600.0
+collect = []
+
+[verifier.env]
+
+[agent]
+timeout_sec = 600.0
+
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+mcp_servers = []
+
+[environment.env]
+
+[solution.env]

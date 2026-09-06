@@ -160,17 +160,22 @@ quisesse testar se uma skill de "boas práticas Python" muda o resultado, isso v
 
 | Nome | agent (Harbor) | model padrão |
 |---|---|---|
-| `claude-code-anthropic` | `claude-code` | `claude-sonnet-5` |
-| `claude-code-deepseek` | `claude-code` | `deepseek-chat` |
+| `resolvedor-claude` | `mini-swe-agent` | `claude-sonnet-5` |
+| `resolvedor-deepseek` | `mini-swe-agent` | `deepseek-chat` |
 
-> **Honestidade:** este kit só passa o `model` escolhido para o adapter `--agent` que o Harbor
-> vai rodar — se aquele adapter específico realmente sabe usar um model fora do provider que
-> ele foi desenhado para (aqui, um adapter chamado `claude-code` recebendo um model DeepSeek) é
-> uma questão do Harbor e do adapter em si, não algo que esta GUI controla ou garante. Confirme
-> com `harbor run --help` / a documentação do adapter antes de tirar conclusões de custo se o
-> seu Harbor instalado for estrito quanto a isso. Nesta história assumimos que funciona, para
-> ilustrar o mecanismo de comparação — o ponto é *como* comparar, não uma promessa de
-> compatibilidade universal.
+> **Por que `mini-swe-agent` e não `claude-code`?** O Harbor instalado aceita 42 valores de
+> `--agent`, divididos em dois tipos. Os **model-agnostic** (`mini-swe-agent`, `terminus`,
+> `aider`, `opencode`, `openhands`, `swe-agent`, `goose`, `langgraph`…) são construídos sobre
+> o LiteLLM e aceitam qualquer string `provider/modelo` — são esses que permitem trocar só o
+> model mantendo todo o resto igual, que é exatamente o que uma comparação model-vs-model
+> exige. Os demais são CLIs de um fornecedor específico (`claude-code`, `codex`, `gemini-cli`,
+> `cursor-cli`…) e falam a API daquele fornecedor; combiná-los com um model de outro provider
+> é problema do adapter, não algo que este kit garanta. Na aba Agents o campo
+> `--agent value` tem autocomplete com os 42, marcando quais são model-agnostic.
+>
+> **Validado de verdade** (2026-09-06, nesta máquina): `mini-swe-agent` +
+> `deepseek/deepseek-chat` resolveu a task `soma-fracoes` com reward **1.0**, custo
+> **$0,0017**, em **63s**.
 
 ### 4.5 — Um rubric simples pro Judge (abas 6 e 7)
 
@@ -194,41 +199,84 @@ Task salva como `time/soma-fracoes`.
 
 ### 4.8 — Rodar a comparação (aba 10. Compare)
 
-1. Task: `time/soma-fracoes`.
-2. Adiciona linha com Agent `claude-code-anthropic` (model já vem pré-preenchido).
-3. Adiciona linha com Agent `claude-code-deepseek`.
+1. Task: `harbor-eval-kit/soma-fracoes`.
+2. Adiciona linha com Agent `resolvedor-deepseek` (model já vem pré-preenchido).
+3. Adiciona linha com Agent `resolvedor-claude`.
 4. `n-attempts = 3` (reduz ruído de amostra pequena), `concurrency = 2`.
-5. **Rodar.**
+5. **Rodar.** O botão trava enquanto roda (não dá pra disparar duas runs no mesmo job por
+   engano), aparece um cronômetro, e o painel **Log ao vivo** logo abaixo mostra o que o
+   `harbor` está escrevendo agora — build da imagem, instalação do agent, teste rodando.
 
-Resultado (exemplo real de ordem de grandeza, não um benchmark oficial):
+**Números reais medidos nesta máquina** (2026-09-06, `n-attempts = 1`, a linha DeepSeek):
 
-| Agent | Model | Reward médio | Custo total | Duração |
-|---|---|---|---|---|
-| claude-code-anthropic | claude-sonnet-5 | 1.0 (3/3) | $0.018 | 42s |
-| claude-code-deepseek | deepseek-chat | 0.67 (2/3) | $0.002 | 51s |
+| Agent | Model | Reward | Custo | Tokens in/out | Duração |
+|---|---|---|---|---|---|
+| mini-swe-agent | `deepseek/deepseek-chat` | **1.0** | **$0,0017** | 5.970 / 633 | 63,5s |
 
-DeepSeek saiu ~9x mais barato, mas falhou 1 das 3 tentativas.
+Uma segunda execução idêntica deu reward 1.0 por $0,0026 — a variação de custo entre runs da
+mesma combinação vem do número de turnos que o agent precisou, não de preço diferente.
 
-### 4.9 — Analisar a tentativa que passou no reward (opcional)
+> A linha do Claude nesta tabela não foi medida — o exercício aqui foi validar o mecanismo com
+> o model mais barato. Rode você mesmo a segunda linha pra ter o comparativo do seu caso: é
+> literalmente adicionar a outra entrada e clicar Rodar.
 
-Antes de decidir, Rafael clica **Analisar** na linha do DeepSeek com `quality-judge` +
-`Python Quality`: quer saber se as 2 tentativas que passaram fizeram isso de forma limpa ou
-"hackeando" o teste (ex.: hard-code do valor esperado). O Judge é um agent Harbor de verdade
-com acesso aos arquivos do trial (`result.json`, `trajectory.json`, `test-stdout.txt`), não
-uma chamada de LLM crua — então a resposta cita trechos reais do código gerado.
+### 4.9 — Analisar (opcional)
 
-### 4.10 — Ver a tentativa que falhou (Trajectories)
+Reward 1.0 responde "passou", não "passou honestamente". Clicando **Analisar** na linha, com
+um Judge + o rubric `Python Quality`, o juiz lê os arquivos do trial (`result.json`,
+`agent/trajectory.json`, `verifier/test-stdout.txt`) — é um agent Harbor de verdade com acesso
+a arquivo, não uma chamada de LLM crua sobre um resumo.
 
-Na linha do DeepSeek, **Ver trajetórias** abre o `harbor view` daquele job — Rafael vê
-passo a passo onde o agent se perdeu (nesse exemplo: confundiu `math.gcd` com uma
-implementação própria incorreta de MDC).
+Saída real desta run (juiz rodado em **modo validação**, ver 4.10):
 
-### 4.11 — Decisão
+> **Resumo:** o agent inspecionou o `/app` vazio, escreveu a solução usando `math.gcd` da
+> stdlib, e durante a verificação escreveu uma expectativa de teste errada para `(1,-2)+(1,3)`
+> — **percebeu o próprio erro aritmético, corrigiu a asserção**, e então todos os casos-limite
+> passaram.
+>
+> | Check | Resultado |
+> |---|---|
+> | `clean_code` | **pass** — tuple unpacking, `math.gcd` da stdlib, nomes descritivos, type annotations |
+> | `no_prolixity` | **pass** — poucas linhas, sem código morto nem comentário redundante |
 
-Reward + custo já é a comparação real (`DOCUMENTACAO.md` §11); o Judge só confirmou que as
-tentativas do DeepSeek que passaram foram honestas, não sorte. Decisão registrada: DeepSeek
-como filtro barato de primeira passada nas tasks simples do time; Claude para as tasks
-consideradas críticas, onde o ganho de confiabilidade compensa o custo maior.
+Repare no valor que o reward sozinho não dava: o juiz mostrou *como* o agent chegou lá,
+inclusive um autoconserto no meio do caminho.
+
+### 4.10 — Modo validação do juiz (testar o pipeline sem pagar high-tier)
+
+O model do juiz é normalmente travado na lista curada high-tier (§6.1 do
+[`FLUXO_RUN_COMPARE_ANALYZE.md`](./FLUXO_RUN_COMPARE_ANALYZE.md)). Só que, pra *conferir se o
+Analyze sequer funciona na sua máquina*, pagar Opus/GPT-5.1 é desperdício.
+
+Para isso existe o **Modo validação**, em dois lugares que se complementam:
+
+1. **Aba 8. Judges** → marque "Modo validação" e o dropdown de model passa a listar **todos**
+   os models cadastrados, cada um fora da lista curada marcado com `⚠ fora da lista curada`.
+2. **Painel Analisar** (aba Compare) → marque "Modo validação" ali também, senão a chamada é
+   recusada com a mensagem do gate.
+
+O resultado sai carimbado: `⚠ Modo validação: julgado por deepseek/deepseek-chat, que está
+fora da lista curada high-tier. Serve pra confirmar que o pipeline roda — não vale como
+avaliação.` Nunca há afrouxamento silencioso: sem o flag explícito nas duas pontas, o gate
+recusa normalmente.
+
+Foi exatamente assim que a saída de 4.9 foi produzida — juiz `deepseek/deepseek-chat` sobre
+`mini-swe-agent`, custando centavos, só pra provar que a cadeia
+Criteria → Rubric → Judge → `harbor analyze` → `analysis.json` → tela está inteira.
+
+### 4.11 — Ver a trajetória (Trajectories)
+
+**Ver trajetórias** abre o `harbor view` naquele job — passo a passo do que o agent fez dentro
+do container. Use quando o reward não explica o suficiente: reward baixo e você quer ver onde
+travou, ou reward alto e você quer confirmar que não foi atalho. Para erro de
+container/rede/dependência, a aba **Logs** é o lugar (log cru de execução, incluindo o build).
+
+### 4.12 — Decisão
+
+Reward + custo já é a comparação real (`DOCUMENTACAO.md` §11); o Judge entra pra desempatar ou
+auditar. Com os números desta task, DeepSeek resolveu por menos de um terço de centavo — o que
+o torna um bom filtro de primeira passada, deixando o model caro para as tasks onde o custo de
+errar supera o custo do token.
 
 ## 5. Onde ir a partir daqui
 

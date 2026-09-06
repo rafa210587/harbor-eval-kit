@@ -24,6 +24,8 @@ import {
   type RubricEntry,
   type SkillEntry,
   type SkillsetEntry,
+  FREE_AGENTS,
+  HARBOR_AGENTS,
   JUDGE_MODELS,
   PROVIDERS,
   buildHarborEnv,
@@ -45,6 +47,9 @@ import {
   readRegistry,
   readTaskFiles,
   resolveAgentInstructionsPath,
+  listJobLogFiles,
+  listJobLogs,
+  tailJobLog,
   resolveJudgePromptPath,
   resolvePodmanDockerHost,
   resolveRubricCriteria,
@@ -182,6 +187,41 @@ addRoute("DELETE", "/api/secrets/:name", (_req, res, params) => {
 
 addRoute("GET", "/api/providers", (_req, res) => {
   sendJson(res, 200, PROVIDERS);
+});
+
+// The `--agent` values the installed Harbor accepts. Served from the one server-side list so
+// the Agents/Judges forms can offer real autocomplete instead of asking the user to remember
+// 43 adapter names (and to surface which ones can drive an arbitrary provider's model).
+addRoute("GET", "/api/harbor-agents", (_req, res) => {
+  sendJson(res, 200, { agents: HARBOR_AGENTS, freeAgents: FREE_AGENTS });
+});
+
+// ---------- job logs (live tail) ----------
+
+addRoute("GET", "/api/logs/jobs", (req, res) => {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const jobsDir = url.searchParams.get("jobsDir") || "jobs";
+  sendJson(res, 200, listJobLogs(jobsDir));
+});
+
+addRoute("GET", "/api/logs/files", (req, res) => {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const jobsDir = url.searchParams.get("jobsDir") || "jobs";
+  const job = url.searchParams.get("job");
+  if (!job) return sendJson(res, 400, { ok: false, error: "job query param is required" });
+  sendJson(res, 200, listJobLogFiles(jobsDir, job));
+});
+
+addRoute("GET", "/api/logs/tail", (req, res) => {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const jobsDir = url.searchParams.get("jobsDir") || "jobs";
+  const job = url.searchParams.get("job");
+  const file = url.searchParams.get("file");
+  const offset = Number(url.searchParams.get("offset") ?? "0") || 0;
+  if (!job || !file) return sendJson(res, 400, { ok: false, error: "job and file query params are required" });
+  const tail = tailJobLog(jobsDir, job, file, offset);
+  if (!tail) return sendJson(res, 404, { ok: false, error: "log file not found (or outside the jobs dir)" });
+  sendJson(res, 200, tail);
 });
 
 addRoute("POST", "/api/secrets/test", async (_req, res, _params, body) => {
@@ -500,10 +540,23 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     }
   }
 
-  if (!resolvedModel || !isJudgeModelAllowed(resolvedModel)) {
+  // The curated-model gate exists because a cheap judge defeats the point of judging at all
+  // (see JUDGE_MODELS). `validationMode` is a deliberate, per-call escape hatch for smoke-
+  // testing that the analyze pipeline itself works without paying for a high-tier model -- it
+  // never silently relaxes the gate: the caller has to ask for it, and every response and
+  // report from such a call is stamped validationMode:true so its verdict can't be mistaken
+  // for a real evaluation.
+  const validationMode = Boolean(body.validationMode);
+  if (!resolvedModel) {
     return sendJson(res, 400, {
       ok: false,
-      error: "the judge's model must be one of the curated high-tier judge models (see GET /api/judge-models)",
+      error: "the judge has no model set (see GET /api/judge-models for the curated high-tier list)",
+    });
+  }
+  if (!isJudgeModelAllowed(resolvedModel) && !validationMode) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "the judge's model must be one of the curated high-tier judge models (see GET /api/judge-models), or pass validationMode to smoke-test the pipeline with a non-curated model",
     });
   }
 
@@ -524,10 +577,13 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
 
   const secretsEnv = loadSecretsEnv();
   const result = await execHarbor(args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
+  const nonCurated = !isJudgeModelAllowed(resolvedModel);
   sendJson(res, result.code === 0 ? 200 : 500, {
     ok: result.code === 0,
     stdout: result.stdout,
     stderr: result.stderr,
+    judgeModel: resolvedModel,
+    validationMode: validationMode && nonCurated,
     analysis: result.code === 0 ? parseAnalysisJson(String(trialPath)) : null,
   });
 });

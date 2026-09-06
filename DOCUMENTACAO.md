@@ -479,9 +479,12 @@ como Models (aba 2), sem digitar `provider/modelo` à mão um por um. Nem todo p
 listagem ao vivo nesta versão do LiteLLM — lista vazia aí não significa key inválida (o botão
 já teria mostrado ✗ nesse caso), só que não tinha catálogo pra buscar.
 
-Testado nesta sessão com uma key inválida de propósito (confirma que o mecanismo captura e
-reporta `AuthenticationError` de verdade, vindo da API real do provider) — não havia uma key
-válida disponível pra testar o caminho de sucesso completo end-to-end.
+Testado nos dois caminhos: com uma key inválida (reporta o `AuthenticationError` real vindo da
+API do provider — ex.: `DeepseekException — Authentication Fails, Your api key: ****1532 is
+invalid`, que foi como se descobriu que uma key salva tinha sido revogada no painel), e, em
+2026-09-06, com uma key **válida** de DeepSeek: retornou `ok: true`, model testado
+`deepseek/deepseek-chat` e 14 models descobertos ao vivo, que o checklist cadastrou direto na
+aba Models sem digitação manual.
 
 ### 10.2 Models
 Atalho de label → `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O prefixo antes da
@@ -520,9 +523,25 @@ Um agent aqui é um **perfil de uso**, não só o nome cru do Harbor: junta
 **instructions** próprias (viram uma skill implícita, sempre anexada — `resolveAgentInstructionsPath`)
 + **default skill sets**. Isso é o que a aba Compare usa pra pré-preencher cada linha.
 
-**Valores de `agentValue` aceitos** pelo Harbor instalado (via `harbor run --help`):
-`claude-code`, `codex`, `oracle`, `nop`, e vários outros CLIs de terceiros. `oracle` e `nop`
-não gastam API — bons pra testar o kit sem custo (ver seção 11).
+**Valores de `agentValue` aceitos** pelo Harbor instalado: **42**, com autocomplete no próprio
+campo (`<datalist>` alimentado por `GET /api/harbor-agents`, cuja fonte é a constante
+`HARBOR_AGENTS` em `scripts/lib/harbor.ts` — espelho mantido à mão de `harbor run --help`,
+porque `harbor agent list` não existe neste Harbor). O campo continua **livre**: o Harbor
+também aceita um import path customizado (`module.path:ClassName`) e atalhos ACP
+(`acp:opencode@1.3.9`), que um `<select>` fechado impediria.
+
+A distinção que mais importa na hora de comparar models está marcada na lista:
+
+- **Model-agnostic** (LiteLLM por baixo, aceitam qualquer `provider/modelo`): `mini-swe-agent`,
+  `terminus`/`-1`/`-2`, `aider`, `opencode`, `openhands`, `openhands-sdk`, `swe-agent`,
+  `goose`, `langgraph`, `cline-cli`, `dspy-rlm`, `deerflow`, `trae-agent`. São os únicos com
+  que faz sentido rodar "mesmo agent, dois providers diferentes".
+- **CLIs de um fornecedor**: `claude-code`, `codex`, `gemini-cli`, `cursor-cli`,
+  `copilot-cli`, `qwen-coder`, `kimi-cli`, etc. — falam a API do próprio fornecedor.
+- `oracle` e `nop` não gastam API — bons pra testar o kit sem custo (ver seção 11).
+
+Validado em 2026-09-06: `mini-swe-agent` + `deepseek/deepseek-chat` rodou uma task real
+(`evals/python/soma-fracoes`) com reward 1.0, custo $0,0017, 63,5s.
 
 ### 10.6 Criteria
 Um critério reutilizável que um juiz LLM usa pra avaliar uma run: `name` (identificador),
@@ -535,6 +554,19 @@ Agrupa Criteria por checkbox — mesma relação Skill→Skillset. Materializado
 `.toml` (`serializeRubricToml`) no schema exato que `harbor analyze --rubric` espera.
 
 ### 10.8 Judges
+
+**Modo validação (escape hatch explícito do gate de model).** O dropdown de model do Judge só
+mostra a lista curada high-tier, o que é o comportamento certo pra avaliação de verdade — mas
+torna caro só *conferir se o Analyze funciona nesta máquina*. Por isso existe um checkbox
+"Modo validação" em dois pontos que precisam concordar: aqui, que passa a listar **todos** os
+models cadastrados (cada um fora da lista marcado com `⚠ fora da lista curada`), e no painel
+Analisar do Compare, que envia `validationMode: true` na chamada. Faltando qualquer um dos
+dois, `POST /api/analyze` recusa com a mensagem do gate — **não existe afrouxamento
+silencioso**. Quando aceita, a resposta volta com `validationMode: true` + `judgeModel`, e a
+tela carimba "não vale como avaliação". Validado em 2026-09-06 com `deepseek/deepseek-chat`
+julgando uma run real: `clean_code: pass`, `no_prolixity: pass`, `analysis.json` gravado e
+renderizado — por centavos, em vez do custo de um Opus.
+
 Mesma relação que Agent tem com Model/Skill Set, só que do lado de quem julga: um Judge junta
 **quem executa o julgamento** (`agentValue`, o mesmo `--agent` do Harbor — por padrão
 `claude-code`), **com qual model** (dropdown filtrado só pros models cadastrados na aba 2 cujo
@@ -617,6 +649,27 @@ um jeito de listar os nomes disponíveis direto no terminal nesta versão) — c
 pro campo de download. Depois de baixar (`harbor dataset download`) em `datasets/<nome>/`,
 `listTasks()` escaneia essa pasta junto de `evals/`, então as tasks baixadas aparecem
 automaticamente no picker do Compare — não virou um conceito ou fluxo separado.
+
+### 10.11-b Logs (aba de acompanhamento)
+**O que é**: um tail dos arquivos de log que o próprio `harbor` grava dentro do jobs dir —
+`job.log` do job, `trial.log` de cada tentativa, a saída bruta do agent e a do verificador.
+**Por que existe**: o Compare é síncrono (um POST que só responde no fim, ver seção 13), então
+uma run de vários minutos parecia travada. Agora o painel **Log ao vivo** aparece dentro do
+próprio Compare durante a run, e esta aba mostra o mesmo — inclusive depois que terminou, e
+para runs iniciadas pelo CLI ou por um `gui-server` que já reiniciou (o estado vem do disco,
+não da memória deste processo).
+
+**Como funciona**: três rotas somente-leitura — `GET /api/logs/jobs` (lista os jobs, marcando
+com `▶` o que ainda está rodando, lido do `finished_at: null` no `result.json` do próprio
+job), `GET /api/logs/files` (os `.log`/`.txt` daquele job) e `GET /api/logs/tail`
+(incremental por byte offset, então cada poll traz só o que é novo; teto de 200 KB por
+resposta). Polling de 2s, e só enquanto a aba está visível. Os dois segmentos de caminho
+(`job` e `file`) passam por `safeJoinUnderDir`, então um valor forjado não sai do jobs dir —
+testado com `../../../../secrets.env`, que retorna 404.
+
+**Diferença pra Trajectories**: lá é a trajetória estruturada do agent (turnos, ferramentas,
+edições) no viewer do Harbor; aqui é o log cru de execução, incluindo build da imagem e
+instalação do agent — que é onde falha de container/rede/dependência aparece.
 
 ### 10.12 Trajectories
 **O que é**: um segundo servidor web, do próprio Harbor (`harbor view`, não desta GUI), que
@@ -727,8 +780,12 @@ Harbor por baixo, só a forma de montar a chamada muda.
 
 ## 13. Limitações conhecidas (decisões conscientes, não esquecimento)
 
-- Compare na GUI é **síncrono** — sem streaming ao vivo do progresso; a página fica com
-  spinner até acabar tudo.
+- Compare na GUI ainda é **síncrono** — um POST só responde quando todas as combinações
+  terminam, então não há resultado parcial linha a linha nem como cancelar no meio. O que
+  deixou de ser verdade (2026-09-06) é a *cegueira* durante a espera: o botão agora trava
+  enquanto roda (antes dava pra clicar duas vezes e disparar duas `harbor run` no mesmo job
+  name), aparece um cronômetro, e o painel "Log ao vivo" — mais a aba **Logs** (10.11-b) —
+  mostram o que o `harbor` está escrevendo em disco naquele instante.
 - `harbor view` ativo não sobrevive a um restart do `gui-server` (registro só em memória).
 - `Datasets` → `harbor dataset list` nesta versão do Harbor só imprime um link pro Hub, não
   uma lista navegável — limitação do CLI, não da GUI.
@@ -767,6 +824,7 @@ scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetí
 gui/index.html                frontend inteiro (HTML+CSS+JS num arquivo só, sem build)
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
+scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)
 docs/screenshots/             imagens usadas no README.md
 ~/.harbor-eval-kit/test-provider-key.py   script Python materializado pelo botão "Test" (Secrets)
 ```

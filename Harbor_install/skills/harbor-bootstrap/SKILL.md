@@ -34,7 +34,9 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
    `uv tool install harbor`
 10. Validate:
     - `harbor --help`
-    - `harbor agent list`
+    - `harbor run --help` (its `--agent` option enumerates every accepted adapter — there is
+      no `harbor agent list`: verified 2026-09-06 on Harbor 0.22.0, that command does not
+      exist, and `harbor adapter` only offers `init`/`review`)
     - `harbor dataset list` or the equivalent reported by `harbor --help`
 11. Validate Podman compatibility with Harbor using an actual minimal task before declaring
     success. If the task needs `--env docker` (Harbor's backend is Docker-oriented), Podman's
