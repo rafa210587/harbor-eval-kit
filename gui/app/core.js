@@ -22,6 +22,21 @@ export async function api(method, path, body) {
   return data;
 }
 
+// ---------- compact mode ----------
+// Hides the ~2,600 words of first-time-user .hint text once someone doesn't need it anymore.
+// Per-browser preference (localStorage), not sent to the server -- same "convenience for this
+// viewer" precedent as everything else this kit keeps client-side.
+try {
+  const compactToggle = document.getElementById("compact-toggle");
+  const saved = localStorage.getItem("hek-compact-mode") === "1";
+  document.body.classList.toggle("compact", saved);
+  compactToggle.checked = saved;
+  compactToggle.addEventListener("change", () => {
+    document.body.classList.toggle("compact", compactToggle.checked);
+    try { localStorage.setItem("hek-compact-mode", compactToggle.checked ? "1" : "0"); } catch { /* private mode etc. -- just don't persist */ }
+  });
+} catch { /* localStorage inaccessible (private browsing, blocked) -- compact mode simply stays off */ }
+
 // ---------- tabs ----------
 // Feature modules register a refresher by tab id; core does not know which tabs exist.
 export const tabRefreshers = {};

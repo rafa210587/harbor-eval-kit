@@ -22,10 +22,11 @@ the deterministic test reward.
 > via the `oracle` agent, and every real error message with its fix.
 >
 > 🚧 **What's next, and why?
-> [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md)** (in Portuguese) is the open punch list —
-> layout, accessibility, the licensing decision — written to be picked up by any coding agent
-> (not just the one that wrote it), with the measurements behind each item so progress can be
-> checked without re-deriving them.
+> [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md)** (in Portuguese) tracks what's left — today
+> that's just the licensing decision (a business call, not a technical one) and a deliberately
+> skipped item (search in simple lists — not worth building for a volume nobody has yet). Layout
+> (two-column Compare, compact-hints mode, grouped nav), accessibility (label associations,
+> `aria-live`) and a light theme (`prefers-color-scheme`, no toggle) are done.
 
 ## Why this exists
 

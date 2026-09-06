@@ -219,6 +219,12 @@ Sem cerimônia de framework — o que estas siglas significam aqui concretamente
 - **A UI não esconde o gate — ela o explica.** Modelo de juiz fora da lista curada aparece
   marcado com `⚠`, exige opt-in explícito em dois lugares, e o resultado sai carimbado como não
   válido para avaliação. Guarda-corpo com porta rotulada, nunca porta escondida.
+- **Cor fixa é dívida que só aparece quando o tema muda.** Ao adicionar `prefers-color-scheme`
+  (tema claro), os campos de input ficaram pretos dentro de painéis brancos — `#0d0f13` estava
+  hardcoded no CSS dos inputs, não numa variável, então não existia pra ser redefinido no tema
+  claro. Corrigido criando `--input-bg` com valor por tema. Regra geral: toda cor de fundo/texto
+  vai numa variável de `:root`, nunca um literal solto — o custo de esquecer só aparece quando
+  alguém liga o segundo tema, o que pode ser muito depois de o CSS ter sido escrito.
 
 ---
 

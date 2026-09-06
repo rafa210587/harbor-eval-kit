@@ -1,6 +1,17 @@
   :root {
     --bg: #0f1115; --panel: #171a21; --border: #2a2f3a; --text: #e6e8eb;
     --muted: #9aa3af; --accent: #4f8cff; --ok: #3ecf8e; --warn: #f5a623; --err: #ff5c5c;
+    --input-bg: #0d0f13;
+  }
+  /* This GUI defaults to (and was designed for) dark. Light is opt-in via the OS/browser
+     preference only -- no in-page toggle, since nobody has asked for one yet (see
+     docs/PENDENCIAS.md). Contrast re-checked against the same AAA bar the dark hint text hits. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fa; --panel: #ffffff; --border: #d7dbe1; --text: #1a1d23;
+      --muted: #4a5361; --accent: #2f6fed; --ok: #1f9d64; --warn: #b8710a; --err: #d13438;
+      --input-bg: #eef0f3;
+    }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, Segoe UI, sans-serif; }
@@ -9,10 +20,13 @@
   #statusBar { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: var(--panel); }
   #statusBar.ok { color: var(--ok); }
   #statusBar.warn { color: var(--warn); }
-  nav { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  nav { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   nav button { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
   nav button.active { background: var(--panel); color: var(--text); border-color: var(--border); }
-  main { padding: 20px; max-width: 1040px; margin: 0 auto; }
+  /* Three visual groups (Configurar / Rodar / Analisar-Apoio) inside one flat <nav> -- a divider,
+     not a submenu, so the tab-switching JS (which only knows buttons) needs no changes. */
+  .nav-divider { width: 1px; align-self: stretch; margin: 4px 6px; background: var(--border); }
+  main { padding: 20px; max-width: 1320px; margin: 0 auto; }
   .tab { display: none; }
   .tab.active { display: block; }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
@@ -21,7 +35,7 @@
   h3.step:first-of-type { margin-top: 0; }
   label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
   input[type=text], input[type=password], input[type=number], textarea, select {
-    width: 100%; background: #0d0f13; border: 1px solid var(--border); color: var(--text);
+    width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text);
     padding: 7px 9px; border-radius: 5px; font: inherit;
   }
   textarea { resize: vertical; min-height: 70px; font-family: ui-monospace, monospace; font-size: 12px; }
@@ -40,13 +54,13 @@
   .row .row-actions button.danger { color: var(--err); }
   .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 0; }
   .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; }
-  .checkbox-group-filter { flex: 1 0 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 5px 8px; font-size: 12px; margin-bottom: 2px; }
+  .checkbox-group-filter { flex: 1 0 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 5px 8px; font-size: 12px; margin-bottom: 2px; }
   .checkbox-inline { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; }
   .checkbox-inline label { margin: 0; color: var(--text); }
   .radio-inline { display: flex; gap: 16px; margin: 6px 0; }
   .radio-inline label { display: flex; align-items: center; gap: 5px; color: var(--text); margin: 0; font-size: 13px; }
   pre.output {
-    background: #0d0f13; border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px;
     white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; font-size: 12px;
   }
   table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
@@ -54,6 +68,28 @@
   th { color: var(--muted); font-weight: 600; }
   .muted { color: var(--muted); font-size: 12px; }
   .hint { font-size: 11.5px; color: var(--muted); margin: 2px 0 8px; line-height: 1.4; }
-  .badge { display: inline-block; background: #0d0f13; border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 11px; color: var(--muted); margin-left: 8px; }
+  .badge { display: inline-block; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 11px; color: var(--muted); margin-left: 8px; }
   .combo-counter { font-size: 12px; color: var(--accent); margin: 10px 0 0; }
   [hidden] { display: none !important; }
+
+  /* Compare tab: config on a fixed-width left column, results using the rest of the width --
+     the result table used to be born below the fold (measured: y≈1128px in a 1181px page).
+     Collapses to one column below 1100px so a laptop-width viewport never gets two cramped
+     columns, which would be worse than the single column it replaces. */
+  .compare-layout { display: grid; grid-template-columns: 420px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 1100px) {
+    .compare-layout { grid-template-columns: 1fr; }
+  }
+  /* The result table has 14 columns; letting it overflow its own box instead of the page keeps
+     main from ever scrolling horizontally. */
+  .table-wrap { overflow-x: auto; }
+  .table-wrap table { min-width: 760px; }
+
+  /* Modo compacto: esconde o texto didático dos .hint, mas nunca os que carregam ESTADO
+     (estimativa de custo, status de import/export, status de log) -- ver .status-line abaixo. */
+  body.compact .hint:not(.status-line) { display: none; }
+  .status-line { /* marker class only, no styling of its own -- inherits .hint's look */ }
+
+  #statusBar-row { display: flex; align-items: center; gap: 10px; }
+  #compact-toggle-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; margin: 0; }
+  #compact-toggle-label input { margin: 0; }
