@@ -21,6 +21,12 @@ if ! node --test scripts/lib/*.test.ts; then
 fi
 
 echo
+echo "== Módulos da GUI (imports e ciclos) =="
+if ! node scripts/check-gui-imports.mjs; then
+  status=1
+fi
+
+echo
 echo "== Scan de credenciais (arquivos versionados) =="
 if bash scripts/scan-secrets.sh; then
   echo "  ✓ nenhuma credencial encontrada"

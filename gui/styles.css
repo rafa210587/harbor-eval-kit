@@ -1,0 +1,58 @@
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2f3a; --text: #e6e8eb;
+    --muted: #9aa3af; --accent: #4f8cff; --ok: #3ecf8e; --warn: #f5a623; --err: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, Segoe UI, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 16px; margin: 0; }
+  #statusBar { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: var(--panel); }
+  #statusBar.ok { color: var(--ok); }
+  #statusBar.warn { color: var(--warn); }
+  nav { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  nav button { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  nav button.active { background: var(--panel); color: var(--text); border-color: var(--border); }
+  main { padding: 20px; max-width: 1040px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  h3.step { font-size: 12px; color: var(--accent); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: .03em; }
+  h3.step:first-of-type { margin-top: 0; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: #0d0f13; border: 1px solid var(--border); color: var(--text);
+    padding: 7px 9px; border-radius: 5px; font: inherit;
+  }
+  textarea { resize: vertical; min-height: 70px; font-family: ui-monospace, monospace; font-size: 12px; }
+  .row-inline { display: flex; gap: 10px; }
+  .row-inline > * { flex: 1; }
+  button.primary { background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font: inherit; margin-top: 12px; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  button.link { background: transparent; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; margin-left: 10px; }
+  .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .row:last-child { border-bottom: none; }
+  .row .row-main { flex: 1; min-width: 0; }
+  .row .row-title { color: var(--text); }
+  .row .row-sub { color: var(--muted); font-size: 11px; margin-top: 2px; word-break: break-word; }
+  .row .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .row .row-actions button { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .row .row-actions button.danger { color: var(--err); }
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 0; }
+  .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; }
+  .checkbox-inline { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; }
+  .checkbox-inline label { margin: 0; color: var(--text); }
+  .radio-inline { display: flex; gap: 16px; margin: 6px 0; }
+  .radio-inline label { display: flex; align-items: center; gap: 5px; color: var(--text); margin: 0; font-size: 13px; }
+  pre.output {
+    background: #0d0f13; border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; font-size: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin: 2px 0 8px; line-height: 1.4; }
+  .badge { display: inline-block; background: #0d0f13; border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 11px; color: var(--muted); margin-left: 8px; }
+  .combo-counter { font-size: 12px; color: var(--accent); margin: 10px 0 0; }
+  [hidden] { display: none !important; }

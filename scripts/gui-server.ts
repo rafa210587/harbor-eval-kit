@@ -49,6 +49,7 @@ import {
   resolveAgentInstructionsPath,
   getLitellmGatewayConfig,
   getLitellmGatewayPath,
+  safeJoinUnderDir,
   listJobLogFiles,
   listJobLogs,
   tailJobLog,
@@ -604,6 +605,31 @@ async function serveIndex(res: ServerResponse): Promise<void> {
   res.end(html);
 }
 
+const GUI_DIR = join(import.meta.dirname, "..", "gui");
+const STATIC_TYPES: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+};
+
+/**
+ * Serves the GUI's own stylesheet and ES modules. The URL path is joined under gui/ through
+ * safeJoinUnderDir, so a crafted "../../.harbor-eval-kit/secrets.env" can never escape the
+ * directory -- this server is the same process that holds the secrets, so an unguarded static
+ * handler would be the most direct way to leak them. Only the extensions above are served at
+ * all; anything else 404s rather than being handed over with a guessed content type.
+ */
+async function serveStatic(pathname: string, res: ServerResponse): Promise<boolean> {
+  const ext = pathname.slice(pathname.lastIndexOf("."));
+  if (!STATIC_TYPES[ext]) return false;
+  const target = safeJoinUnderDir(GUI_DIR, pathname.replace(/^\/+/, ""));
+  if (!target || !existsSync(target)) return false;
+  const body = await readFile(target, "utf-8");
+  res.writeHead(200, { "Content-Type": STATIC_TYPES[ext], "Cache-Control": "no-cache" });
+  res.end(body);
+  return true;
+}
+
 async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -613,6 +639,8 @@ async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void
       await serveIndex(res);
       return;
     }
+
+    if (req.method === "GET" && (await serveStatic(pathname, res))) return;
 
     for (const r of routes) {
       if (r.method !== req.method) continue;

@@ -858,7 +858,12 @@ scripts/lib/*.ts              lógica compartilhada, 11 módulos (ver docs/ENGEN
                                materialização de skills/rubrics, DOCKER_HOST fix, telemetria
 scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
-gui/index.html                frontend inteiro (HTML+CSS+JS num arquivo só, sem build)
+gui/index.html                markup das 14 abas (só HTML)
+gui/styles.css                estilos
+gui/app/*.js                  13 módulos ES nativos, sem build (main, core, state, forms,
+                               models-skills, agents, judging, compare, secrets, tasks,
+                               datasets, logs, misc) — ver docs/ENGENHARIA.md §3
+scripts/check-gui-imports.mjs  checa imports faltando e ciclos entre esses módulos
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)

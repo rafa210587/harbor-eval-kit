@@ -97,9 +97,25 @@ não obrigou a tocar em `gui-server.ts` nem em `compare-matrix.ts`, então cada 
 extraído e verificado isoladamente. **Ao escrever algo novo, importe do módulo específico e
 prefira engordar ele a engordar o `harbor.ts`.**
 
-**Dívida que continua:** `gui/index.html` (~1.900 linhas) ainda concentra HTML, CSS e JS. É a
-próxima fronteira — exige servir estáticos com guarda de path traversal e quebrar o JS em
-módulos ES nativos.
+O **frontend** foi quebrado logo depois, de 1.917 linhas num arquivo só para 560 de HTML +
+`styles.css` + 13 módulos ES (`gui/app/`), o maior com 281 linhas. Sem build step: são módulos
+ES nativos servidos direto (`<script type="module">`), na mesma filosofia do resto do kit.
+
+O acoplamento que a quebra obrigou a resolver: `refreshAll()` chamava **16 renderizadores pelo
+nome**, então aquele arquivo precisava conhecer todos os outros e nenhuma aba podia ser
+adicionada sem editá-lo. Agora cada módulo se registra (`onRefresh(...)`) e o `state.js` só
+itera — adicionar uma aba não toca nele. Mesma ideia para o polling da aba Logs
+(`onTabSwitch`).
+
+`wireEditableForm` acabou virando um módulo próprio (`forms.js`) por causa disso: ele precisa
+disparar `refreshAll` depois de salvar, e deixá-lo no `core.js` faria o núcleo depender de
+`state.js`, que depende do núcleo. As camadas ficaram: `core` (sem dependências) → `state` →
+`forms` → features.
+
+**Servir estáticos** exigiu uma guarda: é o mesmo processo que guarda as secrets, então um
+handler ingênuo seria o caminho mais curto para vazá-las. Só `.css`/`.js`/`.map` são servidos,
+sempre via `safeJoinUnderDir` — testado contra um arquivo real fora de `gui/` com quatro
+formas de travessia (`/../`, `%2f`, `%2e%2e`, `/app/../../`), todas 404.
 
 **Lição da quebra:** cortar por faixa de linha é rápido e exato, mas erra em silêncio quando a
 faixa parte um comentário de bloco ao meio (aconteceu: o `/**` de uma função foi para um módulo

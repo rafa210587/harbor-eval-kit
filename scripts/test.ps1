@@ -14,6 +14,11 @@ node --test @testFiles
 if ($LASTEXITCODE -ne 0) { $status = 1 }
 
 Write-Host ""
+Write-Host "== Módulos da GUI (imports e ciclos) =="
+node scripts/check-gui-imports.mjs
+if ($LASTEXITCODE -ne 0) { $status = 1 }
+
+Write-Host ""
 Write-Host "== Scan de credenciais (arquivos versionados) =="
 bash scripts/scan-secrets.sh
 if ($LASTEXITCODE -eq 0) {

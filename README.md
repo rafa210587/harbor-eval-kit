@@ -235,7 +235,9 @@ bash scripts/setup-hooks.sh    # once per clone: activates the credential guard
 bash scripts/test.sh           # unit tests (node --test) + credential scan
 ```
 
-No test framework, no `node_modules`, no build step — `node --test` runs the `.ts` files
+No test framework, no `node_modules`, no build step anywhere — `node --test` runs the `.ts`
+files directly via native type stripping, and the GUI ships native ES modules the browser
+loads as-is.
 directly via Node's native type stripping, like everything else in `scripts/`.
 
 The rules that apply to every change (credentials, cross-platform parity, small files,
@@ -267,7 +269,10 @@ harbor-eval-kit/
 │   ├── compare-matrix.ts         CLI sweep tool (cartesian product via repeatable flags)
 │   ├── gui-server.ts             local HTTP server + all /api/* routes
 │   └── lib/harbor.ts             shared logic: exec, registries, secrets, materialization
-├── gui/index.html                the entire frontend (HTML+CSS+JS, no build step)
+├── gui/
+│   ├── index.html                markup for the 14 tabs
+│   ├── styles.css                styles
+│   └── app/*.js                  13 native ES modules, no build step
 └── evals/{java,typescript,python}/   your own tasks (the seed-task/ in each is an empty stub)
 ```
 
