@@ -1,0 +1,28 @@
+# Line-ending policy. This is not cosmetic: with core.autocrlf=true (the Git for Windows
+# default) a fresh clone rewrites every text file to CRLF, and a shell script with CRLF fails
+# to execute -- bash reports `bad interpreter: /usr/bin/env bash^M`. That would silently break
+# the pre-commit credential hook and every .sh entry point for anyone cloning on Windows, while
+# looking fine on the machine where the files were first written.
+#
+# So: anything executed by a shell is pinned to LF, everywhere, on every platform.
+
+*.sh            text eol=lf
+.githooks/*     text eol=lf
+
+# Task scripts run inside Linux containers -- LF regardless of the host that authored them.
+evals/**/*.sh   text eol=lf
+Dockerfile      text eol=lf
+*/Dockerfile    text eol=lf
+
+# PowerShell is native on Windows; CRLF is its conventional ending and nothing else reads it.
+*.ps1           text eol=crlf
+
+# Let git normalise the rest, and never touch binaries.
+*.md            text
+*.json          text
+*.ts            text
+*.html          text
+*.toml          text
+*.jpg           binary
+*.png           binary
+*.gif           binary

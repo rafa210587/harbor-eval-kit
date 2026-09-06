@@ -21,6 +21,40 @@ Operate Harbor-based coding evaluations safely and reproducibly with Podman-only
 9. `uninstall --dry-run` must show the exact intended deletion set.
 10. Abort destructive cleanup if ownership is ambiguous.
 
+## Engineering standards (apply to every change)
+
+Rationale and the real incident behind each rule: [`docs/ENGENHARIA.md`](docs/ENGENHARIA.md).
+
+1. **Credentials**: never in the repo. Secrets live in `~/.harbor-eval-kit/secrets.env`, are
+   passed to child processes via env vars only (never argv), and are never returned by an API
+   or written to a log. `bash scripts/setup-hooks.sh` activates the pre-commit scanner that
+   enforces this. Never bypass it with `--no-verify`; fix the pattern instead.
+2. **Cross-platform**: every entry point ships `.sh` (bash — covers macOS, Linux and Git Bash on
+   Windows) *and* `.ps1`, changed together. Never assume a Unix tool exists (`lsof`, `fuser`,
+   `python` are absent on Git Bash). MSYS `kill` does not kill a native Windows process — use
+   `taskkill //PID <pid> //F`. Branch on OS explicitly, in one place, and verify the *effect*
+   rather than the exit code.
+3. **Small files**: target ≤400 lines per module; one job per function. `scripts/lib/harbor.ts`
+   and `gui/index.html` are already over that — known debt, not a pattern to extend.
+4. **Decoupling**: `lib/` owns the domain, `gui-server.ts` only maps HTTP onto it, the HTML only
+   renders. Extending a list (`PROVIDERS`, `JUDGE_MODELS`, `HARBOR_AGENTS`) must never require a
+   new branch. One source of truth, server-side, exposed via an endpoint — never a second copy
+   in the frontend.
+5. **Tests with every feature**, in the same change: `bash scripts/test.sh`. Always test pure
+   logic, every security guard, and every fixed bug. Never put API-spending or container-running
+   work in the suite — validate that with a real run and record the numbers in the docs. Test
+   the actual effect, not the printed output.
+6. **Explanatory UI**: each tab says what it is, when to use it, when to skip. Dead ends must
+   name the one missing step. Long operations lock their button, show elapsed time and stream a
+   live log. Guardrails are explained and opt-out is labelled, never hidden.
+7. **Observability**: execution state is read from disk (`result.json`), not from server memory,
+   so it survives a restart and covers CLI-started runs. Show real error text. Cost/token
+   numbers come from Harbor's own `result.json`, blank when unreported — never estimated. Never
+   log a secret.
+8. **Docs in the same commit**: `README.md`, `DOCUMENTACAO.md`, `docs/*` and the affected
+   `Harbor_install/skills/*`. When an earlier caveat turns out to be wrong, correct that
+   passage instead of appending a newer one elsewhere. Record what was *not* validated too.
+
 ## Orchestration
 
 Role definitions live under `Harbor_install/agents/` (moved out of the project root to avoid

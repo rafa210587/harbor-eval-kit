@@ -205,7 +205,20 @@ Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-
 
 - **Provider API keys** live only in `~/.harbor-eval-kit/secrets.env`, outside this repo, and
   are only ever injected into the environment of the `harbor`/`podman` child process at run
-  time — never written to any file this kit tracks or reports.
+  time — never as a command-line argument (which other processes can read), never written to
+  any file this kit tracks, never returned by an API (listings give names, not values).
+- **A pre-commit hook blocks any commit containing a credential.** Activate it once per clone:
+
+  ```bash
+  bash scripts/setup-hooks.sh      # macOS/Linux/Git Bash
+  pwsh scripts/setup-hooks.ps1     # Windows PowerShell
+  ```
+
+  It runs `scripts/scan-secrets.sh --staged`, which matches vendor key formats (`sk-ant-`,
+  `AKIA`, `ghp_`, `AIza`, PEM private keys, …), secret-ish `name=long-opaque-value`
+  assignments, and forbidden filenames (`secrets.env`, `.env`, `*.pem`) regardless of content —
+  while deliberately *not* firing on the mere mention of a key's name, which this repo's docs
+  do constantly. Verified by attempting real commits of planted keys, not by reading its output.
 - **`.gitignore`** defensively excludes `secrets.env`/`.env*` even though they're never
   created inside the repo by design.
 - **Harbor's own telemetry is disabled unconditionally** (`HARBOR_TELEMETRY=disabled`
@@ -215,13 +228,32 @@ Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-
 - Full threat-model writeup, including what *isn't* guaranteed (plain-text file on disk,
   Windows ACL hardening steps): [`DOCUMENTACAO.md` §7](./DOCUMENTACAO.md#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é).
 
+## Contributing / engineering standards
+
+```bash
+bash scripts/setup-hooks.sh    # once per clone: activates the credential guard
+bash scripts/test.sh           # unit tests (node --test) + credential scan
+```
+
+No test framework, no `node_modules`, no build step — `node --test` runs the `.ts` files
+directly via Node's native type stripping, like everything else in `scripts/`.
+
+The rules that apply to every change (credentials, cross-platform parity, small files,
+decoupling, a test per feature, explanatory UI, observability, docs in the same commit) are
+summarised in [`AGENTS.md`](./AGENTS.md), with the reasoning and the real incident behind each
+one in [`docs/ENGENHARIA.md`](./docs/ENGENHARIA.md). Coding agents also get them as invocable
+skills in `.claude/skills/` (`ship-change`, `secret-guard`, `cross-platform`).
+
 ## Repo layout
 
 ```text
 harbor-eval-kit/
-├── AGENTS.md, CLAUDE.md          entrypoints for coding agents operating this repo
+├── AGENTS.md, CLAUDE.md          entrypoints for coding agents + engineering standards
 ├── README.md                     you are here
 ├── DOCUMENTACAO.md                the full reference (PT-BR)
+├── .githooks/pre-commit          blocks any commit carrying a credential
+├── .gitattributes                pins .sh to LF (CRLF would break the hook on Windows)
+├── .claude/skills/               project skills: ship-change, secret-guard, cross-platform
 ├── config/defaults.env           non-secret default env var names/paths
 ├── manifests/                    example installation-manifest schema
 ├── docs/screenshots/             images used in this README

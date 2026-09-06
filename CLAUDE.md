@@ -1,6 +1,21 @@
 # Claude Code entrypoint
 
-Read `AGENTS.md` first.
+Read `AGENTS.md` first — its "Engineering standards" section applies to **every** change here
+(credentials, cross-platform, small files, decoupling, tests, explanatory UI, observability,
+docs in the same commit). The reasoning behind each rule is in `docs/ENGENHARIA.md`.
+
+Project skills in `.claude/skills/` (invocable by name):
+
+- `ship-change` — the definition of done before committing: tests, credential scan,
+  cross-platform parity, docs in the same commit.
+- `secret-guard` — credential protection: activate/verify the pre-commit scanner, audit where a
+  secret flows, handle a suspected leak.
+- `cross-platform` — macOS/Linux/Windows parity: `.sh`/`.ps1`, tools absent from Git Bash,
+  killing processes, paths, per-OS branching.
+
+Before the first commit in a fresh clone: `bash scripts/setup-hooks.sh` (or
+`pwsh scripts/setup-hooks.ps1`). Git does not distribute hooks, so without it the credential
+guard is not active. Verify with `git config core.hooksPath` → `.githooks`.
 
 When the user asks to install, validate, benchmark, compare, diagnose or uninstall Harbor Eval Kit, load the matching skill under `Harbor_install/skills/`.
 

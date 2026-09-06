@@ -825,6 +825,14 @@ gui/index.html                frontend inteiro (HTML+CSS+JS num arquivo só, sem
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)
+scripts/test.sh/.ps1          roda a suíte inteira: node --test + scan de credenciais
+scripts/scan-secrets.sh       detector de credencial (modo --staged usado pelo pre-commit)
+scripts/setup-hooks.sh/.ps1   ativa .githooks/ neste clone (core.hooksPath)
+scripts/lib/harbor.test.ts    testes unitários da lógica pura (node:test, sem framework)
+.githooks/pre-commit          bloqueia commit que contenha credencial
+.gitattributes                fixa LF nos .sh (CRLF quebraria o hook num clone Windows)
+.claude/skills/               skills de projeto: ship-change, secret-guard, cross-platform
+docs/ENGENHARIA.md            padrões de engenharia e o incidente que originou cada regra
 docs/screenshots/             imagens usadas no README.md
 ~/.harbor-eval-kit/test-provider-key.py   script Python materializado pelo botão "Test" (Secrets)
 ```

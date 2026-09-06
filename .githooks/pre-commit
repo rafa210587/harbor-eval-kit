@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Blocks a commit that would record a credential. Versioned here (not in .git/hooks, which git
+# never distributes) and activated by pointing core.hooksPath at this directory:
+#
+#   bash scripts/setup-hooks.sh        (macOS/Linux/Git Bash)
+#   pwsh scripts/setup-hooks.ps1       (Windows PowerShell)
+#
+# Runs under Git Bash on Windows, so one implementation covers all three platforms.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/scripts/scan-secrets.sh" --staged
