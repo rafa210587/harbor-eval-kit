@@ -10,7 +10,7 @@
 1. [O que é isto](#1-o-que-é-isto-e-por-que-existe)
 2. [Instalação e configuração — passo a passo](#2-instalação-e-configuração--passo-a-passo)
 3. [Por que a GUI é local](#3-por-que-a-gui-é-um-servidor-local-não-uma-página-hospedada)
-4. [O gate de compatibilidade Podman↔Harbor](#4-o-gate-de-compatibilidade-no-windows)
+4. [O gate de compatibilidade Podman↔Harbor](#4-o-gate-de-compatibilidade-podmanharbor-windows-macos-linux)
 5. [O que foi desligado de propósito](#5-o-que-foi-desligado-de-propósito-e-por-quê)
 6. [Onde tudo fica guardado](#6-onde-tudo-fica-guardado-no-disco)
 7. [Segurança das secrets](#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é)
@@ -187,20 +187,56 @@ acesso. Por isso o kit exige rodar `node scripts/gui-server.ts` localmente.
 
 ---
 
-## 4. O gate de compatibilidade no Windows
+## 4. O gate de compatibilidade Podman↔Harbor (Windows, macOS, Linux)
 
 Antes de qualquer coisa, o kit valida que Podman consegue fazer tudo que o Harbor precisa:
-`run`, `exec`, bind mount, named volume, network, build, labels, cleanup. No Windows existe
-um detalhe importante: **o CLI/SDK Docker, por padrão, mira o pipe do Docker Desktop**
-(`dockerDesktopLinuxEngine`), não o pipe genérico que a máquina Podman expõe
-(`docker_engine`). Sem corrigir isso, `harbor run --env docker` falha com "Docker daemon is
-not running" mesmo com Podman rodando perfeitamente.
+`run`, `exec`, bind mount, named volume, network, build, labels, cleanup. Além disso, como o
+backend local do Harbor é Docker-oriented, existe um detalhe importante e **diferente por
+sistema operacional**: sem apontar explicitamente pro endpoint certo do Podman, `harbor run
+--env docker` falha com algo como "Docker daemon is not running" mesmo com Podman rodando
+perfeitamente.
 
-**Correção aplicada**: `DOCKER_HOST=npipe:////./pipe/docker_engine` é injetado **só no
-processo filho do `harbor`** (nunca na sessão do shell nem em variável de ambiente do
-sistema) — ver `buildHarborEnv()` em `scripts/lib/harbor.ts`. Isso é escopado por
-`dockerHostFix` em `ExecOptions` e é aplicado automaticamente em toda chamada feita pela GUI
-e pelo `compare-matrix.ts`. Docker Desktop, se estiver instalado, fica completamente intocado.
+**Windows**: o CLI/SDK Docker, por padrão, mira o pipe do Docker Desktop
+(`dockerDesktopLinuxEngine`), mesmo que ele esteja parado — não o pipe que a máquina Podman
+expõe. Correção: `DOCKER_HOST=npipe:////./pipe/docker_engine` — um pipe **fixo e
+bem-conhecido** que a máquina Podman expõe especificamente pra compatibilidade com Docker
+CLI/SDK, diferente do pipe nativo da própria API do Podman (que depende do nome da máquina,
+confirmado rodando `podman machine inspect` — reporta um pipe diferente,
+`\\.\pipe\<nome-da-maquina>`).
+
+**macOS**: Podman roda sempre dentro de uma VM ("podman machine"); não existe conflito com um
+pipe do Docker Desktop, mas o socket Docker-compatível fica num caminho que depende do nome da
+máquina. Resolvido dinamicamente com
+`podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'` →
+`DOCKER_HOST=unix://<esse caminho>`.
+
+**Linux**: Podman rootless nativo normalmente expõe seu próprio socket direto (sem VM) —
+`podman info --format '{{.Host.RemoteSocket.Path}}'` — e esse mesmo socket **já fala o
+dialeto Docker-compatível** (o servidor de API do Podman atende os dois formatos no mesmo
+socket em sistemas Unix), então normalmente nem precisa de correção. Se em vez disso houver
+uma "podman machine" ativa (incomum em Linux, mas suportado), usa-se a mesma resolução do
+macOS.
+
+**Correção aplicada**: `resolvePodmanDockerHost()` em `scripts/lib/harbor.ts` detecta
+`process.platform` e resolve o valor certo por SO (memoizado por processo, já que isso
+dispara uma chamada a `podman`); é injetado **só no processo filho do `harbor`** (nunca na
+sessão do shell nem em variável de ambiente do sistema) via `buildHarborEnv()`. Escopado por
+`dockerHostFix` em `ExecOptions`, aplicado automaticamente em toda chamada feita pela GUI e
+pelo `compare-matrix.ts`. A mesma lógica existe duplicada (mantida sincronizada à mão, já que
+são linguagens diferentes) em `scripts/harbor-eval.ps1` (`Resolve-PodmanDockerHost`) e
+`scripts/harbor-eval.sh` (`resolve_podman_docker_host`), pros usos fora da GUI/TS. Docker
+Desktop, se estiver instalado (Windows/macOS), fica completamente intocado.
+
+**Honestidade sobre verificação**: os três branches (Windows, macOS, Linux) foram validados
+por leitura cuidadosa da própria documentação/comportamento do Podman e por testes reais dos
+comandos `podman info`/`podman machine inspect`/`podman machine list` — mas este
+desenvolvimento aconteceu numa máquina Windows. O branch Windows tem validação end-to-end
+completa (`harbor run` real, com reward correto, repetido várias vezes nesta sessão). Os
+branches macOS/Linux têm a lógica de resolução testada isoladamente (os comandos `podman`
+corretos, os nomes de campo certos do template Go), mas **não** uma execução ponta-a-ponta
+real de `harbor run --env docker` numa máquina macOS/Linux de verdade — se algo não bater no
+seu ambiente, `resolvePodmanDockerHost()`/`Resolve-PodmanDockerHost`/`resolve_podman_docker_host`
+são os três lugares certos pra depurar ou ajustar.
 
 ---
 
@@ -414,13 +450,38 @@ preciso, não fazem parte do fluxo linear.
 ## 10. Cada aba em detalhe
 
 ### 10.1 Secrets
-Cadastra chaves de provider. Dropdown com 13 providers curados (Anthropic, OpenAI, Azure,
-DeepSeek, Gemini, Vertex AI, OpenRouter, Groq, Mistral, Cohere, xAI, Together AI, Fireworks) —
-escolher um preenche o `Name` certo automaticamente (tabela `PROVIDERS` em `gui/index.html`);
+Cadastra chaves de provider. Dropdown com 15 providers curados (Anthropic, OpenAI, Azure,
+DeepSeek, Gemini, Vertex AI, OpenRouter, Groq, Mistral, Cohere, xAI, Together AI, Fireworks,
+Ollama, Bedrock) — escolher um preenche o `Name` certo automaticamente. A lista canônica
+(`PROVIDERS`) mora no servidor (`scripts/lib/harbor.ts`) e é buscada via `GET /api/providers`
+— a GUI não mantém mais uma cópia própria, pra não ter duas listas divergindo com o tempo.
 "outro/customizado" deixa digitar qualquer nome. Ver seção 7 pra garantias de segurança.
 
 **Como usar**: escolha o provider no dropdown (ou "outro"), cole o valor da key, "Save key".
 A lista abaixo mostra só os *nomes* já cadastrados, nunca os valores.
+
+**Botão "Test"**: depois de salvar, faz uma chamada real — não só um "parece bem formada" —
+usando a key salva: `hi`, `max_tokens: 5`, no model mais barato que o LiteLLM souber pra
+aquele provider. Confirmado no `harbor --help` que não existe um comando `harbor` pra isso
+(nem pra listar models de um provider), então esse botão chama o LiteLLM diretamente — via um
+script Python pequeno, materializado em `~/.harbor-eval-kit/test-provider-key.py`, executado
+com o **mesmo interpretador Python de dentro do venv que `uv tool install harbor` criou**
+(localizado via `uv tool dir`, portável entre SOs — não um Python do sistema separado, já que
+o `litellm` que o script importa é uma dependência do próprio pacote `harbor`). A key é
+passada pro processo filho só via variável de ambiente, nunca por argumento de linha de
+comando (que ficaria visível pra outros processos/gerenciador de tarefas) — mesma disciplina
+de segredo usada em toda chamada a `harbor`/`podman` neste kit.
+
+Se o provider suportar (via `litellm.get_valid_models(check_provider_endpoint=True, ...)`,
+que faz uma chamada de verdade no catálogo do provider), o resultado também traz uma lista de
+models descobertos **ao vivo** — a GUI mostra um checklist pra cadastrar os que quiser direto
+como Models (aba 2), sem digitar `provider/modelo` à mão um por um. Nem todo provider suporta
+listagem ao vivo nesta versão do LiteLLM — lista vazia aí não significa key inválida (o botão
+já teria mostrado ✗ nesse caso), só que não tinha catálogo pra buscar.
+
+Testado nesta sessão com uma key inválida de propósito (confirma que o mecanismo captura e
+reporta `AuthenticationError` de verdade, vindo da API real do provider) — não havia uma key
+válida disponível pra testar o caminho de sucesso completo end-to-end.
 
 ### 10.2 Models
 Atalho de label → `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O prefixo antes da
@@ -435,6 +496,19 @@ Uma skill é um `SKILL.md`. Duas origens: **escrever instruções** (materializa
 em `~/.harbor-eval-kit/skills/skill-<id>/SKILL.md`) ou **apontar pra uma pasta existente**.
 Vem com um template elaborado (Propósito / Quando aplicar / Princípios / Regras concretas /
 Exemplo bom-ruim / Casos-limite) — não fica em branco, você edita em cima.
+
+**Exemplos e templates bundled (opcional)**: no modo "Escrever instruções" dá pra anexar
+arquivos extras (nomeados com caminho relativo, ex. `examples/bom.py`, `templates/base.md`) —
+não é só uma conveniência da GUI. Confirmado no código do Harbor instalado
+(`harbor/trial/trial.py`, `_upload_injected_skills`): ele sobe **a pasta inteira** da skill
+pro ambiente do agent, não só o `SKILL.md` — a mesma convenção de "progressive disclosure"
+que Anthropic e OpenAI recomendam pra skills/tools (o arquivo de entrada referencia material
+de apoio por caminho relativo, o agente lê sob demanda em vez de tudo vir empurrado de uma vez
+no prompt). No modo "pasta existente" isso já funcionava naturalmente (é uma pasta real no
+disco, bota o que quiser nela); o modo "escrever instruções" só não tinha como anexar mais de
+um arquivo até agora. Materializado por `materializeSkillMd()` em `scripts/lib/harbor.ts`, com
+uma checagem de path-traversal (`safeJoinUnderDir`) pra um nome de arquivo tipo `../../etc/x`
+nunca escrever fora da pasta da própria skill — testado com um caso desses de propósito.
 
 ### 10.4 Skill Sets
 Agrupa uma ou mais Skills por checkbox — mesma referência por `id`, sem duplicar texto (se
@@ -666,6 +740,13 @@ Harbor por baixo, só a forma de montar a chamada muda.
 - Não dá pra anexar uma skill de verdade (SKILL.md tool-acessível) a um Judge — limitação do
   próprio `harbor analyze` (sem flag `--skill`, `AgentConfig.skills` nunca setado), não desta
   GUI. O que dá pra fazer é reescrever as instruções do juiz por completo (seção 10.8).
+- A resolução de `DOCKER_HOST` pra macOS/Linux (`resolvePodmanDockerHost()`, seção 4) foi
+  validada isoladamente (comandos `podman` certos, campos certos do template Go), mas todo o
+  desenvolvimento deste kit aconteceu numa máquina Windows — só o branch Windows tem um
+  `harbor run --env docker` real, ponta-a-ponta, repetido várias vezes. Se `podman info`/
+  `podman machine inspect` reportarem algo fora do formato esperado no seu macOS/Linux, o
+  status da GUI mostra "DOCKER_HOST não resolvido" (aba de status, `/api/status`) em vez de
+  falhar silenciosamente — mas o valor resolvido em si pode precisar de ajuste manual.
 - `durationSec` do Compare é tempo de parede da chamada inteira, não o timing fino por-trial
   que o Harbor já grava internamente (`agent_execution`/`verifier` em `TrialResult`) — este kit
   não lê esses campos hoje (seção 11, "Custo, tokens e velocidade").
@@ -687,4 +768,5 @@ gui/index.html                frontend inteiro (HTML+CSS+JS num arquivo só, sem
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 docs/screenshots/             imagens usadas no README.md
+~/.harbor-eval-kit/test-provider-key.py   script Python materializado pelo botão "Test" (Secrets)
 ```

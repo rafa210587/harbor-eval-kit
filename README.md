@@ -11,12 +11,17 @@ the deterministic test reward.
 
 ## Why this exists
 
-Harbor itself is model/runtime-agnostic, but its Docker-oriented backend doesn't just work
-against Podman on Windows out of the box (a Docker-pipe mismatch breaks `--env docker` even
-with Podman running fine). This kit:
+Harbor itself is model/runtime-agnostic, but its Docker-oriented backend doesn't just talk to
+Podman out of the box on any platform — the fix differs per OS (a Docker-pipe mismatch on
+Windows, a per-machine socket path on macOS, usually nothing needed on native Linux). This
+kit detects the OS and resolves the right one automatically — see
+[the compatibility gate](./DOCUMENTACAO.md#4-o-gate-de-compatibilidade-podmanharbor-windows-macos-linux)
+for the exact mechanism per platform, and its honest caveat: the Windows path has been
+validated end-to-end with real runs; macOS/Linux have the resolution logic validated in
+isolation, not yet a live run on real hardware. This kit:
 
 - Never installs Docker — validates and uses **Podman** as the container runtime.
-- Explicitly gates on Podman↔Harbor compatibility before declaring anything "ready".
+- Explicitly gates on Podman↔Harbor compatibility before declaring anything "ready", per OS.
 - Wraps `harbor run`/`harbor analyze`/`harbor init --task`/`harbor dataset` behind a local
   GUI and a couple of scripts, so you don't need to memorize CLI flags to run a comparison.
 - Disables Harbor's own default telemetry (PostHog) and hardens where secrets live — see
@@ -128,11 +133,17 @@ The nav is numbered 1→10 to guide first-time setup; every tab also works stand
 afterward. Each one has inline hints in the UI itself — this is just the map.
 
 1. **Secrets** — provider API keys, stored only in `~/.harbor-eval-kit/secrets.env` (never in
-   this repo, never returned by the API after saving).
+   this repo, never returned by the API after saving). A **Test** button next to each saved
+   key makes one real, minimal call (via LiteLLM, the same library Harbor uses) to confirm it
+   actually works, and offers to auto-register any models it can discover live for that
+   provider.
 2. **Models** — `label → provider/model` shortcuts; badges show whether the expected key is
    already in Secrets.
 3. **Skills** — a `SKILL.md`'s worth of instructions an agent can receive (write inline,
-   attach a `.md`, or point at an existing folder).
+   attach a `.md`, or point at an existing folder). Optionally bundle example/template files
+   alongside it (Anthropic/OpenAI's "progressive disclosure" convention) — Harbor uploads the
+   whole skill folder into the agent's environment, not just `SKILL.md`, confirmed against
+   its own source.
 4. **Skill Sets** — bundle 1+ Skills into a named package to compare as a unit.
 5. **Agents** — a "usage profile": which `--agent` Harbor runs, its default model, its own
    instructions, and default skill sets.
@@ -224,5 +235,9 @@ itself (Podman is preexisting infrastructure, not something this kit installed).
   in this GUI.
 - `durationSec` in Compare is wall-clock time for the whole `harbor run` call, not the finer
   per-trial agent-execution timing Harbor records internally.
+- The macOS/Linux `DOCKER_HOST` resolution is logic-tested (right `podman` commands, right Go
+  template fields), but this kit was built on Windows — only the Windows path has a real,
+  repeated, end-to-end `harbor run --env docker`. The GUI's status bar flags it explicitly
+  (`⚠ DOCKER_HOST não resolvido`) instead of failing silently if it can't find a value.
 
 Full list with rationale: [`DOCUMENTACAO.md` §13](./DOCUMENTACAO.md#13-limitações-conhecidas-decisões-conscientes-não-esquecimento).

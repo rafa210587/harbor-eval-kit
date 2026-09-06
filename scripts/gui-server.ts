@@ -25,6 +25,7 @@ import {
   type SkillEntry,
   type SkillsetEntry,
   JUDGE_MODELS,
+  PROVIDERS,
   buildHarborEnv,
   buildHarborRunArgs,
   deleteSecret,
@@ -45,6 +46,7 @@ import {
   readTaskFiles,
   resolveAgentInstructionsPath,
   resolveJudgePromptPath,
+  resolvePodmanDockerHost,
   resolveRubricCriteria,
   resolveRubricPath,
   setTaskRubricDefault,
@@ -52,6 +54,7 @@ import {
   runPool,
   sanitize,
   saveSecret,
+  testProviderKey,
   writeReport,
   writeRegistry,
   writeTaskFiles,
@@ -177,6 +180,23 @@ addRoute("DELETE", "/api/secrets/:name", (_req, res, params) => {
   sendJson(res, 200, { ok: true });
 });
 
+addRoute("GET", "/api/providers", (_req, res) => {
+  sendJson(res, 200, PROVIDERS);
+});
+
+addRoute("POST", "/api/secrets/test", async (_req, res, _params, body) => {
+  const name = String(body.name ?? "");
+  const provider = PROVIDERS.find((p) => p.envKey === name);
+  if (!provider) {
+    return sendJson(res, 400, { ok: false, error: `no known provider maps to the secret name '${name}'` });
+  }
+  if (!listSecretNames().includes(name)) {
+    return sendJson(res, 400, { ok: false, error: `no secret named ${name} is saved yet` });
+  }
+  const result = await testProviderKey(provider.id, name);
+  sendJson(res, result.ok ? 200 : 502, result);
+});
+
 // ---------- status / doctor ----------
 
 addRoute("GET", "/api/status", async (_req, res) => {
@@ -192,7 +212,9 @@ addRoute("GET", "/api/status", async (_req, res) => {
       available: podmanVersion.code === 0,
       version: podmanVersion.code === 0 ? podmanVersion.stdout.trim() : null,
       infoOk: podmanInfo.code === 0,
+      dockerHost: resolvePodmanDockerHost(),
     },
+    platform: process.platform,
     stateDir: getStateDir(),
   });
 });

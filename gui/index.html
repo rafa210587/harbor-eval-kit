@@ -386,10 +386,17 @@ Por que é ruim: explique a consequência concreta.
 - Situação ambígua 1 → como resolver
 - Situação ambígua 2 → como resolver</textarea>
           <input type="file" accept=".md,text/markdown,text/plain" data-attach-target="skills-form">
+
+          <label>Arquivos extras (opcional) — exemplos, templates, scripts</label>
+          <p class="hint">Confirmado no código do Harbor instalado (<code>harbor/trial/trial.py</code>, <code>_upload_injected_skills</code>): ele sobe a <strong>pasta inteira</strong> da skill pro ambiente do agente, não só o <code>SKILL.md</code> — a mesma convenção de "progressive disclosure" que Anthropic/OpenAI recomendam pra skills (o SKILL.md referencia o arquivo por caminho relativo, ex. "veja <code>examples/bom.py</code>", e o agente lê sob demanda). Anexe um ou mais arquivos — o nome do arquivo vira o caminho relativo dentro da skill; pode incluir uma subpasta no nome (ex. <code>examples/bom.py</code>) se você renomear o arquivo antes de anexar.</p>
+          <div id="skill-extra-files-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <input type="file" id="skill-extra-file-input" multiple style="margin-top:8px;">
+          <button type="button" class="secondary" id="skill-add-blank-file-btn" style="margin-top:8px;">Adicionar arquivo em branco</button>
         </div>
         <div data-mode-section="path" hidden>
           <label>Caminho da pasta (precisa ter um SKILL.md dentro)</label>
           <input type="text" name="path" placeholder=".\skills\harbor-doctor">
+          <p class="hint">Pode ter qualquer outro arquivo/subpasta além do SKILL.md (exemplos, templates, scripts) — Harbor sobe a pasta inteira pro agente, então tudo que estiver aqui vai junto.</p>
         </div>
 
         <button class="primary" type="submit">Add skill</button>
@@ -434,6 +441,7 @@ Por que é ruim: explique a consequência concreta.
         <p class="hint">"Name" precisa ser exatamente o nome da variável de ambiente que o Harbor/LiteLLM espera pra aquele provider (maiúsculas, sem espaço — ex.: <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>). Escolher um provider no dropdown acima já preenche isso certo pra você. "Value" é a chave em si, colada como está no painel do provider.</p>
         <button class="primary" type="submit">Save key</button>
       </form>
+      <p class="hint">Depois de salvar, use o botão <strong>Test</strong> na lista abaixo — faz uma chamada real (não só verifica formato) de "hi" no model mais barato que o LiteLLM conhece pra esse provider, usando a key salva. Se a chave funcionar e o provider suportar listagem ao vivo de models, aparece também um checklist dos models descobertos pra cadastrar direto na aba Models, sem digitar cada um a mão.</p>
       <div id="secrets-list" style="margin-top:14px;"></div>
     </div>
   </section>
@@ -615,8 +623,9 @@ async function loadStatus() {
   const bar = $("#statusBar");
   try {
     const s = await api("GET", "/api/status");
-    const ok = s.harbor.available && s.podman.infoOk;
-    bar.textContent = `Harbor: ${s.harbor.available ? s.harbor.version : "missing"}  ·  Podman: ${s.podman.available ? s.podman.version : "missing"}${s.podman.infoOk ? "" : " (info FAIL)"}`;
+    const ok = s.harbor.available && s.podman.infoOk && s.podman.dockerHost;
+    const dockerHostBit = s.podman.dockerHost ? "" : "  ·  ⚠ DOCKER_HOST não resolvido pra este SO/config — harbor run --env docker provavelmente vai falhar";
+    bar.textContent = `Harbor: ${s.harbor.available ? s.harbor.version : "missing"}  ·  Podman: ${s.podman.available ? s.podman.version : "missing"}${s.podman.infoOk ? "" : " (info FAIL)"} (${s.platform})${dockerHostBit}`;
     bar.className = ok ? "ok" : "warn";
   } catch (e) {
     bar.textContent = "status check failed: " + e.message;
@@ -626,23 +635,10 @@ async function loadStatus() {
 
 // ---------- provider -> expected API key convention (same one Harbor/LiteLLM use) ----------
 // Single source of truth: feeds the Models "expected key" badge AND the Secrets provider dropdown.
-const PROVIDERS = [
-  { label: "Anthropic", prefixes: ["anthropic/"], key: "ANTHROPIC_API_KEY" },
-  { label: "OpenAI", prefixes: ["openai/"], key: "OPENAI_API_KEY" },
-  { label: "Azure OpenAI", prefixes: ["azure/"], key: "AZURE_API_KEY" },
-  { label: "DeepSeek", prefixes: ["deepseek/"], key: "DEEPSEEK_API_KEY" },
-  { label: "Google Gemini", prefixes: ["gemini/", "google/"], key: "GEMINI_API_KEY" },
-  { label: "Google Vertex AI", prefixes: ["vertex_ai/"], key: "VERTEXAI_API_KEY" },
-  { label: "OpenRouter", prefixes: ["openrouter/"], key: "OPENROUTER_API_KEY" },
-  { label: "Groq", prefixes: ["groq/"], key: "GROQ_API_KEY" },
-  { label: "Mistral", prefixes: ["mistral/"], key: "MISTRAL_API_KEY" },
-  { label: "Cohere", prefixes: ["cohere/"], key: "COHERE_API_KEY" },
-  { label: "xAI (Grok)", prefixes: ["xai/"], key: "XAI_API_KEY" },
-  { label: "Together AI", prefixes: ["together_ai/"], key: "TOGETHERAI_API_KEY" },
-  { label: "Fireworks AI", prefixes: ["fireworks_ai/"], key: "FIREWORKS_AI_API_KEY" },
-  { label: "Ollama (local, sem key)", prefixes: ["ollama/"], key: null },
-  { label: "AWS Bedrock (credenciais AWS, não API key simples)", prefixes: ["bedrock/"], key: null },
-];
+// Fetched from GET /api/providers on refreshAll() -- canonical list now lives server-side
+// (scripts/lib/harbor.ts) so the Secrets/Models UI and the key-test route share one source
+// of truth instead of two independently-maintained lists.
+let PROVIDERS = [];
 function findProviderByModelValue(modelValue) {
   const v = (modelValue || "").toLowerCase().trim();
   return PROVIDERS.find((p) => p.prefixes.some((pre) => v.startsWith(pre)));
@@ -651,13 +647,13 @@ function guessProviderKey(modelValue) {
   const v = (modelValue || "").toLowerCase().trim();
   if (!v.includes("/")) return null;
   const known = findProviderByModelValue(v);
-  if (known) return known.key;
+  if (known) return known.envKey;
   const prefix = v.split("/")[0];
   return prefix ? `${prefix.toUpperCase()}_API_KEY` : null;
 }
 function keyStatusBadge(modelValue) {
   const known = findProviderByModelValue(modelValue);
-  if (known && known.key === null) return `<span class="badge">${escapeHtml(known.label)}</span>`;
+  if (known && known.envKey === null) return `<span class="badge">${escapeHtml(known.label)}</span>`;
   const key = guessProviderKey(modelValue);
   if (!key) return "";
   const has = state.secretNames.includes(key);
@@ -679,6 +675,7 @@ async function refreshAll() {
   state.judges = await api("GET", "/api/judges");
   state.secretNames = await api("GET", "/api/secrets");
   if (state.judgeModels.length === 0) state.judgeModels = await api("GET", "/api/judge-models");
+  if (PROVIDERS.length === 0) { PROVIDERS = await api("GET", "/api/providers"); renderProviderSelect(); }
 
   renderModelsList();
   renderSkillsList();
@@ -803,7 +800,44 @@ function setSkillMode(mode) {
   skillsForm.querySelector('[data-mode-section=path]').hidden = mode !== "path";
 }
 $$('input[name=mode]', skillsForm).forEach((r) => r.addEventListener("change", () => setSkillMode(r.value)));
-skillsForm.addEventListener("reset-extra", () => setSkillMode("authored"));
+skillsForm.addEventListener("reset-extra", () => { setSkillMode("authored"); skillExtraFiles = []; renderSkillExtraFiles(); });
+
+// In-memory {name, content} list for the currently-open Skills form -- submitted as
+// `extraFiles`, materialized alongside SKILL.md (see materializeSkillMd in lib/harbor.ts).
+let skillExtraFiles = [];
+
+function renderSkillExtraFiles() {
+  const container = $("#skill-extra-files-list");
+  container.innerHTML = "";
+  skillExtraFiles.forEach((f, idx) => {
+    const row = document.createElement("div");
+    row.className = "panel";
+    row.innerHTML = `
+      <div class="row-inline">
+        <div><label>Caminho relativo</label><input type="text" class="extra-file-name" placeholder="examples/bom.py" value="${escapeHtml(f.name)}"></div>
+      </div>
+      <label>Conteúdo</label>
+      <textarea class="extra-file-content" style="min-height:90px;">${escapeHtml(f.content)}</textarea>
+      <button type="button" class="secondary" style="margin-top:6px;">Remover este arquivo</button>
+    `;
+    row.querySelector(".extra-file-name").addEventListener("input", (e) => { skillExtraFiles[idx].name = e.target.value; });
+    row.querySelector(".extra-file-content").addEventListener("input", (e) => { skillExtraFiles[idx].content = e.target.value; });
+    row.querySelector("button").addEventListener("click", () => { skillExtraFiles.splice(idx, 1); renderSkillExtraFiles(); });
+    container.appendChild(row);
+  });
+}
+
+$("#skill-extra-file-input").addEventListener("change", async (e) => {
+  for (const file of e.target.files) {
+    skillExtraFiles.push({ name: file.name, content: await file.text() });
+  }
+  e.target.value = "";
+  renderSkillExtraFiles();
+});
+$("#skill-add-blank-file-btn").addEventListener("click", () => {
+  skillExtraFiles.push({ name: "", content: "" });
+  renderSkillExtraFiles();
+});
 
 const skillsEdit = wireEditableForm(skillsForm, {
   addLabel: "Add skill",
@@ -812,6 +846,7 @@ const skillsEdit = wireEditableForm(skillsForm, {
     mode: form.mode.value,
     instructions: form.instructions.value,
     path: form.path.value,
+    extraFiles: skillExtraFiles.filter((f) => f.name.trim()),
   }),
 });
 
@@ -821,7 +856,8 @@ function renderSkillsList() {
   for (const item of state.skills) {
     const sub = item.mode === "path"
       ? `path: ${escapeHtml(item.path || "")}`
-      : escapeHtml((item.instructions || "").slice(0, 100)) + ((item.instructions || "").length > 100 ? "…" : "");
+      : escapeHtml((item.instructions || "").slice(0, 100)) + ((item.instructions || "").length > 100 ? "…" : "")
+        + (item.extraFiles && item.extraFiles.length ? ` · +${item.extraFiles.length} arquivo(s) extra` : "");
     list.appendChild(makeRow(item, {
       title: `${item.label} <span class="badge">${item.mode}</span>`,
       sub,
@@ -830,6 +866,8 @@ function renderSkillsList() {
         skillsForm.querySelector(`input[name=mode][value="${item.mode}"]`).checked = true;
         skillsForm.instructions.value = item.instructions || "";
         skillsForm.path.value = item.path || "";
+        skillExtraFiles = (item.extraFiles || []).map((f) => ({ ...f }));
+        renderSkillExtraFiles();
         setSkillMode(item.mode);
       }),
       onDelete: async () => { await api("DELETE", `/api/skills/${item.id}`); await refreshAll(); },
@@ -1296,21 +1334,82 @@ function renderSecretsList() {
   for (const n of state.secretNames) {
     const row = document.createElement("div");
     row.className = "row";
-    row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(n)}</div></div><div class="row-actions"></div>`;
+    row.style.flexDirection = "column";
+    row.style.alignItems = "stretch";
+    row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="row-main"><div class="row-title">${escapeHtml(n)}</div></div>
+      <div class="row-actions"></div>
+    </div>
+    <div class="secret-test-result" style="margin-top:6px;"></div>`;
+    const actions = row.querySelector(".row-actions");
+    const resultEl = row.querySelector(".secret-test-result");
+
+    const testBtn = document.createElement("button");
+    testBtn.textContent = "Test";
+    testBtn.onclick = async () => {
+      testBtn.disabled = true;
+      testBtn.textContent = "Testando…";
+      resultEl.innerHTML = `<p class="hint">Fazendo uma chamada real (mensagem "hi", max 5 tokens) no model mais barato que o LiteLLM conhece pra esse provider…</p>`;
+      try {
+        const res = await api("POST", "/api/secrets/test", { name: n });
+        renderSecretTestResult(resultEl, n, res);
+      } catch (err) {
+        resultEl.innerHTML = `<p class="hint" style="color:var(--err);">Erro: ${escapeHtml(err.message)}</p>`;
+      }
+      testBtn.disabled = false;
+      testBtn.textContent = "Test";
+    };
+    actions.appendChild(testBtn);
+
     const del = document.createElement("button");
     del.textContent = "Remove";
     del.className = "danger";
     del.onclick = async () => { await api("DELETE", `/api/secrets/${n}`); await refreshAll(); };
-    row.querySelector(".row-actions").appendChild(del);
+    actions.appendChild(del);
     list.appendChild(row);
+  }
+}
+
+function renderSecretTestResult(resultEl, envKey, res) {
+  if (res.ok) {
+    resultEl.innerHTML = `<p class="hint" style="color:var(--ok);">✓ Key funciona — chamada de teste no model <code>${escapeHtml(res.testedModel)}</code> respondeu normalmente.</p>`;
+  } else {
+    resultEl.innerHTML = `<p class="hint" style="color:var(--err);">✗ Falhou: ${escapeHtml(res.error || "erro desconhecido")}</p>`;
+  }
+  if (res.discoveredModels && res.discoveredModels.length) {
+    const provider = findProviderByModelValue(res.testedModel) || PROVIDERS.find((p) => p.envKey === envKey);
+    const existingValues = new Set(state.models.map((m) => m.value));
+    const pickerId = `discovered-${envKey}-${Date.now()}`;
+    const items = res.discoveredModels.map((m) => {
+      const value = m.includes("/") ? m : (provider ? `${provider.id}/${m}` : m);
+      const already = existingValues.has(value);
+      return `<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" value="${escapeHtml(value)}" ${already ? "disabled checked" : ""}> ${escapeHtml(value)}${already ? " (já cadastrado)" : ""}</label>`;
+    }).join("");
+    const box = document.createElement("div");
+    box.className = "panel";
+    box.style.marginTop = "8px";
+    box.innerHTML = `<p class="hint">Models descobertos ao vivo pra este provider (via LiteLLM) — marque quais cadastrar na aba Models:</p>
+      <div id="${pickerId}" style="display:flex;flex-direction:column;gap:4px;">${items}</div>
+      <button class="secondary" type="button" style="margin-top:8px;">Cadastrar marcados</button>`;
+    box.querySelector("button").addEventListener("click", async () => {
+      const toAdd = $$(`#${pickerId} input:checked:not(:disabled)`);
+      for (const cb of toAdd) {
+        const value = cb.value;
+        await api("POST", "/api/models", { label: value, value });
+      }
+      await refreshAll();
+      box.innerHTML = `<p class="hint" style="color:var(--ok);">${toAdd.length} model(s) cadastrado(s).</p>`;
+    });
+    resultEl.appendChild(box);
   }
 }
 tabRefreshers.secrets = refreshAll;
 
-// Populate once (static list, doesn't depend on server state).
-$("#secret-provider-select").innerHTML =
-  '<option value="">— outro / customizado —</option>' +
-  PROVIDERS.filter((p) => p.key).map((p) => `<option value="${p.key}">${escapeHtml(p.label)} (${p.key})</option>`).join("");
+function renderProviderSelect() {
+  $("#secret-provider-select").innerHTML =
+    '<option value="">— outro / customizado —</option>' +
+    PROVIDERS.filter((p) => p.envKey).map((p) => `<option value="${p.envKey}">${escapeHtml(p.label)} (${p.envKey})</option>`).join("");
+}
 
 $("#secret-provider-select").addEventListener("change", (e) => {
   const nameInput = $("#secret-name-input");
