@@ -1,0 +1,2 @@
+# Fill using the schema produced by the installed Harbor version.
+# Run `harbor task init <name>` or `harbor init --task <org/name>` and merge these template files.

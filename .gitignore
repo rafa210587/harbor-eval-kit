@@ -1,0 +1,8 @@
+jobs/
+jobs-test/
+node_modules/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+*.log

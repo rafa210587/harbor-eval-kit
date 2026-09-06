@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kit_version": "0.1.0",
+  "created_at": null,
+  "host": {},
+  "preexisting": {
+    "podman": null,
+    "python": null,
+    "uv": null,
+    "java": null,
+    "maven": null,
+    "gradle": null,
+    "node": null,
+    "npm": null,
+    "harbor": null
+  },
+  "installed_by_kit": {},
+  "managed_resources": {
+    "containers": [],
+    "images": [],
+    "volumes": [],
+    "networks": []
+  },
+  "notes": []
+}

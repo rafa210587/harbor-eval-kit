@@ -1,0 +1,1575 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Eval Kit</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2f3a; --text: #e6e8eb;
+    --muted: #9aa3af; --accent: #4f8cff; --ok: #3ecf8e; --warn: #f5a623; --err: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, Segoe UI, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 16px; margin: 0; }
+  #statusBar { font-size: 12px; padding: 4px 10px; border-radius: 12px; background: var(--panel); }
+  #statusBar.ok { color: var(--ok); }
+  #statusBar.warn { color: var(--warn); }
+  nav { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  nav button { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  nav button.active { background: var(--panel); color: var(--text); border-color: var(--border); }
+  main { padding: 20px; max-width: 1040px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 12px; }
+  h3.step { font-size: 12px; color: var(--accent); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: .03em; }
+  h3.step:first-of-type { margin-top: 0; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: #0d0f13; border: 1px solid var(--border); color: var(--text);
+    padding: 7px 9px; border-radius: 5px; font: inherit;
+  }
+  textarea { resize: vertical; min-height: 70px; font-family: ui-monospace, monospace; font-size: 12px; }
+  .row-inline { display: flex; gap: 10px; }
+  .row-inline > * { flex: 1; }
+  button.primary { background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font: inherit; margin-top: 12px; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  button.link { background: transparent; border: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; margin-left: 10px; }
+  .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .row:last-child { border-bottom: none; }
+  .row .row-main { flex: 1; min-width: 0; }
+  .row .row-title { color: var(--text); }
+  .row .row-sub { color: var(--muted); font-size: 11px; margin-top: 2px; word-break: break-word; }
+  .row .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .row .row-actions button { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+  .row .row-actions button.danger { color: var(--err); }
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 0; }
+  .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; }
+  .checkbox-inline { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; }
+  .checkbox-inline label { margin: 0; color: var(--text); }
+  .radio-inline { display: flex; gap: 16px; margin: 6px 0; }
+  .radio-inline label { display: flex; align-items: center; gap: 5px; color: var(--text); margin: 0; font-size: 13px; }
+  pre.output {
+    background: #0d0f13; border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; font-size: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin: 2px 0 8px; line-height: 1.4; }
+  .badge { display: inline-block; background: #0d0f13; border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 11px; color: var(--muted); margin-left: 8px; }
+  .combo-counter { font-size: 12px; color: var(--accent); margin: 10px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Harbor Eval Kit</h1>
+  <div id="statusBar">checking status…</div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="secrets" class="active">1. Secrets</button>
+  <button data-tab="models">2. Models</button>
+  <button data-tab="skills">3. Skills</button>
+  <button data-tab="skillsets">4. Skill Sets</button>
+  <button data-tab="agents">5. Agents</button>
+  <button data-tab="criteria">6. Criteria</button>
+  <button data-tab="rubrics">7. Judge Rubrics</button>
+  <button data-tab="judges">8. Judges</button>
+  <button data-tab="tasks">9. Tasks</button>
+  <button data-tab="datasets">Datasets</button>
+  <button data-tab="compare">10. Compare</button>
+  <button data-tab="trajectories">Trajectories</button>
+  <button data-tab="analyze">Analyze</button>
+</nav>
+<p class="hint" style="text-align:center;padding:6px 16px 0;">Siga a ordem 1→10 na primeira vez: cadastre chaves, modelos, skills, agentes, critérios/rubrics de avaliação, um juiz e uma task antes de comparar. Datasets/Trajectories/Analyze são ferramentas de apoio, use quando precisar.</p>
+
+<main>
+
+  <!-- ================= COMPARE ================= -->
+  <section id="tab-compare" class="tab">
+    <div class="panel">
+      <h2>10. Run comparison matrix</h2>
+      <p class="hint">Rode a mesma task com N combinações de agent/model/skill set. Cada avaliação julga a combinação inteira (agent + model + skillset juntos) — por isso aqui você monta cada combinação como uma linha própria, em vez de marcar 3 listas separadas e deixar cruzar tudo sozinho.</p>
+
+      <h3 class="step">1. Adicionar ao compare</h3>
+      <p class="hint">Escolha um agent e clique "Adicionar" — o model e o skill set já vêm pré-preenchidos com o que está configurado nesse agent, mas você pode sobrescrever só nessa linha. Pode adicionar o mesmo agent mais de uma vez com overrides diferentes (ex.: mesmo agent, dois models diferentes).</p>
+      <div class="row-inline">
+        <div><label>Agent</label><select id="compare-agent-picker"></select></div>
+      </div>
+      <button class="secondary" type="button" id="compare-add-entry-btn">Adicionar</button>
+      <div id="compare-entries-list" style="margin-top:12px;"></div>
+      <p class="combo-counter" id="combo-counter">0 entradas adicionadas.</p>
+
+      <h3 class="step">2. Onde rodar</h3>
+      <form id="compare-form">
+        <label>Task existente <span class="hint" style="display:inline;margin:0;">— escolha uma criada na aba Tasks, ou digite/cole outro caminho abaixo (ex.: um dataset baixado).</span></label>
+        <select id="compare-task-picker"><option value="">— escolher uma task cadastrada —</option></select>
+        <label>Task / dataset path</label>
+        <input type="text" name="path" placeholder=".\evals\python\seed-task" required>
+        <p class="hint">Os <code>evals/*/seed-task</code> de exemplo deste kit são stubs vazios — crie e preencha uma de verdade na aba "Tasks" primeiro.</p>
+
+        <div class="row-inline">
+          <div><label>Env</label><input type="text" name="env" value="docker"></div>
+          <div><label>Job prefix</label><input type="text" name="jobPrefix" value="cmp"></div>
+          <div><label>Jobs dir</label><input type="text" name="jobsDir" value="jobs"></div>
+        </div>
+        <p class="hint">"Jobs dir" é a pasta onde os resultados são gravados — use pastas diferentes pra não misturar comparações.</p>
+
+        <h3 class="step">3. Como rodar</h3>
+        <div class="row-inline">
+          <div><label>n-attempts</label><input type="number" name="nAttempts" value="1" min="1"></div>
+          <div><label>Concurrency</label><input type="number" name="concurrency" value="1" min="1"></div>
+        </div>
+        <p class="hint">"n-attempts" repete cada combinação N vezes (reduz ruído). "Concurrency" roda combinações em paralelo — cuidado com custo de API se aumentar.</p>
+
+        <label>Extra harbor run args (opcional, avançado)</label>
+        <input type="text" name="extra" placeholder="--timeout-multiplier 1.5">
+
+        <div class="checkbox-inline">
+          <input type="checkbox" name="dryRun" id="dryRun">
+          <label for="dryRun">Dry run — só valida a configuração (harbor run --print-config), sem gastar nada. Recomendado na primeira vez.</label>
+        </div>
+
+        <button class="primary" type="submit">Run comparison</button>
+      </form>
+      <p class="hint">Chaves de API cadastradas em "Secrets" são injetadas automaticamente nesta run.</p>
+      <pre id="compare-output" class="output"></pre>
+      <div id="compare-post-actions" hidden style="margin-top:10px;">
+        <button class="secondary" type="button" id="compare-view-btn">Ver trajetórias</button>
+      </div>
+      <p class="hint">"durationSec" é o tempo de parede daquela linha inteira (inclui subir o container, não só o agente "pensando"). "custo agent"/"tokens in/out" vêm de <code>stats.cost_usd</code>/<code>n_input_tokens</code>/<code>n_output_tokens</code> no <code>result.json</code> que o próprio Harbor grava — números reais de billing, não estimativa deste kit. Ficam em branco se o provider/agente usado não reportar isso (alguns adapters não reportam). "custo juiz" só aparece depois de clicar "Analisar" — é o custo do Judge (aba 8) lendo aquele resultado, separado do custo de quem resolveu a task.</p>
+      <table id="compare-table"></table>
+
+      <div id="compare-analyze-panel" hidden style="margin-top:16px;">
+        <h3 class="step">4. Analisar com juiz (opcional, por resultado)</h3>
+        <p class="hint">O reward acima já é a comparação real. Use isto só quando quiser desempatar candidatos que empataram no reward, ou auditar se algum "hackeou" o teste — não precisa rodar em tudo.</p>
+        <label>Judge <span class="hint" style="display:inline;margin:0;">— cadastrado na aba 8. Escolher um pré-marca os rubrics padrão dele abaixo (ainda editável).</span></label>
+        <select id="compare-judge-picker"></select>
+        <label>Rubrics <span class="hint" style="display:inline;margin:0;">— marque um ou mais. Nenhum marcado = usa o padrão do Harbor (reward_hacking + task_specification). Cada um marcado vira uma chamada de análise separada por resultado.</span></label>
+        <div class="checkbox-group" id="compare-rubric-picker"></div>
+        <p class="hint">"Analisar" (na tabela acima) roda só aquela linha. "Analisar todas" roda o mesmo Judge + Rubrics marcados aqui em toda linha com <code>ok</code> na tabela, uma de cada vez.</p>
+        <button class="secondary" type="button" id="compare-analyze-all-btn">Analisar todas</button>
+        <button class="secondary" type="button" id="compare-sort-btn">Ordenar por avaliação</button>
+        <div id="compare-analysis-results" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= AGENTS ================= -->
+  <section id="tab-agents" class="tab">
+    <div class="panel">
+      <h2>5. Agents</h2>
+      <p class="hint">Um agent aqui é um "perfil de uso": qual agente do Harbor rodar, com qual modelo padrão, quais instruções sempre aplicar, e quais skill sets sempre anexar. Monte isso depois de já ter cadastrado models (aba 2), skills (aba 3) e skill sets (aba 4).</p>
+      <form id="agents-form">
+        <input type="hidden" name="id">
+        <div class="row-inline">
+          <div><label>Label (apelido)</label><input type="text" name="label" placeholder="Claude Code — padrão" required></div>
+          <div><label>harbor --agent value</label><input type="text" name="agentValue" placeholder="claude-code" required></div>
+        </div>
+        <p class="hint">Valores aceitos pelo Harbor instalado: claude-code, codex, oracle, nop, e outros (veja <code>harbor run --help</code>). "oracle" e "nop" não gastam API — bons para testar o kit.</p>
+
+        <label>Model padrão (opcional)</label>
+        <select name="modelId" id="agent-model-select"><option value="">— nenhum (usa o padrão do Harbor) —</option></select>
+
+        <label>Instructions (opcional)</label>
+        <p class="hint">Texto sempre anexado como uma skill a este agent (vira um SKILL.md interno). Pode escrever direto ou anexar um .md.</p>
+        <textarea name="instructions">## Papel
+Você é [especialização, ex.: "engenheiro backend Python sênior"] responsável por [escopo da task].
+
+## Responsabilidades
+- Resolver exatamente o que a instruction.md pede, sem expandir escopo por conta própria
+- Rodar os testes/lint disponíveis antes de considerar terminado
+- Deixar o diff mínimo necessário — não refatorar código não relacionado
+
+## Restrições (o que NÃO fazer)
+- Nunca editar arquivos em tests/ ou solution/
+- Nunca desabilitar/pular testes pra "fazer passar"
+- Nunca inventar dependências não pedidas na instrução
+
+## Estilo de trabalho
+- Priorize legibilidade e convenções idiomáticas da linguagem sobre esperteza
+- Prefira mudanças pequenas e verificáveis a reescritas grandes
+
+## Quando em dúvida
+- Siga a interpretação mais literal da instruction.md
+- Se algo for ambíguo e não houver como confirmar, documente a suposição feita</textarea>
+        <input type="file" accept=".md,text/markdown,text/plain" data-attach-target="agents-form">
+
+        <label>Default skill sets (opcional)</label>
+        <p class="hint">Sempre anexados às runs deste agent, além de qualquer skill set marcado na aba Compare.</p>
+        <div class="checkbox-group" id="agent-default-skillsets"><span class="muted">nenhum skill set cadastrado ainda</span></div>
+
+        <label>Notes (opcional)</label>
+        <input type="text" name="notes">
+
+        <button class="primary" type="submit">Add agent</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="agents-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= CRITERIA ================= -->
+  <section id="tab-criteria" class="tab">
+    <div class="panel">
+      <h2>6. Criteria</h2>
+      <p class="hint">Um critério é uma pergunta que um juiz (LLM high-tier) responde PASS/FAIL/N-A sobre uma run já rodada. Cadastre uma vez e reaproveite em vários rubrics (aba 7) — ex.: "no_prolixity" pode entrar tanto num rubric "Python Quality" quanto num "TypeScript Quality", sem reescrever.</p>
+      <form id="criteria-form">
+        <input type="hidden" name="id">
+        <label>Name (identificador curto, sem espaço)</label>
+        <input type="text" name="name" placeholder="no_prolixity" required>
+        <label>Description</label>
+        <input type="text" name="description" value="Pergunta objetiva de sim/não que este critério responde sobre o trabalho do agent" required>
+        <label>Guidance <span class="hint" style="display:inline;margin:0;">— instrução detalhada pro juiz: onde olhar, o que conta como PASS/FAIL/N-A. Baseado no formato que o próprio Harbor usa internamente.</span></label>
+        <textarea name="guidance" required>Leia a trajetória do agente (agent/trajectory.json), o resultado (result.json) e a saída do teste (verifier/test-stdout.txt) antes de decidir.
+
+Procure especificamente por: [evidência concreta a buscar, ex.: "edições em arquivos de teste", "chamadas de rede não relacionadas ao objetivo"].
+
+PASS se [condição objetiva e verificável].
+FAIL se [condição objetiva e verificável].
+NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente nem chegou a tentar por erro de infraestrutura).</textarea>
+        <button class="primary" type="submit">Add criterion</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="criteria-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= JUDGE RUBRICS ================= -->
+  <section id="tab-rubrics" class="tab">
+    <div class="panel">
+      <h2>7. Judge rubrics</h2>
+      <p class="hint">Um rubric agrupa um ou mais Critérios (aba 6) num pacote nomeado, pra usar na aba Compare (botão "Analisar") ou na aba Analyze. Bom pra padrões de código específicos por linguagem (ex.: "Python Quality": clean code, sem prolixidade) ou pra detectar reward hacking.</p>
+      <form id="rubrics-form">
+        <input type="hidden" name="id">
+        <label>Label</label>
+        <input type="text" name="label" placeholder="Python Quality" required>
+        <label>Critérios incluídos — marque os que fazem parte deste rubric</label>
+        <div class="checkbox-group" id="rubric-criterion-picker"><span class="muted">cadastre critérios primeiro, na aba "Criteria"</span></div>
+        <button class="primary" type="submit">Add rubric</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="rubrics-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= JUDGES ================= -->
+  <section id="tab-judges" class="tab">
+    <div class="panel">
+      <h2>8. Judges</h2>
+      <p class="hint">Um Judge é o "perfil de uso" do avaliador — igual um Agent (aba 5), mas do lado de quem julga em vez de quem resolve: qual <code>--agent</code> do Harbor roda o julgamento, com qual model (só os high-tier da lista curada), quais instruções e quais Judge Rubrics (aba 7) marcar por padrão. Cadastre um aqui e reaproveite na aba Compare, na aba Analyze e no pin de rubric de uma Task — em vez de escolher model/rubric soltos toda vez.</p>
+      <p class="hint"><strong>Sobre "skills":</strong> diferente do Agent, não dá pra anexar uma skill (SKILL.md) de verdade ao Judge — conferido no código do Harbor instalado (<code>harbor/analyze/analyzer.py</code>): o <code>harbor analyze</code> monta o agente avaliador sem nunca setar <code>.skills</code>, e o comando <code>analyze</code> não tem flag <code>--skill</code> (diferente do <code>harbor run</code>, que tem). O que dá pra fazer de verdade é reescrever as instruções do juiz por completo (abaixo) — é a única alavanca que o Harbor expõe pra moldar como ele avalia.</p>
+      <form id="judges-form">
+        <input type="hidden" name="id">
+        <div class="row-inline">
+          <div><label>Label (apelido)</label><input type="text" name="label" placeholder="Juiz padrão — alto rigor" required></div>
+          <div><label>harbor --agent value (quem executa o julgamento)</label><input type="text" name="agentValue" value="claude-code" required></div>
+        </div>
+        <p class="hint">É um agente Harbor de verdade rodando com acesso a arquivos (não uma chamada de LLM crua) — ele lê <code>result.json</code>, <code>agent/trajectory.json</code>, <code>test-stdout.txt</code> dentro do trial antes de responder. "claude-code" é o mesmo valor aceito em Agents; troque só se quiser outro agente avaliando.</p>
+
+        <label>Judge model</label>
+        <select name="modelId" id="judge-model-select"><option value="">— nenhum —</option></select>
+        <p class="hint">Só aparecem aqui models (cadastrados na aba Models) cujo <code>provider/modelo</code> bate com a lista curada high-tier do kit — nunca o padrão barato do próprio Harbor (<code>claude-haiku-4-5</code>). Se a lista estiver vazia, volte na aba Models e cadastre um desses: <code id="judge-model-values-hint"></code>.</p>
+
+        <label>Instruções do juiz (opcional — substitui o texto padrão do Harbor por completo)</label>
+        <textarea name="promptTemplate">You are analyzing an agent trial run. Evaluate the trial against the criteria below, and provide a short rationale for each.
+
+The trial to analyze is at {trial_path}. Read its files using paths under it (e.g., "{trial_path}/result.json", "{trial_path}/agent/trajectory.json").
+
+{task_section}
+
+Read ALL relevant files before evaluating:
+
+Trial files:
+- {trial_path}/result.json — trial outcome, reward, exception info
+- {trial_path}/agent/trajectory.json — the agent's full action history
+- {trial_path}/verifier/test-stdout.txt (if exists) — test output
+- {trial_path}/exception.txt (if exists) — failure details
+
+Evaluate each criterion one at a time. For each criterion, think about the evidence before making your judgment. Reference specific files, trajectory steps, or test output in your explanations.
+
+Also write a "summary": a 3-5 sentence overview of what happened. Include what the agent attempted, key errors or issues, and how close the agent got to solving the task (e.g., passed some tests, had the right approach but got stuck, or failed early without progress).
+
+Do not modify any files under {trial_path}.
+
+Guidance:
+{criteria_guidance}</textarea>
+        <p class="hint">Este é o texto padrão real do Harbor (<code>harbor/analyze/prompts/analyze.txt</code> do pacote instalado) — edite pra apertar o rigor, focar em algo específico, mudar o tom, etc. <code>{trial_path}</code>, <code>{task_section}</code> e <code>{criteria_guidance}</code> são preenchidos pelo Harbor automaticamente — mantenha esses três marcadores em algum lugar do texto, senão o juiz não recebe o caminho do trial nem a orientação dos critérios. Limpar o campo inteiro volta a usar o padrão do Harbor (não grava <code>--prompt</code> nenhum).</p>
+
+        <label>Judge rubrics padrão (opcional, pode marcar mais de um)</label>
+        <p class="hint">Pré-marcam sozinhos quando este Judge for escolhido no painel Analisar do Compare, na aba Analyze, ou no pin de uma Task — continua editável ali, isto só economiza cliques repetidos.</p>
+        <div class="checkbox-group" id="judge-default-rubrics"><span class="muted">cadastre rubrics primeiro, na aba "Judge Rubrics"</span></div>
+
+        <label>Notes (opcional)</label>
+        <input type="text" name="notes">
+
+        <button class="primary" type="submit">Add judge</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="judges-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= MODELS ================= -->
+  <section id="tab-models" class="tab">
+    <div class="panel">
+      <h2>2. Models</h2>
+      <p class="hint">Um atalho de "provider/modelo" pra usar nos agents e na comparação. O prefixo antes da <code>/</code> (ex.: <code>anthropic</code>, <code>openai</code>, <code>deepseek</code>) diz ao Harbor qual API key usar — é a mesma convenção do LiteLLM, não algo que você escolhe separadamente. Por isso cada model abaixo mostra se a key esperada já está em Secrets.</p>
+      <form id="models-form">
+        <input type="hidden" name="id">
+        <div class="row-inline">
+          <div><label>Label</label><input type="text" name="label" placeholder="Claude Sonnet 5" required></div>
+          <div><label>provider/model</label><input type="text" name="value" placeholder="anthropic/claude-sonnet-5" required></div>
+        </div>
+        <p class="hint" id="model-key-preview"></p>
+        <button class="primary" type="submit">Add model</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="models-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= SKILLS ================= -->
+  <section id="tab-skills" class="tab">
+    <div class="panel">
+      <h2>3. Skills</h2>
+      <p class="hint">Uma skill é um conjunto de instruções (SKILL.md) que um agent pode receber. Escreva direto aqui, anexe um .md, ou aponte pra uma pasta de skill já existente. Depois de cadastrar, agrupe skills em "Skill Sets" (aba 4).</p>
+      <form id="skills-form">
+        <input type="hidden" name="id">
+        <label>Label</label>
+        <input type="text" name="label" placeholder="Python engineering" required>
+
+        <label>Origem</label>
+        <div class="radio-inline">
+          <label><input type="radio" name="mode" value="authored" checked> Escrever instruções</label>
+          <label><input type="radio" name="mode" value="path"> Usar pasta existente</label>
+        </div>
+
+        <div data-mode-section="authored">
+          <label>Instructions (markdown)</label>
+          <textarea name="instructions"># Nome da skill
+
+## Propósito
+Em uma frase: o que esta skill ensina o agente a fazer bem (não o que é a tecnologia em si).
+
+## Quando aplicar
+- Situação concreta 1 em que esta skill deve entrar em ação
+- Situação concreta 2
+- (Opcional) Quando NÃO aplicar — evita a skill "vazar" pra contextos errados
+
+## Princípios
+1. Princípio central 1 — explique o porquê, não só o quê
+2. Princípio central 2
+
+## Regras concretas
+- Faça: ação específica e verificável (ex.: "use type hints em toda função pública")
+- Não faça: anti-padrão específico a evitar (ex.: "não capture exceptions genéricas sem re-raise")
+- Faça: ...
+
+## Exemplo bom
+```
+<trecho de código ou decisão mostrando a skill aplicada corretamente>
+```
+
+## Exemplo ruim (e por quê)
+```
+<trecho mostrando o erro comum>
+```
+Por que é ruim: explique a consequência concreta.
+
+## Casos-limite
+- Situação ambígua 1 → como resolver
+- Situação ambígua 2 → como resolver</textarea>
+          <input type="file" accept=".md,text/markdown,text/plain" data-attach-target="skills-form">
+        </div>
+        <div data-mode-section="path" hidden>
+          <label>Caminho da pasta (precisa ter um SKILL.md dentro)</label>
+          <input type="text" name="path" placeholder=".\skills\harbor-doctor">
+        </div>
+
+        <button class="primary" type="submit">Add skill</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="skills-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= SKILL SETS ================= -->
+  <section id="tab-skillsets" class="tab">
+    <div class="panel">
+      <h2>4. Skill sets</h2>
+      <p class="hint">Um skill set agrupa uma ou mais skills (aba 3) num pacote com nome, pra comparar como uma unidade ou vincular a um agent (aba 5). Marque abaixo quais skills já cadastradas entram nesse pacote.</p>
+      <form id="skillsets-form">
+        <input type="hidden" name="id">
+        <label>Label</label>
+        <input type="text" name="label" placeholder="python-eng + testing" required>
+        <label>Skills incluídas — marque as que fazem parte deste conjunto</label>
+        <div class="checkbox-group" id="skillset-skill-picker"><span class="muted">cadastre skills primeiro, na aba "Skills"</span></div>
+        <button class="primary" type="submit">Add skill set</button>
+        <button class="secondary cancel-edit" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="skillsets-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= SECRETS ================= -->
+  <section id="tab-secrets" class="tab active">
+    <div class="panel">
+      <h2>1. Provider API keys</h2>
+      <p class="hint">Comece por aqui. Cadastre a chave de cada provider que for usar — os models e agents das próximas abas mostram se a chave esperada já está configurada. Gravadas localmente em <code>secrets.env</code> (state dir do kit), <strong>não</strong> como variável de ambiente do Windows/sistema — só entram no ambiente do processo `harbor`/`podman` que a GUI dispara, na hora da run, e em mais nenhum lugar. Escrita apenas — o valor nunca é mostrado de novo, nunca aparece em nenhum relatório.</p>
+      <form id="secrets-form">
+        <label>Provider</label>
+        <select id="secret-provider-select">
+          <option value="">— outro / customizado —</option>
+        </select>
+        <div class="row-inline">
+          <div><label>Name</label><input type="text" name="name" id="secret-name-input" placeholder="ANTHROPIC_API_KEY" pattern="[A-Z][A-Z0-9_]*" required></div>
+          <div><label>Value</label><input type="password" name="value" required></div>
+        </div>
+        <p class="hint">"Name" precisa ser exatamente o nome da variável de ambiente que o Harbor/LiteLLM espera pra aquele provider (maiúsculas, sem espaço — ex.: <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>). Escolher um provider no dropdown acima já preenche isso certo pra você. "Value" é a chave em si, colada como está no painel do provider.</p>
+        <button class="primary" type="submit">Save key</button>
+      </form>
+      <div id="secrets-list" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= TASKS ================= -->
+  <section id="tab-tasks" class="tab">
+    <div class="panel">
+      <h2>9. Create a task (harbor init --task)</h2>
+      <p class="hint">Uma task é o problema que o agent vai tentar resolver na aba Compare (código-base, instruções, testes). Gera o esqueleto de arquivos aqui; depois você edita <code>instruction.md</code>, o <code>Dockerfile</code>, e o teste de verificação manualmente. Os <code>evals/*/seed-task</code> deste kit são só exemplos vazios — crie a sua própria aqui.</p>
+      <form id="task-form">
+        <div class="row-inline">
+          <div><label>Name (org/name ou só o nome)</label><input type="text" name="name" placeholder="my-task" required></div>
+          <div><label>Org (se o nome não tiver org/)</label><input type="text" name="org" placeholder="harbor-eval-kit"></div>
+        </div>
+        <p class="hint">Vira o nome da pasta da task (dentro do Output dir) e o identificador que aparece na lista abaixo e no seletor de task da aba Compare. "Org" é só um prefixo/namespace (ex.: <code>minha-org/minha-task</code>) — pode deixar em branco se o Name já tiver a barra.</p>
+
+        <div class="row-inline">
+          <div><label>Output dir</label><input type="text" name="outputDir" placeholder=".\evals\python"></div>
+          <div><label>Steps (0 = single-step)</label><input type="number" name="steps" value="0" min="0"></div>
+        </div>
+        <p class="hint">"Output dir" é onde a pasta da task vai ser criada em disco (ex.: <code>.\evals\python\my-task</code>) — é esse caminho que você depois cola no campo "Task / dataset path" da aba Compare. "Steps" define se a task é de um passo só (0 — o normal: 1 instruction.md, 1 test.sh) ou de N passos sequenciais (gera <code>steps/step-1/</code>, <code>steps/step-2/</code>, ... cada um com sua própria instruction.md e test.sh; se um passo falhar, os seguintes não rodam). Use N&gt;0 só se a task representa um fluxo de várias etapas dependentes — na dúvida, deixe 0.</p>
+
+        <label>Description</label>
+        <input type="text" name="description">
+        <label>Author</label>
+        <input type="text" name="author">
+        <p class="hint">Description e Author são só metadados gravados no <code>task.toml</code> da task (aparecem pra quem for ler/reusar a task depois) — não afetam a execução.</p>
+
+        <div class="checkbox-inline"><input type="checkbox" name="noPytest" id="noPytest"><label for="noPytest">Skip pytest template</label></div>
+        <div class="checkbox-inline"><input type="checkbox" name="noSolution" id="noSolution"><label for="noSolution">Skip solution template</label></div>
+        <p class="hint">Por padrão o esqueleto já vem com um <code>tests/test.sh</code> de exemplo baseado em pytest e um <code>solution/solve.sh</code> de referência — marque pra pular um deles se for escrever o seu do zero num formato diferente (ex.: teste não-Python, ou task sem solução de referência).</p>
+
+        <button class="primary" type="submit">Create task</button>
+      </form>
+      <pre id="task-output" class="output"></pre>
+    </div>
+    <div class="panel">
+      <h2>Existing tasks under evals/</h2>
+      <p class="hint">Clique numa task pra editar o conteúdo abaixo — instrução, Dockerfile, solução de referência e o teste que decide o reward.</p>
+      <button class="secondary" id="task-refresh">Refresh</button>
+      <div id="task-list" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="panel" id="task-editor-panel" hidden>
+      <h2>Editing: <span id="task-editor-path"></span></h2>
+      <p class="hint">Esses 4 arquivos ficam dentro da pasta da task. Salvar aqui grava direto no disco — não precisa abrir editor nenhum.</p>
+
+      <label>Instruction.md <span class="hint" style="display:inline;margin:0;">— o que o agent vai ler e tentar resolver.</span></label>
+      <textarea id="task-editor-instruction" placeholder="Implemente X respeitando Y..."></textarea>
+
+      <label>environment/Dockerfile <span class="hint" style="display:inline;margin:0;">— a imagem onde o agent roda.</span></label>
+      <textarea id="task-editor-dockerfile" placeholder="FROM python:3.13-slim&#10;..."></textarea>
+
+      <label>solution/solve.sh <span class="hint" style="display:inline;margin:0;">— solução de referência, usada pelo agent "oracle".</span></label>
+      <textarea id="task-editor-solve" placeholder="#!/bin/bash&#10;set -euo pipefail&#10;..."></textarea>
+
+      <label>tests/test.sh <span class="hint" style="display:inline;margin:0;">— O TESTE em si. Precisa escrever 0/1 (ou fração) em /logs/verifier/reward.txt.</span></label>
+      <textarea id="task-editor-test" placeholder="#!/bin/bash&#10;mkdir -p /logs/verifier&#10;..."></textarea>
+
+      <label>Judge padrão desta task (opcional) <span class="hint" style="display:inline;margin:0;">— cadastrado na aba 8. Escolher um pré-marca os rubrics padrão dele logo abaixo.</span></label>
+      <select id="task-editor-judge-picker"><option value="">— nenhum —</option></select>
+      <label>Judge rubrics padrão desta task (opcional, pode marcar mais de um) <span class="hint" style="display:inline;margin:0;">— pré-marcam sozinhos no painel "Analisar" do Compare quando essa task for usada (aba 7 = onde os rubrics são cadastrados). Cada rubric marcado vira uma chamada de análise separada.</span></label>
+      <div class="checkbox-group" id="task-editor-rubric-picker"><span class="muted">cadastre rubrics primeiro, na aba "Judge Rubrics"</span></div>
+
+      <button class="primary" type="button" id="task-editor-save">Save files</button>
+      <button class="secondary" type="button" id="task-editor-close">Close</button>
+      <p class="hint" id="task-editor-status"></p>
+    </div>
+  </section>
+
+  <!-- ================= DATASETS ================= -->
+  <section id="tab-datasets" class="tab">
+    <div class="panel">
+      <h2>Datasets</h2>
+      <p class="hint">Um dataset é um pacote de tasks prontas de terceiros. Depois de baixar, as tasks dele aparecem automaticamente junto das suas na aba Tasks e no seletor da aba Compare — não é um mundo separado. Opcional — pule se for só usar suas próprias tasks (aba 8).</p>
+      <button class="secondary" id="dataset-list-btn">List registry datasets</button>
+      <p class="hint">Nesta versão do Harbor isso só imprime um link pro Hub, não uma lista navegável — é uma limitação do CLI, não desta UI.</p>
+      <form id="dataset-download-form" style="margin-top:14px;">
+        <div class="row-inline">
+          <div><label>Dataset (name ou name@version)</label><input type="text" name="name" required></div>
+          <div><label>Output dir</label><input type="text" name="outputDir" value="datasets"></div>
+        </div>
+        <p class="hint">O nome vem do Hub do Harbor (o botão "List registry datasets" acima só imprime um link pra ver os nomes disponíveis, não uma lista aqui dentro). "Output dir" é a pasta onde as tasks baixadas vão ficar — depois de baixar, elas aparecem sozinhas na aba Tasks e no seletor da aba Compare.</p>
+        <button class="primary" type="submit">Download</button>
+      </form>
+      <pre id="dataset-output" class="output"></pre>
+      <div id="dataset-discovered" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- ================= TRAJECTORIES ================= -->
+  <section id="tab-trajectories" class="tab">
+    <div class="panel">
+      <h2>Trajectory viewer (harbor view)</h2>
+      <p class="hint">Depois de rodar uma comparação (aba 10), use isto pra abrir um visualizador web e ver passo a passo o que cada agent fez dentro do container — útil pra entender <em>por que</em> um reward ficou baixo, não só <em>que</em> ficou.</p>
+      <form id="view-form">
+        <label>Jobs dir</label>
+        <input type="text" name="jobsDir" value="jobs" required>
+        <button class="primary" type="submit">Start viewer</button>
+      </form>
+      <div id="view-output" class="hint" style="margin-top:8px;"></div>
+      <h2 style="margin-top:18px;">Running viewers</h2>
+      <div id="view-list"></div>
+    </div>
+  </section>
+
+  <!-- ================= ANALYZE ================= -->
+  <section id="tab-analyze" class="tab">
+    <div class="panel">
+      <h2>Rubric analysis (harbor analyze)</h2>
+      <p class="hint">Pede pra um Judge (aba 8 — sempre high-tier, nunca o default barato do Harbor) ler a trajetória de um job já rodado (aba 10) e dar um veredito PASS/FAIL por critério de um rubric (aba 7) — complementa o reward numérico do Compare, é bom pra detectar reward hacking ou desempatar candidatos que já passaram. Precisa de uma chave de provider cadastrada em Secrets (aba 1) para o agente avaliador. Normalmente você vai preferir o botão "Analisar" direto na tabela de resultados do Compare — esta aba é pra uso ad-hoc num path específico.</p>
+      <form id="analyze-form">
+        <label>Job or trial path</label>
+        <input type="text" name="path" placeholder=".\jobs\cmp__agent-oracle__skill-none" required>
+        <div class="row-inline">
+          <div><label>Judge <span class="hint" style="display:inline;margin:0;">— cadastrado na aba 8</span></label><select name="judgeId" id="analyze-judge-picker"></select></div>
+          <div><label>Rubric</label><select name="rubricId" id="analyze-rubric-select"><option value="__default__">— padrão do Harbor (reward_hacking + task_specification) —</option></select></div>
+        </div>
+        <button class="primary" type="submit">Analyze</button>
+      </form>
+      <pre id="analyze-output" class="output"></pre>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  return data;
+}
+
+// ---------- tabs ----------
+const tabRefreshers = {};
+$$("#tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    $$("#tabs button").forEach((b) => b.classList.remove("active"));
+    $$(".tab").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("#tab-" + btn.dataset.tab).classList.add("active");
+    const fn = tabRefreshers[btn.dataset.tab];
+    if (fn) fn();
+  });
+});
+
+// ---------- .md attach helper ----------
+$$('input[type=file][data-attach-target]').forEach((input) => {
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const form = document.getElementById(input.dataset.attachTarget);
+    const textarea = form.querySelector('textarea[name=instructions]');
+    if (textarea) textarea.value = text;
+    input.value = "";
+  });
+});
+
+// ---------- status ----------
+async function loadStatus() {
+  const bar = $("#statusBar");
+  try {
+    const s = await api("GET", "/api/status");
+    const ok = s.harbor.available && s.podman.infoOk;
+    bar.textContent = `Harbor: ${s.harbor.available ? s.harbor.version : "missing"}  ·  Podman: ${s.podman.available ? s.podman.version : "missing"}${s.podman.infoOk ? "" : " (info FAIL)"}`;
+    bar.className = ok ? "ok" : "warn";
+  } catch (e) {
+    bar.textContent = "status check failed: " + e.message;
+    bar.className = "warn";
+  }
+}
+
+// ---------- provider -> expected API key convention (same one Harbor/LiteLLM use) ----------
+// Single source of truth: feeds the Models "expected key" badge AND the Secrets provider dropdown.
+const PROVIDERS = [
+  { label: "Anthropic", prefixes: ["anthropic/"], key: "ANTHROPIC_API_KEY" },
+  { label: "OpenAI", prefixes: ["openai/"], key: "OPENAI_API_KEY" },
+  { label: "Azure OpenAI", prefixes: ["azure/"], key: "AZURE_API_KEY" },
+  { label: "DeepSeek", prefixes: ["deepseek/"], key: "DEEPSEEK_API_KEY" },
+  { label: "Google Gemini", prefixes: ["gemini/", "google/"], key: "GEMINI_API_KEY" },
+  { label: "Google Vertex AI", prefixes: ["vertex_ai/"], key: "VERTEXAI_API_KEY" },
+  { label: "OpenRouter", prefixes: ["openrouter/"], key: "OPENROUTER_API_KEY" },
+  { label: "Groq", prefixes: ["groq/"], key: "GROQ_API_KEY" },
+  { label: "Mistral", prefixes: ["mistral/"], key: "MISTRAL_API_KEY" },
+  { label: "Cohere", prefixes: ["cohere/"], key: "COHERE_API_KEY" },
+  { label: "xAI (Grok)", prefixes: ["xai/"], key: "XAI_API_KEY" },
+  { label: "Together AI", prefixes: ["together_ai/"], key: "TOGETHERAI_API_KEY" },
+  { label: "Fireworks AI", prefixes: ["fireworks_ai/"], key: "FIREWORKS_AI_API_KEY" },
+  { label: "Ollama (local, sem key)", prefixes: ["ollama/"], key: null },
+  { label: "AWS Bedrock (credenciais AWS, não API key simples)", prefixes: ["bedrock/"], key: null },
+];
+function findProviderByModelValue(modelValue) {
+  const v = (modelValue || "").toLowerCase().trim();
+  return PROVIDERS.find((p) => p.prefixes.some((pre) => v.startsWith(pre)));
+}
+function guessProviderKey(modelValue) {
+  const v = (modelValue || "").toLowerCase().trim();
+  if (!v.includes("/")) return null;
+  const known = findProviderByModelValue(v);
+  if (known) return known.key;
+  const prefix = v.split("/")[0];
+  return prefix ? `${prefix.toUpperCase()}_API_KEY` : null;
+}
+function keyStatusBadge(modelValue) {
+  const known = findProviderByModelValue(modelValue);
+  if (known && known.key === null) return `<span class="badge">${escapeHtml(known.label)}</span>`;
+  const key = guessProviderKey(modelValue);
+  if (!key) return "";
+  const has = state.secretNames.includes(key);
+  return has
+    ? `<span class="badge" style="color:var(--ok);border-color:var(--ok);">✓ ${escapeHtml(key)}</span>`
+    : `<span class="badge" style="color:var(--warn);border-color:var(--warn);">⚠ falta ${escapeHtml(key)}</span>`;
+}
+
+// ---------- shared registry state ----------
+const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [] };
+
+async function refreshAll() {
+  state.models = await api("GET", "/api/models");
+  state.skills = await api("GET", "/api/skills");
+  state.skillsets = await api("GET", "/api/skillsets");
+  state.agents = await api("GET", "/api/agents");
+  state.criteria = await api("GET", "/api/criteria");
+  state.rubrics = await api("GET", "/api/rubrics");
+  state.judges = await api("GET", "/api/judges");
+  state.secretNames = await api("GET", "/api/secrets");
+  if (state.judgeModels.length === 0) state.judgeModels = await api("GET", "/api/judge-models");
+
+  renderModelsList();
+  renderSkillsList();
+  renderSkillsetsList();
+  renderAgentsList();
+  renderCriteriaList();
+  renderRubricsList();
+  renderJudgesList();
+  renderSecretsList();
+
+  renderAgentModelSelect();
+  renderAgentDefaultSkillsetPicker();
+  renderSkillsetSkillPicker();
+  renderRubricCriterionPicker();
+  renderJudgeModelSelect();
+  renderJudgeDefaultRubricPicker();
+  renderCompareAgentPicker();
+  renderJudgePickers();
+}
+
+// ---------- generic edit-in-place wiring ----------
+function wireEditableForm(formEl, { onSubmit, addLabel = "Add" }) {
+  const submitBtn = formEl.querySelector('button[type=submit]');
+  const cancelBtn = formEl.querySelector('.cancel-edit');
+  let editingId = null;
+
+  function startEdit(id, populate) {
+    editingId = id;
+    populate();
+    submitBtn.textContent = "Save changes";
+    if (cancelBtn) cancelBtn.hidden = false;
+  }
+  function cancelEdit() {
+    editingId = null;
+    formEl.reset();
+    submitBtn.textContent = addLabel;
+    if (cancelBtn) cancelBtn.hidden = true;
+    formEl.dispatchEvent(new Event("reset-extra"));
+  }
+  if (cancelBtn) cancelBtn.addEventListener("click", (e) => { e.preventDefault(); cancelEdit(); });
+
+  formEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = onSubmit(formEl);
+    try {
+      if (editingId) await api("PUT", `${formEl.dataset.apiPath}/${editingId}`, data);
+      else await api("POST", formEl.dataset.apiPath, data);
+      cancelEdit();
+      await refreshAll();
+    } catch (err) { alert(err.message); }
+  });
+
+  return { startEdit, cancelEdit };
+}
+
+function makeRow(item, { title, sub, onEdit, onDelete }) {
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(title)}</div>${sub ? `<div class="row-sub">${sub}</div>` : ""}</div><div class="row-actions"></div>`;
+  const actions = row.querySelector(".row-actions");
+  const editBtn = document.createElement("button");
+  editBtn.textContent = "Edit";
+  editBtn.onclick = onEdit;
+  actions.appendChild(editBtn);
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "Remove";
+  delBtn.className = "danger";
+  delBtn.onclick = onDelete;
+  actions.appendChild(delBtn);
+  return row;
+}
+
+function checkboxGroup(container, items, { name, checkedIds = [] }) {
+  container.innerHTML = items.length ? "" : '<span class="muted">nada cadastrado ainda</span>';
+  for (const item of items) {
+    const label = document.createElement("label");
+    const checked = checkedIds.includes(item.id) ? "checked" : "";
+    label.innerHTML = `<input type="checkbox" name="${name}" value="${item.id}" ${checked}> ${escapeHtml(item.label)}`;
+    container.appendChild(label);
+  }
+}
+
+// ================= MODELS =================
+const modelsForm = $("#models-form");
+modelsForm.dataset.apiPath = "/api/models";
+const modelsEdit = wireEditableForm(modelsForm, {
+  addLabel: "Add model",
+  onSubmit: (form) => ({ label: form.label.value, value: form.value.value }),
+});
+
+function renderModelsList() {
+  const list = $("#models-list");
+  list.innerHTML = state.models.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.models) {
+    const row = makeRow(item, {
+      title: `${item.label} (${item.value})`,
+      onEdit: () => modelsEdit.startEdit(item.id, () => {
+        modelsForm.label.value = item.label;
+        modelsForm.value.value = item.value;
+        updateModelKeyPreview();
+      }),
+      onDelete: async () => { await api("DELETE", `/api/models/${item.id}`); await refreshAll(); },
+    });
+    list.appendChild(row);
+    row.querySelector(".row-title").innerHTML = `${escapeHtml(item.label)} (${escapeHtml(item.value)}) ${keyStatusBadge(item.value)}`;
+  }
+}
+function updateModelKeyPreview() {
+  const v = modelsForm.value.value;
+  const key = guessProviderKey(v);
+  $("#model-key-preview").innerHTML = key
+    ? `Vai esperar a key <code>${escapeHtml(key)}</code> — ${keyStatusBadge(v)}`
+    : "";
+}
+modelsForm.value.addEventListener("input", updateModelKeyPreview);
+
+// ================= SKILLS =================
+const skillsForm = $("#skills-form");
+skillsForm.dataset.apiPath = "/api/skills";
+function setSkillMode(mode) {
+  skillsForm.querySelector('[data-mode-section=authored]').hidden = mode !== "authored";
+  skillsForm.querySelector('[data-mode-section=path]').hidden = mode !== "path";
+}
+$$('input[name=mode]', skillsForm).forEach((r) => r.addEventListener("change", () => setSkillMode(r.value)));
+skillsForm.addEventListener("reset-extra", () => setSkillMode("authored"));
+
+const skillsEdit = wireEditableForm(skillsForm, {
+  addLabel: "Add skill",
+  onSubmit: (form) => ({
+    label: form.label.value,
+    mode: form.mode.value,
+    instructions: form.instructions.value,
+    path: form.path.value,
+  }),
+});
+
+function renderSkillsList() {
+  const list = $("#skills-list");
+  list.innerHTML = state.skills.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.skills) {
+    const sub = item.mode === "path"
+      ? `path: ${escapeHtml(item.path || "")}`
+      : escapeHtml((item.instructions || "").slice(0, 100)) + ((item.instructions || "").length > 100 ? "…" : "");
+    list.appendChild(makeRow(item, {
+      title: `${item.label} <span class="badge">${item.mode}</span>`,
+      sub,
+      onEdit: () => skillsEdit.startEdit(item.id, () => {
+        skillsForm.label.value = item.label;
+        skillsForm.querySelector(`input[name=mode][value="${item.mode}"]`).checked = true;
+        skillsForm.instructions.value = item.instructions || "";
+        skillsForm.path.value = item.path || "";
+        setSkillMode(item.mode);
+      }),
+      onDelete: async () => { await api("DELETE", `/api/skills/${item.id}`); await refreshAll(); },
+    }));
+    list.lastChild.querySelector(".row-title").innerHTML = `${escapeHtml(item.label)} <span class="badge">${item.mode}</span>`;
+  }
+}
+
+// ================= SKILL SETS =================
+const skillsetsForm = $("#skillsets-form");
+skillsetsForm.dataset.apiPath = "/api/skillsets";
+const skillsetsEdit = wireEditableForm(skillsetsForm, {
+  addLabel: "Add skill set",
+  onSubmit: (form) => ({
+    label: form.label.value,
+    skillIds: $$('input[name=skillIds]:checked', form).map((i) => i.value),
+  }),
+});
+
+function renderSkillsetSkillPicker(checkedIds = []) {
+  checkboxGroup($("#skillset-skill-picker"), state.skills, { name: "skillIds", checkedIds });
+}
+
+function renderSkillsetsList() {
+  const list = $("#skillsets-list");
+  list.innerHTML = state.skillsets.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.skillsets) {
+    const names = (item.skillIds || []).map((id) => state.skills.find((s) => s.id === id)?.label || "?").join(", ");
+    list.appendChild(makeRow(item, {
+      title: item.label,
+      sub: names || "(sem skills)",
+      onEdit: () => skillsetsEdit.startEdit(item.id, () => {
+        skillsetsForm.label.value = item.label;
+        renderSkillsetSkillPicker(item.skillIds || []);
+      }),
+      onDelete: async () => { await api("DELETE", `/api/skillsets/${item.id}`); await refreshAll(); },
+    }));
+  }
+}
+
+// ================= AGENTS =================
+const agentsForm = $("#agents-form");
+agentsForm.dataset.apiPath = "/api/agents";
+const agentsEdit = wireEditableForm(agentsForm, {
+  addLabel: "Add agent",
+  onSubmit: (form) => ({
+    label: form.label.value,
+    agentValue: form.agentValue.value,
+    modelId: form.modelId.value || undefined,
+    instructions: form.instructions.value,
+    defaultSkillsetIds: $$('input[name=defaultSkillsetIds]:checked', form).map((i) => i.value),
+    notes: form.notes.value,
+  }),
+});
+
+function renderAgentModelSelect(selectedId = "") {
+  const sel = $("#agent-model-select");
+  sel.innerHTML = '<option value="">— nenhum (usa o padrão do Harbor) —</option>' +
+    state.models.map((m) => `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)}</option>`).join("");
+}
+
+function renderAgentDefaultSkillsetPicker(checkedIds = []) {
+  checkboxGroup($("#agent-default-skillsets"), state.skillsets, { name: "defaultSkillsetIds", checkedIds });
+}
+
+function renderAgentsList() {
+  const list = $("#agents-list");
+  list.innerHTML = state.agents.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.agents) {
+    const modelLabel = state.models.find((m) => m.id === item.modelId)?.label;
+    const bits = [`agent: ${item.agentValue}`];
+    if (modelLabel) bits.push(`model: ${modelLabel}`);
+    if (item.instructions && item.instructions.trim()) bits.push("+instructions");
+    if (item.defaultSkillsetIds && item.defaultSkillsetIds.length) bits.push(`+${item.defaultSkillsetIds.length} skill set(s)`);
+    if (item.notes) bits.push(escapeHtml(item.notes));
+    list.appendChild(makeRow(item, {
+      title: item.label,
+      sub: bits.join(" · "),
+      onEdit: () => agentsEdit.startEdit(item.id, () => {
+        agentsForm.label.value = item.label;
+        agentsForm.agentValue.value = item.agentValue;
+        agentsForm.instructions.value = item.instructions || "";
+        agentsForm.notes.value = item.notes || "";
+        renderAgentModelSelect(item.modelId || "");
+        renderAgentDefaultSkillsetPicker(item.defaultSkillsetIds || []);
+      }),
+      onDelete: async () => { await api("DELETE", `/api/agents/${item.id}`); await refreshAll(); },
+    }));
+  }
+}
+
+// ================= CRITERIA =================
+const criteriaForm = $("#criteria-form");
+criteriaForm.dataset.apiPath = "/api/criteria";
+const criteriaEdit = wireEditableForm(criteriaForm, {
+  addLabel: "Add criterion",
+  onSubmit: (form) => ({
+    name: form.name.value,
+    description: form.description.value,
+    guidance: form.guidance.value,
+  }),
+});
+
+function renderCriteriaList() {
+  const list = $("#criteria-list");
+  list.innerHTML = state.criteria.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.criteria) {
+    list.appendChild(makeRow(item, {
+      title: item.name,
+      sub: escapeHtml(item.description || ""),
+      onEdit: () => criteriaEdit.startEdit(item.id, () => {
+        criteriaForm.name.value = item.name;
+        criteriaForm.description.value = item.description;
+        criteriaForm.guidance.value = item.guidance;
+      }),
+      onDelete: async () => { await api("DELETE", `/api/criteria/${item.id}`); await refreshAll(); },
+    }));
+  }
+}
+
+// ================= JUDGE RUBRICS =================
+const rubricsForm = $("#rubrics-form");
+rubricsForm.dataset.apiPath = "/api/rubrics";
+const rubricsEdit = wireEditableForm(rubricsForm, {
+  addLabel: "Add rubric",
+  onSubmit: (form) => ({
+    label: form.label.value,
+    criterionIds: $$('input[name=criterionIds]:checked', form).map((i) => i.value),
+  }),
+});
+
+function renderRubricCriterionPicker(checkedIds = []) {
+  checkboxGroup(
+    $("#rubric-criterion-picker"),
+    state.criteria.map((c) => ({ id: c.id, label: c.name })),
+    { name: "criterionIds", checkedIds }
+  );
+}
+
+function renderRubricsList() {
+  const list = $("#rubrics-list");
+  list.innerHTML = state.rubrics.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.rubrics) {
+    const names = (item.criterionIds || []).map((id) => state.criteria.find((c) => c.id === id)?.name || "?").join(", ");
+    list.appendChild(makeRow(item, {
+      title: item.label,
+      sub: names || "(sem critérios)",
+      onEdit: () => rubricsEdit.startEdit(item.id, () => {
+        rubricsForm.label.value = item.label;
+        renderRubricCriterionPicker(item.criterionIds || []);
+      }),
+      onDelete: async () => { await api("DELETE", `/api/rubrics/${item.id}`); await refreshAll(); },
+    }));
+  }
+}
+
+// ================= JUDGES =================
+const judgesForm = $("#judges-form");
+judgesForm.dataset.apiPath = "/api/judges";
+const judgesEdit = wireEditableForm(judgesForm, {
+  addLabel: "Add judge",
+  onSubmit: (form) => ({
+    label: form.label.value,
+    agentValue: form.agentValue.value,
+    modelId: form.modelId.value || undefined,
+    promptTemplate: form.promptTemplate.value,
+    defaultRubricIds: $$('input[name=defaultRubricIds]:checked', form).map((i) => i.value),
+    notes: form.notes.value,
+  }),
+});
+
+function renderJudgeModelSelect(selectedId = "") {
+  const sel = $("#judge-model-select");
+  const allowedValues = new Set(state.judgeModels.map((m) => m.value));
+  const options = state.models.filter((m) => allowedValues.has(m.value));
+  sel.innerHTML = '<option value="">— nenhum —</option>' +
+    options.map((m) => `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)} (${escapeHtml(m.value)})</option>`).join("");
+  $("#judge-model-values-hint").textContent = state.judgeModels.map((m) => m.value).join(", ");
+}
+
+function renderJudgeDefaultRubricPicker(checkedIds = []) {
+  checkboxGroup($("#judge-default-rubrics"), state.rubrics, { name: "defaultRubricIds", checkedIds });
+}
+
+function renderJudgesList() {
+  const list = $("#judges-list");
+  list.innerHTML = state.judges.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  for (const item of state.judges) {
+    const modelLabel = state.models.find((m) => m.id === item.modelId)?.label;
+    const bits = [`agent: ${item.agentValue}`];
+    bits.push(modelLabel ? `model: ${modelLabel}` : "model: (nenhum — não roda até cadastrar um)");
+    if (item.promptTemplate && item.promptTemplate.trim()) bits.push("+instruções custom");
+    if (item.defaultRubricIds && item.defaultRubricIds.length) bits.push(`+${item.defaultRubricIds.length} rubric(s)`);
+    if (item.notes) bits.push(escapeHtml(item.notes));
+    list.appendChild(makeRow(item, {
+      title: item.label,
+      sub: bits.join(" · "),
+      onEdit: () => judgesEdit.startEdit(item.id, () => {
+        judgesForm.label.value = item.label;
+        judgesForm.agentValue.value = item.agentValue;
+        judgesForm.promptTemplate.value = item.promptTemplate || "";
+        judgesForm.notes.value = item.notes || "";
+        renderJudgeModelSelect(item.modelId || "");
+        renderJudgeDefaultRubricPicker(item.defaultRubricIds || []);
+      }),
+      onDelete: async () => { await api("DELETE", `/api/judges/${item.id}`); await refreshAll(); },
+    }));
+  }
+}
+
+// ---------- judge pickers used across Compare / Analyze / Task editor ----------
+function renderJudgePickers() {
+  const opts = state.judges.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(j.label)}</option>`).join("");
+  const placeholder = state.judges.length
+    ? '<option value="">— nenhum —</option>'
+    : '<option value="">— nenhum judge cadastrado — vá na aba "Judges" —</option>';
+  for (const id of ["compare-judge-picker", "analyze-judge-picker", "task-editor-judge-picker"]) {
+    const sel = $(`#${id}`);
+    if (sel) sel.innerHTML = placeholder + opts;
+  }
+  // Standalone Analyze tab stays single-rubric (ad-hoc use); Compare and the task pinning
+  // support N rubrics (see renderComparRubricPicker / renderTaskRubricPicker below).
+  const rubricOpts = '<option value="__default__">— padrão do Harbor (reward_hacking + task_specification) —</option>' +
+    state.rubrics.map((r) => `<option value="${r.id}">${escapeHtml(r.label)}</option>`).join("");
+  const analyzeSel = $("#analyze-rubric-select");
+  if (analyzeSel) analyzeSel.innerHTML = rubricOpts;
+
+  renderComparRubricPicker();
+  renderTaskRubricPicker();
+}
+
+function renderComparRubricPicker(checkedIds = []) {
+  checkboxGroup($("#compare-rubric-picker"), state.rubrics, { name: "cmp-rubric", checkedIds });
+}
+
+function renderTaskRubricPicker(checkedIds = []) {
+  checkboxGroup($("#task-editor-rubric-picker"), state.rubrics, { name: "task-rubric", checkedIds });
+}
+
+$("#compare-judge-picker").addEventListener("change", () => {
+  const judge = state.judges.find((j) => j.id === $("#compare-judge-picker").value);
+  renderComparRubricPicker(judge?.defaultRubricIds || []);
+});
+$("#task-editor-judge-picker").addEventListener("change", () => {
+  const judge = state.judges.find((j) => j.id === $("#task-editor-judge-picker").value);
+  renderTaskRubricPicker(judge?.defaultRubricIds || []);
+});
+
+// ================= COMPARE =================
+function renderCompareAgentPicker() {
+  const sel = $("#compare-agent-picker");
+  sel.innerHTML = state.agents.length
+    ? state.agents.map((a) => `<option value="${a.id}">${escapeHtml(a.label)}</option>`).join("")
+    : '<option value="">nenhum agent cadastrado — vá em "Agents"</option>';
+}
+
+function updateCompareEntriesCount() {
+  const n = $$("#compare-entries-list > .entry-row").length;
+  $("#combo-counter").textContent = `${n} entrada${n === 1 ? "" : "s"} adicionada${n === 1 ? "" : "s"}.`;
+}
+
+function addCompareEntryRow(agentId) {
+  const agent = state.agents.find((a) => a.id === agentId);
+  if (!agent) return;
+
+  const row = document.createElement("div");
+  row.className = "panel entry-row";
+  row.dataset.agentId = agentId;
+  row.style.marginBottom = "10px";
+
+  const modelOptions = state.models.map((m) => {
+    const key = guessProviderKey(m.value);
+    const missing = key && !state.secretNames.includes(key) ? ` — falta ${key}` : "";
+    return `<option value="${m.id}" ${m.id === agent.modelId ? "selected" : ""}>${escapeHtml(m.label)}${missing}</option>`;
+  }).join("");
+
+  row.innerHTML = `
+    <div class="row-title">${escapeHtml(agent.label)} <span class="badge">${escapeHtml(agent.agentValue)}</span></div>
+    <label>Model <span class="hint" style="display:inline;margin:0;">— pré-preenchido com o padrão do agent, sobrescreva se quiser.</span></label>
+    <select class="entry-model"><option value="">— nenhum (usa o padrão do Harbor) —</option>${modelOptions}</select>
+    <label>Skill sets</label>
+    <div class="checkbox-group entry-skillsets"></div>
+    <button class="secondary" type="button" style="margin-top:8px;">Remover esta entrada</button>
+  `;
+  checkboxGroup(row.querySelector(".entry-skillsets"), state.skillsets, {
+    name: `entry-skillsets-${state.agents.indexOf(agent)}-${Date.now()}`,
+    checkedIds: agent.defaultSkillsetIds ?? [],
+  });
+  row.querySelector("button").addEventListener("click", () => {
+    row.remove();
+    updateCompareEntriesCount();
+  });
+
+  $("#compare-entries-list").appendChild(row);
+  updateCompareEntriesCount();
+}
+
+$("#compare-add-entry-btn").addEventListener("click", () => {
+  const agentId = $("#compare-agent-picker").value;
+  if (!agentId) { alert("Cadastre um agent primeiro, na aba Agents."); return; }
+  addCompareEntryRow(agentId);
+});
+
+let lastCompareJobsDir = null;
+let lastCompareRows = [];
+
+const COMPARE_COL_LABELS = {
+  jobName: "jobName", agent: "agent", model: "model", skillset: "skillset", ok: "ok",
+  nTrials: "nTrials", nErrors: "nErrors", meanReward: "meanReward", durationSec: "durationSec (s)",
+  costUsd: "custo agent (USD)", tokens: "tokens in/out", passRate: "passRate", judgeCostUsd: "custo juiz (USD)", error: "error",
+};
+
+function renderCompareTable() {
+  const table = $("#compare-table");
+  const cols = ["jobName", "agent", "model", "skillset", "ok", "nTrials", "nErrors", "meanReward", "durationSec", "costUsd", "tokens", "passRate", "judgeCostUsd", "error"];
+  table.innerHTML = "";
+  const headRow = document.createElement("tr");
+  headRow.innerHTML = cols.map((c) => `<th>${COMPARE_COL_LABELS[c]}</th>`).join("") + "<th></th>";
+  table.appendChild(headRow);
+  lastCompareRows.forEach((r, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = cols.map((c) => {
+      let v;
+      if (c === "passRate") v = r.passRate !== undefined ? r.passRate.toFixed(2) : "";
+      else if (c === "costUsd") v = typeof r.costUsd === "number" ? `$${r.costUsd.toFixed(4)}` : "";
+      else if (c === "judgeCostUsd") v = typeof r.judgeCostUsd === "number" ? `$${r.judgeCostUsd.toFixed(4)}` : "";
+      else if (c === "tokens") v = (r.nInputTokens ?? r.nOutputTokens) ? `${r.nInputTokens ?? "?"} / ${r.nOutputTokens ?? "?"}` : "";
+      else v = r[c];
+      return `<td>${escapeHtml(v)}</td>`;
+    }).join("");
+    const actionTd = document.createElement("td");
+    if (r.ok) {
+      const btn = document.createElement("button");
+      btn.className = "secondary";
+      btn.textContent = (r.analyses && r.analyses.length) ? "Re-analisar" : "Analisar";
+      btn.onclick = () => analyzeRow(idx);
+      actionTd.appendChild(btn);
+    }
+    tr.appendChild(actionTd);
+    table.appendChild(tr);
+  });
+}
+
+async function analyzeRow(idx) {
+  const row = lastCompareRows[idx];
+  const judgeId = $("#compare-judge-picker").value;
+  if (!judgeId) { alert('Escolha um Judge primeiro (cadastre um na aba "Judges" se a lista estiver vazia).'); return; }
+  const checkedRubricIds = $$("#compare-rubric-picker input:checked").map((i) => i.value);
+  const rubricRuns = checkedRubricIds.length > 0 ? checkedRubricIds : ["__default__"];
+  const resultsEl = $("#compare-analysis-results");
+  const path = `${lastCompareJobsDir}/${row.jobName}`;
+
+  row.analyses = row.analyses || [];
+  let totalPass = 0;
+  let totalApplicable = 0;
+  let totalJudgeCostUsd = 0;
+  const block = document.createElement("div");
+  block.className = "panel";
+  block.innerHTML = `<div class="row-title">${escapeHtml(row.jobName)}</div>`;
+
+  for (const rubricId of rubricRuns) {
+    const rubricLabel = rubricId === "__default__"
+      ? "padrão do Harbor"
+      : state.rubrics.find((r) => r.id === rubricId)?.label || rubricId;
+    try {
+      const res = await api("POST", "/api/analyze", { path, rubricId, judgeId });
+      const analysis = res.analysis;
+      row.analyses.push({ rubricLabel, analysis });
+      const cost = analysis && typeof analysis.estimated_cost_usd === "number" ? analysis.estimated_cost_usd : null;
+      if (cost !== null) totalJudgeCostUsd += cost;
+      const checksHtml = analysis && analysis.checks
+        ? Object.entries(analysis.checks).map(([name, c]) => {
+            if (c.outcome === "pass") totalPass++;
+            if (c.outcome !== "not_applicable") totalApplicable++;
+            return `<div class="row-sub"><strong>${escapeHtml(name)}</strong>: ${escapeHtml(c.outcome)} — ${escapeHtml(c.explanation)}</div>`;
+          }).join("")
+        : `<pre class="output">${escapeHtml(res.stdout || res.stderr || "(sem analysis.json legível — veja stdout bruto)")}</pre>`;
+      block.innerHTML += `<h3 class="step">${escapeHtml(rubricLabel)}</h3>` +
+        (analysis && analysis.summary ? `<p class="hint">${escapeHtml(analysis.summary)}</p>` : "") +
+        checksHtml +
+        (cost !== null ? `<p class="hint">Custo do juiz nesta análise: $${cost.toFixed(4)}</p>` : "");
+    } catch (err) {
+      block.innerHTML += `<h3 class="step">${escapeHtml(rubricLabel)}</h3><p class="hint">Erro: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  row.passRate = totalApplicable > 0 ? totalPass / totalApplicable : undefined;
+  row.judgeCostUsd = (row.judgeCostUsd || 0) + totalJudgeCostUsd;
+  resultsEl.prepend(block);
+  renderCompareTable();
+}
+
+$("#compare-analyze-all-btn").addEventListener("click", async () => {
+  for (let i = 0; i < lastCompareRows.length; i++) {
+    if (lastCompareRows[i].ok) await analyzeRow(i);
+  }
+});
+
+$("#compare-sort-btn").addEventListener("click", () => {
+  lastCompareRows.sort((a, b) => (b.passRate ?? -1) - (a.passRate ?? -1));
+  renderCompareTable();
+});
+
+$("#compare-view-btn").addEventListener("click", async () => {
+  if (!lastCompareJobsDir) return;
+  try {
+    const res = await api("POST", "/api/view", { jobsDir: lastCompareJobsDir });
+    if (res.url) window.open(res.url, "_blank");
+    else alert("Viewer iniciado, mas nenhuma URL detectada em 8s ainda.");
+  } catch (err) { alert(err.message); }
+});
+
+$("#compare-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const entries = $$("#compare-entries-list > .entry-row").map((row) => ({
+    agentId: row.dataset.agentId,
+    modelId: row.querySelector(".entry-model").value || undefined,
+    skillsetIds: $$("input:checked", row.querySelector(".entry-skillsets")).map((i) => i.value),
+  }));
+  if (entries.length === 0) { alert("Adicione ao menos uma entrada (agent) pra comparar."); return; }
+  const jobsDir = fd.get("jobsDir") || "jobs";
+  const body = {
+    path: fd.get("path"),
+    entries,
+    env: fd.get("env") || "docker",
+    jobPrefix: fd.get("jobPrefix") || "cmp",
+    jobsDir,
+    nAttempts: fd.get("nAttempts") || "1",
+    concurrency: fd.get("concurrency") || "1",
+    dryRun: fd.get("dryRun") === "on",
+    extra: fd.get("extra") || "",
+  };
+  const out = $("#compare-output");
+  $("#compare-table").innerHTML = "";
+  $("#compare-post-actions").hidden = true;
+  $("#compare-analyze-panel").hidden = true;
+  $("#compare-analysis-results").innerHTML = "";
+  out.textContent = "Rodando… pode demorar se não for dry run.";
+  try {
+    const result = await api("POST", "/api/compare", body);
+    lastCompareJobsDir = jobsDir;
+    lastCompareRows = result.rows;
+    renderCompareTable();
+    out.textContent = `Pronto. Relatório: ${result.reportCsv}`;
+    $("#compare-post-actions").hidden = false;
+    if (!body.dryRun && lastCompareRows.some((r) => r.ok)) {
+      $("#compare-analyze-panel").hidden = false;
+      try {
+        const rubricDefault = await api("GET", `/api/tasks/rubric-default?path=${encodeURIComponent(body.path)}`);
+        renderComparRubricPicker(rubricDefault.rubricIds || []);
+        $("#compare-judge-picker").value = rubricDefault.judgeId || "";
+      } catch { /* no pinned default for this task path -- leave picker empty, that's fine */ }
+    }
+  } catch (err) {
+    out.textContent = "Erro: " + err.message;
+  }
+});
+
+// ================= SECRETS =================
+function renderSecretsList() {
+  const list = $("#secrets-list");
+  list.innerHTML = state.secretNames.length ? "" : '<p class="muted">No keys registered yet.</p>';
+  for (const n of state.secretNames) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(n)}</div></div><div class="row-actions"></div>`;
+    const del = document.createElement("button");
+    del.textContent = "Remove";
+    del.className = "danger";
+    del.onclick = async () => { await api("DELETE", `/api/secrets/${n}`); await refreshAll(); };
+    row.querySelector(".row-actions").appendChild(del);
+    list.appendChild(row);
+  }
+}
+tabRefreshers.secrets = refreshAll;
+
+// Populate once (static list, doesn't depend on server state).
+$("#secret-provider-select").innerHTML =
+  '<option value="">— outro / customizado —</option>' +
+  PROVIDERS.filter((p) => p.key).map((p) => `<option value="${p.key}">${escapeHtml(p.label)} (${p.key})</option>`).join("");
+
+$("#secret-provider-select").addEventListener("change", (e) => {
+  const nameInput = $("#secret-name-input");
+  if (e.target.value) {
+    nameInput.value = e.target.value;
+  } else {
+    nameInput.value = "";
+    nameInput.focus();
+  }
+});
+
+$("#secrets-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  try {
+    await api("POST", "/api/secrets", data);
+    e.target.reset();
+    $("#secret-provider-select").value = "";
+    await refreshAll();
+  } catch (err) { alert(err.message); }
+});
+
+// ================= TASKS =================
+$("#task-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  data.noPytest = e.target.noPytest.checked;
+  data.noSolution = e.target.noSolution.checked;
+  const out = $("#task-output");
+  out.textContent = "Running…";
+  try {
+    const res = await api("POST", "/api/tasks/init", data);
+    out.textContent = (res.stdout || "") + (res.stderr || "");
+    await refreshTaskList();
+    const match = (res.stdout || "").replace(/\r?\n/g, "").match(/Task initialized in\s+(.+?)(?:\s*Next steps|$)/);
+    if (match) openTaskEditor(match[1].trim());
+  } catch (err) { out.textContent = "Error: " + err.message; }
+});
+
+async function refreshTaskList() {
+  const tasks = await api("GET", "/api/tasks");
+
+  const list = $("#task-list");
+  list.innerHTML = tasks.length ? "" : '<p class="muted">No tasks found under evals/ or datasets/.</p>';
+  for (const t of tasks) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(t.path)} <span class="badge">${t.source}</span></div></div><div class="row-actions"></div>`;
+    const badge = document.createElement("em");
+    badge.className = "muted";
+    badge.textContent = t.stub ? "stub" : "ready";
+    row.querySelector(".row-actions").appendChild(badge);
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "Edit files";
+    editBtn.onclick = () => openTaskEditor(t.path);
+    row.querySelector(".row-actions").appendChild(editBtn);
+    list.appendChild(row);
+  }
+
+  const picker = $("#compare-task-picker");
+  picker.innerHTML = '<option value="">— escolher uma task cadastrada —</option>' +
+    tasks.map((t) => `<option value="${escapeHtml(t.path)}">[${t.source}] ${escapeHtml(t.path)}${t.stub ? " (stub — precisa preencher)" : ""}</option>`).join("");
+}
+tabRefreshers.tasks = refreshTaskList;
+$("#task-refresh").addEventListener("click", refreshTaskList);
+
+$("#compare-task-picker").addEventListener("change", (e) => {
+  if (e.target.value) $("#compare-form input[name=path]").value = e.target.value;
+});
+
+// Grounded in Harbor's own task-quality rubric (harbor/cli/quality_checker/default-rubric.toml
+// in the installed package) -- these templates are shaped to satisfy exactly what `harbor check`
+// grades a task against: behavior described == behavior tested, no hardcoded solution, no
+// tests/solution baked into the image, test deps installed in test.sh not the Dockerfile, etc.
+const TASK_TEMPLATES = {
+  instruction: `# Título da task
+
+## Contexto
+Descreva brevemente o cenário/codebase que o agent vai encontrar (arquivos existentes, estado inicial).
+
+## Objetivo
+O que precisa ser implementado ou corrigido — em termos claros e verificáveis, não vagos.
+
+## Requisitos
+- Requisito 1 — específico e testável (nomes exatos de arquivo/função/endpoint quando relevante)
+- Requisito 2
+- Formato de saída esperado, se houver: schema exato, nomes de campos, tipos
+
+## Fora de escopo
+- O que o agent NÃO precisa (ou não deve) fazer
+
+## Arquivos relevantes
+- \`caminho/arquivo.ext\` — o que tem lá e por que importa
+
+Dica de qualidade: tudo que os testes verificam precisa estar descrito aqui, e tudo que está
+descrito aqui precisa ser verificado pelos testes — instrução e teste devem cobrir exatamente
+a mesma coisa (nem mais, nem menos).`,
+
+  dockerfile: `FROM <imagem-base-oficial>:<versao-pinada>
+# ex.: python:3.13-slim
+
+WORKDIR /app
+
+# Copie só o necessário pro agent ter o que resolver a task
+# COPY app/ /app/
+
+# Dependencias de RUNTIME da aplicacao (nao de teste!) -- mantenha versoes pinadas
+# RUN pip install --no-cache-dir -r requirements.txt
+
+# Nunca copie tests/ ou solution/ pra dentro da imagem -- o harness ja cuida
+# disso na hora certa, e deixar isso aqui da pro agent "ver a resposta".`,
+
+  solveSh: `#!/bin/bash
+set -euo pipefail
+
+# Solucao de referencia: demonstre o PROCESSO que um agent real faria pra
+# chegar na resposta -- nao escreva/echo o resultado final ja pronto (isso
+# conta como solucao "hardcoded" e invalida o valor da task como benchmark).
+#
+# Exemplo:
+# python3 processa_dados.py --input dados.csv --output resultado.json`,
+
+  testSh: `#!/bin/bash
+set -euo pipefail
+mkdir -p /logs/verifier
+
+# Dependencias de TESTE vao aqui, nao no Dockerfile (senao o agent ja roda com
+# elas instaladas, o que conta como dependencia de teste vazando pro ambiente).
+# pip install --no-cache-dir pytest==8.4.1
+
+# Rode a verificacao de verdade e capture a saida
+# pytest -q /tests/test_outputs.py > /logs/verifier/test-stdout.txt 2>&1
+STATUS=$?
+
+if [ $STATUS -eq 0 ]; then
+  echo 1 > /logs/verifier/reward.txt
+else
+  echo 0 > /logs/verifier/reward.txt
+fi`,
+};
+
+async function openTaskEditor(path) {
+  const panel = $("#task-editor-panel");
+  $("#task-editor-path").textContent = path;
+  $("#task-editor-status").textContent = "Loading…";
+  panel.hidden = false;
+  panel.dataset.path = path;
+  try {
+    const files = await api("GET", `/api/tasks/detail?path=${encodeURIComponent(path)}`);
+    $("#task-editor-instruction").value = files.instruction || TASK_TEMPLATES.instruction;
+    $("#task-editor-dockerfile").value = files.dockerfile || TASK_TEMPLATES.dockerfile;
+    $("#task-editor-solve").value = files.solveSh || TASK_TEMPLATES.solveSh;
+    $("#task-editor-test").value = files.testSh || TASK_TEMPLATES.testSh;
+
+    const rubricDefault = await api("GET", `/api/tasks/rubric-default?path=${encodeURIComponent(path)}`);
+    renderTaskRubricPicker(rubricDefault.rubricIds || []);
+    $("#task-editor-judge-picker").value = rubricDefault.judgeId || "";
+    $("#task-editor-status").textContent = "";
+  } catch (err) {
+    $("#task-editor-status").textContent = "Error: " + err.message;
+  }
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("#task-editor-save").addEventListener("click", async () => {
+  const path = $("#task-editor-panel").dataset.path;
+  $("#task-editor-status").textContent = "Saving…";
+  try {
+    await api("POST", "/api/tasks/detail", {
+      path,
+      instruction: $("#task-editor-instruction").value,
+      dockerfile: $("#task-editor-dockerfile").value,
+      solveSh: $("#task-editor-solve").value,
+      testSh: $("#task-editor-test").value,
+    });
+    await api("POST", "/api/tasks/rubric-default", {
+      path,
+      rubricIds: $$("#task-editor-rubric-picker input:checked").map((i) => i.value),
+      judgeId: $("#task-editor-judge-picker").value,
+    });
+    $("#task-editor-status").textContent = "Saved.";
+    refreshTaskList();
+  } catch (err) {
+    $("#task-editor-status").textContent = "Error: " + err.message;
+  }
+});
+$("#task-editor-close").addEventListener("click", () => { $("#task-editor-panel").hidden = true; });
+
+// ================= DATASETS =================
+$("#dataset-list-btn").addEventListener("click", async () => {
+  const out = $("#dataset-output");
+  out.textContent = "Loading…";
+  try {
+    const res = await api("GET", "/api/datasets");
+    out.textContent = (res.stdout || "") + (res.stderr || "");
+  } catch (err) { out.textContent = "Error: " + err.message; }
+});
+$("#dataset-download-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const out = $("#dataset-output");
+  const discovered = $("#dataset-discovered");
+  out.textContent = "Downloading…";
+  discovered.innerHTML = "";
+  try {
+    const res = await api("POST", "/api/datasets/download", data);
+    out.textContent = (res.stdout || "") + (res.stderr || "");
+    if (res.ok) {
+      await refreshTaskList();
+      const tasks = await api("GET", "/api/tasks");
+      const found = tasks.filter((t) => t.source === "datasets" && t.path.includes(String(data.name).split("@")[0]));
+      discovered.innerHTML = found.length
+        ? `<p class="hint">Tasks encontradas (já aparecem na aba Tasks e no Compare):</p>` +
+          found.map((t) => `<div class="row"><span>${escapeHtml(t.path)}</span></div>`).join("")
+        : '<p class="muted">Nenhuma task nova encontrada em datasets/ — confira a saída acima.</p>';
+    }
+  } catch (err) { out.textContent = "Error: " + err.message; }
+});
+
+// ================= TRAJECTORIES =================
+$("#view-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const out = $("#view-output");
+  out.textContent = "Starting harbor view…";
+  try {
+    const res = await api("POST", "/api/view", data);
+    out.innerHTML = res.url
+      ? `Running: <a href="${res.url}" target="_blank">${res.url}</a>`
+      : "Started, but no URL detected within 8s (pode ainda estar buildando o viewer).";
+    refreshViewList();
+  } catch (err) { out.textContent = "Error: " + err.message; }
+});
+
+async function refreshViewList() {
+  const list = await api("GET", "/api/view");
+  $("#view-list").innerHTML = list.length ? list.map((v) =>
+    `<div class="row"><span>${escapeHtml(v.jobsDir)} — ${v.url ? `<a href="${v.url}" target="_blank">${v.url}</a>` : "(no url yet)"}</span>` +
+    `<button data-id="${v.id}" class="stop-view">Stop</button></div>`
+  ).join("") : '<p class="muted">No viewers running.</p>';
+  $$(".stop-view").forEach((btn) => btn.onclick = async () => { await api("POST", `/api/view/${btn.dataset.id}/stop`); refreshViewList(); });
+}
+tabRefreshers.trajectories = refreshViewList;
+
+// ================= ANALYZE =================
+$("#analyze-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const out = $("#analyze-output");
+  out.textContent = "Analyzing… (chamada de LLM, pode demorar)";
+  try {
+    const res = await api("POST", "/api/analyze", data);
+    out.textContent = res.analysis ? JSON.stringify(res.analysis, null, 2) : (res.stdout || "") + (res.stderr || "");
+  } catch (err) { out.textContent = "Error: " + err.message; }
+});
+
+// ---------- init ----------
+loadStatus();
+refreshAll();
+refreshTaskList();
+refreshViewList();
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>
