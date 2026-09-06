@@ -268,6 +268,41 @@ A lib LiteLLM (que o Harbor usa por baixo pra falar com os providers) tem um fla
 leia esse flag e dispare um envio — parece resquício sem uso ativo nesta versão. A integração
 com PostHog que existe ali é opt-in (só ativa se você mesmo configurar sua própria conta).
 
+### 5.1-b Gateway LiteLLM — **encaixe preparado, desligado**
+
+O kit **já usa LiteLLM** num lugar: o botão "Test" da aba Secrets chama `litellm.completion()` e
+`litellm.get_valid_models()` no venv do próprio Harbor (seção 10.1). Isso é o SDK, dentro deste
+processo, e não precisa de encaixe nenhum.
+
+O que ficou **preparado e desligado** é a outra integração que se chama "LiteLLM": rodar um
+**proxy** LiteLLM e apontar os agents pra ele. Ganha-se um lugar só pra chaves, teto de gasto,
+cache, fallback e log de requisição entre todos os providers — e, em tese, um adapter preso a um
+fornecedor (`claude-code`, `codex`) passaria a alcançar model de outro provider, exatamente a
+limitação da seção 10.5.
+
+**Onde encaixa**: apontar um agent pra um proxy significa uma coisa só — setar variáveis
+`*_BASE_URL`/chave no processo filho `harbor`. `buildHarborEnv()` é o ponto único por onde todo
+filho recebe ambiente, então o encaixe inteiro é mais um decorador ali, ao lado de
+`withTelemetryDisabled` e `withPythonUtf8`.
+
+**Como ligar**: copie `config/litellm-gateway.example.json` para
+`~/.harbor-eval-kit/litellm-gateway.json` e ponha `enabled: true`. Sem esse arquivo (o padrão),
+`buildHarborEnv()` produz exatamente o mesmo ambiente de antes desta integração existir — há
+teste fixando isso. Arquivo ausente, ilegível ou malformado significam **desligado**: uma config
+quebrada nunca deve redirecionar tráfego de modelo em silêncio nem impedir uma run normal.
+`GET /api/status` reporta `litellmGateway.enabled`, pra responder "meu tráfego está passando por
+proxy agora?" sem abrir arquivo.
+
+**O mapeamento de variáveis é declarado, não adivinhado**: o bloco `env` da config diz quais
+variáveis setar, com os placeholders `{baseUrl}` e `{apiKey}`. Este kit não sabe qual variável
+cada adapter lê, e fingir que sabe seria o tipo de chute que falha silenciosamente na run. O
+`{apiKey}` vem do secret cujo **nome** está em `apiKeyEnv` — o valor continua só no
+`secrets.env`.
+
+**Honestidade**: nada disso foi executado contra um proxy LiteLLM real. É encaixe preparado, não
+recurso suportado — por isso vem desligado e com o mapeamento sob responsabilidade de quem
+ligar.
+
 ### 5.2 Comando `docker` do sistema — nunca usado
 
 O kit nunca instala Docker (invariante do `AGENTS.md`), e o `DOCKER_HOST` que injetamos

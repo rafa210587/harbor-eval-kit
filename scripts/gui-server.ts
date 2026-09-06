@@ -47,6 +47,8 @@ import {
   readRegistry,
   readTaskFiles,
   resolveAgentInstructionsPath,
+  getLitellmGatewayConfig,
+  getLitellmGatewayPath,
   listJobLogFiles,
   listJobLogs,
   tailJobLog,
@@ -256,6 +258,12 @@ addRoute("GET", "/api/status", async (_req, res) => {
     },
     platform: process.platform,
     stateDir: getStateDir(),
+    // Integration point, off unless someone deliberately turned it on. Reported so "is model
+    // traffic being redirected through a proxy right now?" is answerable without reading files.
+    litellmGateway: (() => {
+      const cfg = getLitellmGatewayConfig();
+      return { enabled: cfg.enabled, baseUrl: cfg.enabled ? cfg.baseUrl : null, configPath: getLitellmGatewayPath() };
+    })(),
   });
 });
 

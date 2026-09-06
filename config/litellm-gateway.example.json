@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "PONTO DE INTEGRACAO PREPARADO, DESLIGADO. Copie para ~/.harbor-eval-kit/litellm-gateway.json",
+    "e ponha enabled:true para ativar. Sem esse arquivo (o padrao), nada muda: buildHarborEnv",
+    "produz exatamente o mesmo ambiente que produzia antes desta integracao existir.",
+    "",
+    "O QUE ISTO FAZ: aponta os agents do Harbor para um proxy LiteLLM em vez de irem direto ao",
+    "provider. Ganha-se um lugar so para chaves, teto de gasto, cache, fallback e log de",
+    "requisicao entre todos os providers -- e, em tese, um adapter preso a um fornecedor",
+    "(claude-code, codex) passa a alcancar model de outro provider.",
+    "",
+    "NAO FOI TESTADO contra um proxy LiteLLM real. E um encaixe preparado, nao um recurso",
+    "suportado. Por isso o mapeamento de variaveis abaixo e DECLARADO, nao adivinhado: cada",
+    "adapter le a variavel que le, e este kit nao tem como saber qual sem verificar. Ajuste o",
+    "bloco env para o seu caso e confirme com uma run de verdade antes de confiar.",
+    "",
+    "Placeholders aceitos nos valores: {baseUrl} e {apiKey}.",
+    "{apiKey} vem do secret cujo NOME esta em apiKeyEnv -- o valor continua morando so em",
+    "~/.harbor-eval-kit/secrets.env, nunca aqui.",
+    "",
+    "Docs: docs/ENGENHARIA.md e DOCUMENTACAO.md (secao LiteLLM gateway)."
+  ],
+
+  "enabled": false,
+  "baseUrl": "http://127.0.0.1:4000",
+  "apiKeyEnv": "LITELLM_MASTER_KEY",
+
+  "env": {
+    "OPENAI_BASE_URL": "{baseUrl}/v1",
+    "OPENAI_API_KEY": "{apiKey}"
+  }
+}

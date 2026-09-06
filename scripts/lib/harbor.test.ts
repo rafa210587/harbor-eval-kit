@@ -15,14 +15,17 @@ import {
   HARBOR_AGENTS,
   FREE_AGENTS,
   JUDGE_MODELS,
+  LITELLM_GATEWAY_DISABLED,
   PROVIDERS,
   buildCombos,
+  buildHarborEnv,
   buildHarborRunArgs,
   csvEscape,
   isJudgeModelAllowed,
   jobName,
   listJobLogFiles,
   listJobLogs,
+  litellmGatewayEnv,
   parseSkillset,
   resolveRubricCriteria,
   sanitize,
@@ -269,6 +272,52 @@ describe("csvEscape", () => {
     assert.equal(csvEscape('com"aspas'), '"com""aspas"');
     assert.equal(csvEscape(null), "");
     assert.equal(csvEscape(undefined), "");
+  });
+});
+
+// --- LiteLLM gateway (integration point, off by default) ----------------------------------
+
+describe("gateway LiteLLM", () => {
+  // A garantia que importa enquanto está desligado: não muda absolutamente nada. Se este teste
+  // quebrar, um ponto de integração inativo passou a interferir em run de verdade.
+  test("desligado não contribui nenhuma variável", () => {
+    assert.deepEqual(litellmGatewayEnv(LITELLM_GATEWAY_DISABLED, {}), {});
+  });
+
+  test("desligado deixa buildHarborEnv idêntico ao de antes da integração existir", () => {
+    const semGateway = buildHarborEnv({ FOO: "1" }, {});
+    const comPadrao = buildHarborEnv({ FOO: "1" }, litellmGatewayEnv(LITELLM_GATEWAY_DISABLED, {}));
+    assert.deepEqual(comPadrao, semGateway);
+  });
+
+  test("config pela metade (sem baseUrl) não contribui nada, em vez de meio ligar", () => {
+    const meia = { enabled: true, baseUrl: null, apiKeyEnv: null, env: { OPENAI_BASE_URL: "{baseUrl}/v1" } };
+    assert.deepEqual(litellmGatewayEnv(meia, {}), {});
+  });
+
+  test("ligado substitui {baseUrl} e {apiKey}", () => {
+    const cfg = {
+      enabled: true,
+      baseUrl: "http://127.0.0.1:4000",
+      apiKeyEnv: "LITELLM_MASTER_KEY",
+      env: { OPENAI_BASE_URL: "{baseUrl}/v1", OPENAI_API_KEY: "{apiKey}" },
+    };
+    assert.deepEqual(litellmGatewayEnv(cfg, { LITELLM_MASTER_KEY: "chave-do-proxy" }), {
+      OPENAI_BASE_URL: "http://127.0.0.1:4000/v1",
+      OPENAI_API_KEY: "chave-do-proxy",
+    });
+  });
+
+  test("secret ausente vira string vazia, não o literal {apiKey}", () => {
+    const cfg = { enabled: true, baseUrl: "http://x", apiKeyEnv: "NAO_EXISTE", env: { K: "{apiKey}" } };
+    assert.deepEqual(litellmGatewayEnv(cfg, {}), { K: "" });
+  });
+
+  test("extraEnv explícito vence o gateway", () => {
+    // Precedência importa: um valor passado na chamada é uma decisão daquela run e não pode ser
+    // sobrescrito por configuração ambiente.
+    const env = buildHarborEnv({ OPENAI_BASE_URL: "https://api.openai.com/v1" }, { OPENAI_BASE_URL: "http://proxy/v1" });
+    assert.equal(env.OPENAI_BASE_URL, "https://api.openai.com/v1");
   });
 });
 
