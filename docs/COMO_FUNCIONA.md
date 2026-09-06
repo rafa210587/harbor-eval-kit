@@ -232,6 +232,9 @@ consideradas críticas, onde o ganho de confiabilidade compensa o custo maior.
 
 ## 5. Onde ir a partir daqui
 
+- **O que precisa estar cadastrado antes de cada operação, e por quê**:
+  [`FLUXO_RUN_COMPARE_ANALYZE.md`](./FLUXO_RUN_COMPARE_ANALYZE.md) — obrigatório vs. opcional
+  por operação, a cadeia Secret → Model → Judge, e as mensagens de erro reais.
 - Mecanismo completo de reward vs. Judge: [`DOCUMENTACAO.md` §11](../DOCUMENTACAO.md#11-o-mecanismo-de-avaliação--reward-vs-juiz).
 - Receitas de comparação (model vs model, agent vs agent, skill ablation): [`docs/EXPERIMENTS.md`](./EXPERIMENTS.md).
 - Rodar a mesma comparação via linha de comando (CI, sweeps reprodutíveis): [`README.md` — CLI](../README.md#two-ways-to-use-it).

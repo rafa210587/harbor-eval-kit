@@ -14,6 +14,12 @@ the deterministic test reward.
 > architecture, what happens end-to-end on a Compare run, and a full story comparing
 > DeepSeek vs. Claude on the same task — including a real invalid-API-key error and how it
 > got fixed via the Secrets tab's **Test** button.
+>
+> ✅ **"What do I have to register before this works?"
+> [`docs/FLUXO_RUN_COMPARE_ANALYZE.md`](./docs/FLUXO_RUN_COMPARE_ANALYZE.md)** (in Portuguese)
+> is the prerequisite map: required vs. optional per operation (Run / Compare / Analyze), why
+> each registry exists, why a Judge forces a curated high-tier model, the zero-cost first run
+> via the `oracle` agent, and every real error message with its fix.
 
 ## Why this exists
 
