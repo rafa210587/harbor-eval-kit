@@ -214,6 +214,35 @@ Sem cerimônia de framework — o que estas siglas significam aqui concretamente
 
 ---
 
+## 6.1 Guarda de gasto — e por que ela quase não guardou nada
+
+`n-attempts × linhas × concurrency` não tinha teto nem prévia: digitar `30` no n-attempts com
+quatro linhas disparava 120 runs pagas sem um aviso. É o acidente mais barato de impedir e o
+mais caro de descobrir depois. Hoje o Compare mostra a estimativa enquanto você monta a
+comparação e o servidor recusa (409) antes de spawnar qualquer coisa.
+
+**Ela é pré-voo, não limite rígido**, e isso está dito na própria tela: o `harbor run` desta
+versão não expõe flag de custo (conferido no `--help`), então depois que a run começa nada aqui
+a interrompe. Prometer mais seria repetir o erro do hook que avisava e deixava passar. Para
+limite real em execução, alguns adapters aceitam o próprio kwarg
+(`--ak cost_limit=0.50` com o `mini-swe-agent`) — o kit repassa em vez de inventar um mapeamento
+genérico que não conseguiria honrar.
+
+**O buraco que só apareceu testando de verdade.** A primeira versão tinha uma regra que parecia
+sensata: *"estimativa desconhecida não bloqueia"* — senão a primeira run de qualquer model novo
+seria impossível, e bloquear por ignorância ensina o usuário a levantar o teto de vez. Os testes
+unitários concordavam. Aí eu disparei o cenário real (30 attempts, model sem histórico) e **ele
+rodou**: containers subiram e começaram a gastar, exatamente o acidente que a guarda existia
+para impedir.
+
+A regra estava certa e incompleta: não saber o preço não é motivo para pular a checagem, é
+motivo para limitar o **volume**. Hoje há duas recusas independentes — estimativa conhecida
+acima do teto, ou estimativa desconhecida acima de 5 trials pagos. Agent gratuito
+(`oracle`/`nop`) nunca conta.
+
+A lição repete a do §1 e a do §5: **teste a guarda tentando fazer o que ela deveria impedir.**
+Unit test passando é evidência de que a função faz o que você escreveu, não de que ela protege.
+
 ## 7. Observabilidade
 
 **Regra:** dá para responder "o que está acontecendo agora?" e "por que aquilo falhou?" sem

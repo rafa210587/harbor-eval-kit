@@ -290,6 +290,10 @@ itself (Podman is preexisting infrastructure, not something this kit installed).
 
 ## Known limitations
 
+- **Spend guard**: Compare previews the estimated cost from this machine's own run history and
+  refuses (409) before spawning anything if it exceeds the cap, or if more than 5 paid trials
+  would run with no history to price them. It is a pre-flight guard, not a hard limit — this
+  Harbor exposes no cost flag, so nothing here can stop a run already in progress.
 - Compare in the GUI is still synchronous — one POST that only answers once every combination
   finished, so there are no partial per-row results and no way to cancel mid-run. It is no
   longer *blind*, though: the button locks while running, an elapsed-time counter ticks, and a

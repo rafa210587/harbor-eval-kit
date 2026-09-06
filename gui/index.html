@@ -72,6 +72,13 @@
         </div>
         <p class="hint">"n-attempts" repete cada combinação N vezes (reduz ruído). "Concurrency" roda combinações em paralelo — cuidado com custo de API se aumentar.</p>
 
+        <div class="row-inline">
+          <div><label>Teto de gasto desta run (USD)</label><input type="number" name="costCapUsd" value="1.00" min="0" step="0.01"></div>
+          <div><label>Custo estimado</label><p id="cost-estimate" class="hint" style="margin:6px 0 0;">—</p></div>
+        </div>
+        <p class="hint">A estimativa vem do histórico de runs <strong>desta máquina</strong> (custo por trial já medido para aquele agent+model, × n-attempts × linhas) e aparece sozinha ao montar a comparação. Se passar do teto, a run é recusada e você escolhe: aumentar o teto ou confirmar. <strong>0 = sem teto.</strong> Combinação nunca rodada não tem como ser estimada — nesse caso vale um limite de volume: acima de 5 trials pagos às cegas, também pede confirmação.</p>
+        <p class="hint" style="color:var(--warn);">⚠ É uma guarda <strong>pré-voo</strong>, não um limite rígido: o <code>harbor run</code> desta versão não expõe flag de custo, então depois que a run começa nada aqui a interrompe se ela passar do estimado. Para limite real em execução, alguns adapters aceitam o próprio kwarg — ex.: <code>--ak cost_limit=0.50</code> no campo "Extra harbor run args" com o <code>mini-swe-agent</code>.</p>
+
         <label>Extra harbor run args (opcional, avançado)</label>
         <input type="text" name="extra" placeholder="--timeout-multiplier 1.5">
 

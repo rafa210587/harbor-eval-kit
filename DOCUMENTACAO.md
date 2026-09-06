@@ -681,6 +681,33 @@ separada, os resultados aparecem empilhados, cada um com o custo daquela anális
 rodada tiver Judge/rubrics pinados (seção 10.9), o painel já abre com eles pré-selecionados —
 pode ajustar antes de clicar.
 
+### 10.10-b Guarda de gasto (teto + estimativa)
+
+O Compare mostra o **custo estimado** enquanto você monta a comparação, e o servidor **recusa a
+run (409) antes de spawnar qualquer coisa** se ela passar do teto.
+
+A estimativa vem do histórico **desta máquina**: custo por trial já medido para aquele
+`agent + model` (lido do `result.json` que o próprio Harbor grava), × n-attempts × linhas. Sem
+histórico do par exato, cai para o mesmo model sob outro agent. `oracle`/`nop` são zero por
+definição. Job que não reportou custo é tratado como **desconhecido**, nunca como gratuito —
+entrar como zero na média subestimaria toda run futura.
+
+Duas recusas independentes, ambas liberadas por confirmação explícita (válida só para aquela
+run, nunca memorizada):
+
+1. estimativa **conhecida** acima do teto;
+2. estimativa **desconhecida** acima de 5 trials pagos — porque não saber o preço não é motivo
+   pra pular a checagem, é motivo pra limitar o volume. Sem essa segunda regra, "model novo +
+   n-attempts 30" passava batido (aconteceu de verdade em teste; ver `docs/ENGENHARIA.md` §6.1).
+
+**Limitação, dita na própria tela:** é guarda **pré-voo**, não limite rígido. O `harbor run`
+desta versão não expõe flag de custo, então depois que a run começa nada aqui a interrompe. Para
+limite real em execução, use o kwarg do próprio adapter no campo "Extra harbor run args" — ex.:
+`--ak cost_limit=0.50` com o `mini-swe-agent`.
+
+Teto `0` = sem teto. Rotas: `POST /api/compare/estimate` (prévia) e o mesmo estimador dentro do
+`POST /api/compare` (enforcement) — o número mostrado é o número aplicado.
+
 ### 10.11 Datasets
 **O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
 própria task do zero na aba Tasks. **Quando usar**: pra comparar contra um benchmark
@@ -877,7 +904,7 @@ scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (nã
 scripts/test.sh/.ps1          roda a suíte inteira: node --test + scan de credenciais
 scripts/scan-secrets.sh       detector de credencial (modo --staged usado pelo pre-commit)
 scripts/setup-hooks.sh/.ps1   ativa .githooks/ neste clone (core.hooksPath)
-scripts/lib/harbor.test.ts    testes unitários da lógica pura (node:test, sem framework)
+scripts/lib/*.test.ts         testes unitários (node:test, sem framework): harbor + cost
 .githooks/pre-commit          bloqueia commit que contenha credencial
 .gitattributes                fixa LF nos .sh (CRLF quebraria o hook num clone Windows)
 .claude/skills/               skills de projeto: ship-change, secret-guard, cross-platform

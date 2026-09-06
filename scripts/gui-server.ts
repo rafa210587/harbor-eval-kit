@@ -47,6 +47,8 @@ import {
   readRegistry,
   readTaskFiles,
   resolveAgentInstructionsPath,
+  checkCostGuard,
+  estimateCompareCost,
   getLitellmGatewayConfig,
   getLitellmGatewayPath,
   safeJoinUnderDir,
@@ -270,6 +272,30 @@ addRoute("GET", "/api/status", async (_req, res) => {
 
 // ---------- compare ----------
 
+/** A cap of 0/empty/invalid means "no cap" rather than "cap of zero", which would block everything. */
+function capFromBody(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// Lets the UI show what a Compare is about to cost before the user commits to it. Same
+// estimator the guard uses, so the number shown is the number enforced.
+addRoute("POST", "/api/compare/estimate", (_req, res, _params, body) => {
+  const entries = Array.isArray(body.entries) ? body.entries : [];
+  const agentEntries = readRegistry<AgentEntry>("agents");
+  const modelEntries = readRegistry<ModelEntry>("models");
+  const combos = entries.map((e: { agentId: string; modelId?: string }) => {
+    const agent = agentEntries.find((a) => a.id === e.agentId);
+    const modelValue = e.modelId
+      ? modelEntries.find((m) => m.id === e.modelId)?.value ?? null
+      : agent?.modelId
+        ? modelEntries.find((m) => m.id === agent.modelId)?.value ?? null
+        : null;
+    return { agent: sanitize(agent?.agentValue ?? "?"), model: modelValue ? sanitize(modelValue) : "(default)" };
+  });
+  sendJson(res, 200, estimateCompareCost(String(body.jobsDir || "jobs"), combos, Number(body.nAttempts) || 1));
+});
+
 addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
   const {
     path: taskPath,
@@ -325,6 +351,19 @@ addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
       skillset: { label: skillsetLabel, paths },
       agentEntry,
     });
+  }
+
+  // Pre-flight spend guard. Estimated from this machine's own history and checked before
+  // anything is spawned -- it cannot stop a run that is already going (Harbor exposes no cost
+  // flag), so it is a guard against the accident, not a hard ceiling. See scripts/lib/cost.ts.
+  const estimate = estimateCompareCost(
+    jobsDir,
+    combos.map((c) => ({ agent: sanitize(c.agent), model: c.model ? sanitize(c.model) : "(default)" })),
+    Number(nAttempts) || 1
+  );
+  const verdict = checkCostGuard(estimate, capFromBody(body.costCapUsd), Boolean(body.acknowledgeCost));
+  if (!verdict.allowed) {
+    return sendJson(res, 409, { ok: false, error: verdict.reason, estimate: verdict.estimate, needsAcknowledge: true });
   }
 
   mkdirSync(jobsDir, { recursive: true });

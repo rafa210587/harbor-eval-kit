@@ -48,6 +48,7 @@ export * from "./secrets.ts";
 export * from "./joblogs.ts";
 export * from "./tasks.ts";
 export * from "./litellm.ts";
+export * from "./cost.ts";
 export * from "./exec.ts";
 export * from "./materialize.ts";
 

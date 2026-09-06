@@ -57,6 +57,59 @@ $("#compare-add-entry-btn").addEventListener("click", () => {
   const agentId = $("#compare-agent-picker").value;
   if (!agentId) { alert("Cadastre um agent primeiro, na aba Agents."); return; }
   addCompareEntryRow(agentId);
+  refreshCostEstimate();
+});
+
+/** Reads the rows currently on screen, in the shape both the estimate and the run expect. */
+function currentEntries() {
+  return $$("#compare-entries-list > .entry-row").map((row) => ({
+    agentId: row.dataset.agentId,
+    modelId: row.querySelector(".entry-model").value || undefined,
+    skillsetIds: $$("input:checked", row.querySelector(".entry-skillsets")).map((i) => i.value),
+  }));
+}
+
+/**
+ * Shows what this comparison is about to cost, before the user commits to it. Same estimator
+ * the server-side guard uses, so the number on screen is the number that will be enforced.
+ */
+async function refreshCostEstimate() {
+  const el = $("#cost-estimate");
+  if (!el) return;
+  const form = $("#compare-form");
+  const entries = currentEntries();
+  if (entries.length === 0) { el.textContent = "—"; el.style.color = ""; return; }
+  try {
+    const est = await api("POST", "/api/compare/estimate", {
+      entries,
+      nAttempts: form.elements["nAttempts"].value || "1",
+      jobsDir: form.elements["jobsDir"].value || "jobs",
+    });
+    const cap = Number(form.elements["costCapUsd"].value) || 0;
+    const semHistorico = est.unknown.length
+      ? ` · sem histórico para ${est.unknown.join(", ")} — o valor é um piso, não o total`
+      : "";
+    if (est.estimateUsd === null) {
+      el.textContent = `não estimável ainda (${est.totalTrials} trial(s)) — rode uma vez para aprender o custo`;
+      el.style.color = "var(--warn)";
+      return;
+    }
+    el.textContent = `~$${est.estimateUsd.toFixed(4)} em ${est.totalTrials} trial(s)${semHistorico}`;
+    el.style.color = cap > 0 && est.estimateUsd > cap ? "var(--warn)" : "var(--ok)";
+  } catch {
+    el.textContent = "—";
+    el.style.color = "";
+  }
+}
+
+// Anything that changes the size of the run re-prices it.
+$("#compare-form").addEventListener("input", (e) => {
+  if (["nAttempts", "costCapUsd", "jobsDir"].includes(e.target.name) || e.target.classList.contains("entry-model")) {
+    refreshCostEstimate();
+  }
+});
+$("#compare-form").addEventListener("change", (e) => {
+  if (e.target.classList.contains("entry-model")) refreshCostEstimate();
 });
 
 let lastCompareJobsDir = null;
@@ -175,11 +228,7 @@ $("#compare-view-btn").addEventListener("click", async () => {
 $("#compare-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const entries = $$("#compare-entries-list > .entry-row").map((row) => ({
-    agentId: row.dataset.agentId,
-    modelId: row.querySelector(".entry-model").value || undefined,
-    skillsetIds: $$("input:checked", row.querySelector(".entry-skillsets")).map((i) => i.value),
-  }));
+  const entries = currentEntries();
   if (entries.length === 0) { alert("Adicione ao menos uma entrada (agent) pra comparar."); return; }
   const jobsDir = fd.get("jobsDir") || "jobs";
   const body = {
@@ -192,12 +241,14 @@ $("#compare-form").addEventListener("submit", async (e) => {
     concurrency: fd.get("concurrency") || "1",
     dryRun: fd.get("dryRun") === "on",
     extra: fd.get("extra") || "",
+    costCapUsd: fd.get("costCapUsd") || "0",
   };
   const out = $("#compare-output");
   $("#compare-table").innerHTML = "";
   $("#compare-post-actions").hidden = true;
   $("#compare-analyze-panel").hidden = true;
   $("#compare-analysis-results").innerHTML = "";
+
 
   // A real run takes minutes and the POST only answers at the very end, so without this the
   // page looks frozen and a second click would fire a second harbor run into the same job
@@ -215,7 +266,20 @@ $("#compare-form").addEventListener("submit", async (e) => {
   const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir);
 
   try {
-    const result = await api("POST", "/api/compare", body);
+    // The spend guard answers 409 before spawning anything. Offer the choice here instead of
+    // making the user re-fill the form -- the acknowledgement applies to this one run and is
+    // never remembered, so the guard cannot quietly stop guarding.
+    let result;
+    try {
+      result = await api("POST", "/api/compare", body);
+    } catch (err) {
+      if (!/teto de \$|às cegas/.test(err.message)) throw err;
+      if (!confirm(`Guarda de gasto:\n\n${err.message}\n\nRodar assim mesmo?`)) {
+        out.textContent = "Cancelado pela guarda de gasto — nada foi executado.";
+        return;
+      }
+      result = await api("POST", "/api/compare", { ...body, acknowledgeCost: true });
+    }
     lastCompareJobsDir = jobsDir;
     lastCompareRows = result.rows;
     renderCompareTable();
