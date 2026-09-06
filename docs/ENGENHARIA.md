@@ -75,11 +75,36 @@ em **um** lugar, com o nome do SO explícito.
   por tipo técnico ("utils", "helpers", "misc" — nomes que atraem entulho).
 - Evite indireção sem ganho: uma camada a mais custa contexto tanto quanto código a mais.
 
-**Estado atual, honestamente:** `scripts/lib/harbor.ts` (~1000 linhas) e `gui/index.html`
-(~1800) já passam do alvo. São dívida conhecida e documentada, não exemplo a seguir — código
-novo não deve engordá-los sem antes perguntar se cabe em um módulo próprio. O `harbor.ts` é
-importado tanto pela GUI quanto pelo CLI, e a fronteira natural para quebrá-lo já existe nos
-cabeçalhos de seção.
+**Estado atual:** `scripts/lib/` foi quebrado (2026-09-06) de um arquivo de 1.296 linhas em 11
+módulos, todos abaixo do alvo:
+
+| Módulo | Responsabilidade |
+|---|---|
+| `types.ts` | interfaces compartilhadas, sem nenhuma dependência |
+| `catalog.ts` | as listas fixas: `PROVIDERS`, `JUDGE_MODELS`, `HARBOR_AGENTS` |
+| `paths.ts` | state dir, geração de id, `safeJoinUnderDir` |
+| `naming.ts` | `sanitize`/`jobName`/`buildHarborRunArgs` |
+| `exec.ts` | spawn de harbor/podman e montagem do ambiente deles |
+| `secrets.ts` | leitura/escrita do `secrets.env` |
+| `materialize.ts` | escrever skills/rubrics/prompts autorados na GUI em disco |
+| `joblogs.ts` | tail incremental dos logs do Harbor |
+| `tasks.ts` | tasks em disco, descoberta, pin de judge/rubric |
+| `litellm.ts` | o encaixe (desligado) do gateway LiteLLM |
+| `harbor.ts` | superfície pública: re-exporta tudo + o que ainda não foi separado |
+
+`harbor.ts` continuar sendo o ponto único de import (via `export *`) foi deliberado: a quebra
+não obrigou a tocar em `gui-server.ts` nem em `compare-matrix.ts`, então cada módulo pôde ser
+extraído e verificado isoladamente. **Ao escrever algo novo, importe do módulo específico e
+prefira engordar ele a engordar o `harbor.ts`.**
+
+**Dívida que continua:** `gui/index.html` (~1.900 linhas) ainda concentra HTML, CSS e JS. É a
+próxima fronteira — exige servir estáticos com guarda de path traversal e quebrar o JS em
+módulos ES nativos.
+
+**Lição da quebra:** cortar por faixa de linha é rápido e exato, mas erra em silêncio quando a
+faixa parte um comentário de bloco ao meio (aconteceu: o `/**` de uma função foi para um módulo
+e o `*/` ficou no outro). Importar cada módulo isoladamente (`node -e "import('./x.ts')"`)
+localiza isso em segundos; a suíte inteira só diz que algo quebrou.
 
 ---
 

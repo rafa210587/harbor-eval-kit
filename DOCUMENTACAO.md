@@ -852,7 +852,9 @@ Harbor por baixo, só a forma de montar a chamada muda.
 ```
 Harbor_install/skills/        skills do Claude Code p/ instalar/diagnosticar/limpar o Harbor
 Harbor_install/agents/        papéis/sub-agentes usados junto com as skills acima
-scripts/lib/harbor.ts         lógica compartilhada: exec de processos, registries, secrets,
+scripts/lib/*.ts              lógica compartilhada, 11 módulos (ver docs/ENGENHARIA.md §3):
+                               types, catalog, paths, naming, exec, secrets, materialize,
+                               joblogs, tasks, litellm + harbor.ts (superfície pública)
                                materialização de skills/rubrics, DOCKER_HOST fix, telemetria
 scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)

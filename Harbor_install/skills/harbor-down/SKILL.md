@@ -1,3 +1,8 @@
+---
+name: harbor-down
+description: Stop the GUI (and optionally the Podman machine) without deleting anything. Use to stop or shut down Harbor Eval Kit.
+---
+
 # Harbor Down
 
 ## Category

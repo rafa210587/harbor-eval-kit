@@ -1,3 +1,8 @@
+---
+name: harbor-eval-designer
+description: Design or refine a coding benchmark task (instruction, environment, tests, reference solution). Use when creating or improving an eval task.
+---
+
 # Harbor Eval Designer
 
 ## Trigger
@@ -27,6 +32,11 @@ Each Harbor task should contain, as supported by the installed Harbor version:
 - environment/Dockerfile
 - tests/test.sh
 - solution/solve.sh when appropriate
+
+**→ `references/exemplo-completo.md`** — a complete worked example (the repo's own
+`evals/python/soma-fracoes`, validated by a real run at reward 1.0), file by file, plus the
+zero-cost `oracle`/`nop` validation cycle that catches a broken task before any API is spent.
+Load it when you want a concrete model rather than the rules below.
 
 ## Rules
 

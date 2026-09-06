@@ -1,3 +1,8 @@
+---
+name: harbor-cleanup
+description: Remove only what this kit created, verified against the installation manifest, with a dry-run plan first. Use for cleanup, reset or uninstall.
+---
+
 # Harbor Cleanup Guardian
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: harbor-eval-runner
+description: Run model, agent or skill evaluations with the comparison kept fair and the metadata recorded. Use when asked to run a benchmark or comparison.
+---
+
 # Harbor Eval Runner
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: harbor-result-analyzer
+description: Compare and interpret Harbor job results, including when the optional LLM judge is worth running. Use when analyzing or comparing eval results.
+---
+
 # Harbor Result Analyzer
 
 ## Trigger

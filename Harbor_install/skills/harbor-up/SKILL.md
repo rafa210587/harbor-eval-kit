@@ -1,3 +1,8 @@
+---
+name: harbor-up
+description: Bring the already-installed services and GUI online after a reboot, idempotently. Use to start, boot or resume Harbor Eval Kit.
+---
+
 # Harbor Up
 
 ## Category

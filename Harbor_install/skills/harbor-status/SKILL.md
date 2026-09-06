@@ -1,3 +1,8 @@
+---
+name: harbor-status
+description: Fast read-only check of whether Podman, the GUI and Harbor are up, plus any run in progress. Use for a quick status, not a full diagnosis.
+---
+
 # Harbor Status
 
 ## Category

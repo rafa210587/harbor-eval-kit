@@ -1,3 +1,8 @@
+---
+name: harbor-bootstrap
+description: Install and configure Harbor Eval Kit on a Podman-only machine with minimal host mutation. Use when asked to install, bootstrap or set up Harbor.
+---
+
 # Harbor Bootstrap
 
 ## Trigger
@@ -38,46 +43,21 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
       no `harbor agent list`: verified 2026-09-06 on Harbor 0.22.0, that command does not
       exist, and `harbor adapter` only offers `init`/`review`)
     - `harbor dataset list` or the equivalent reported by `harbor --help`
-11. Validate Podman compatibility with Harbor using an actual minimal task before declaring
-    success. If the task needs `--env docker` (Harbor's backend is Docker-oriented), Podman's
-    Docker-compatible endpoint must be reachable, and how you reach it depends on the OS
-    detected in step 2 — never assume the Docker CLI/SDK's own default is already pointed at
-    Podman:
-    - **Windows**: the Docker CLI/SDK default targets Docker Desktop's pipe even when it's
-      stopped. Podman machine exposes a separate, fixed named pipe for Docker-CLI/SDK
-      compatibility: `npipe:////./pipe/docker_engine` (this is a well-known fixed name, not
-      derived from the machine's own name — `podman machine inspect` reports a *different*,
-      machine-name-dependent pipe for its native API, which is not the one to use here).
-    - **macOS**: Podman always runs inside a VM ("podman machine"). Get its Docker-compatible
-      socket path with `podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'`
-      and use `unix://<that path>`.
-    - **Linux**: rootless Podman normally exposes its API socket directly (no VM) at the path
-      reported by `podman info --format '{{.Host.RemoteSocket.Path}}'` — that same socket
-      already speaks the Docker-compatible dialect, use it as-is. If a Podman machine is
-      active instead (check `podman machine list --format json` for a running one — uncommon
-      on Linux but supported), use the same machine-inspect approach as macOS.
-    - Inject the resolved value as `DOCKER_HOST` **scoped to the single `harbor`/`podman`
-      child process being validated** — never export it into the user's shell or write it to
-      a profile file. This kit's own implementation of exactly this logic (canonical
-      reference, kept in sync across three languages) lives in
-      `scripts/lib/harbor.ts` (`resolvePodmanDockerHost`), `scripts/harbor-eval.ps1`
-      (`Resolve-PodmanDockerHost`), and `scripts/harbor-eval.sh`
-      (`resolve_podman_docker_host`) — reuse those instead of re-deriving this by hand when
-      the install happens to be *for* this kit.
+11. Validate Podman compatibility with Harbor by running an **actual minimal task**, not just
+    `podman info`, before declaring success. A task using `--env docker` needs Podman's
+    Docker-compatible endpoint, and how you reach it differs per OS — the Docker CLI/SDK's own
+    default never points at Podman on any of them.
+    **→ `Harbor_install/references/docker-host-por-so.md`** has the exact command and value per
+    OS, the rules that hold on all three, and this kit's canonical implementation to reuse
+    rather than re-derive.
 12. Persist exact actions and versions, including which OS branch of step 11 was used and
     what the resolved Docker-compatible endpoint was (or that none could be resolved).
 
 ## Java / Node / Python policy
 
-Do not globally install Java/Node merely because a benchmark needs them.
-
-Prefer the task environment:
-
-- Java: Eclipse Temurin JDK image.
-- TypeScript: official Node image.
-- Python: official Python image.
-
-Install host versions only when the orchestration tooling itself requires them.
+Do not globally install Java/Node merely because a benchmark needs them — prefer the task's own
+container (Eclipse Temurin for Java, the official Node and Python images). Install a host
+version only when the orchestration tooling itself requires it.
 
 ## Success criteria
 
