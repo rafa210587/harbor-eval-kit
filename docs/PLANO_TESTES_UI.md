@@ -56,10 +56,18 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 1. Aba **2. Models**. Label = `Teste`, provider/model = `deepseek/deepseek-v4-flash`.
 2. **Esperado:** aparece na lista com badge indicando se `DEEPSEEK_API_KEY` já está cadastrada.
 
-### T2.2 — Checklist de models descobertos ao vivo (via Secrets → Test) ⬜
+### T2.2 — Checklist de models descobertos ao vivo (via Secrets → Test) ✅ (validado por clique real)
 1. Aba Secrets, clique **Test** numa chave válida com listagem ao vivo suportada.
 2. Marque 1-2 checkboxes do checklist que aparece.
 3. **Esperado:** os models marcados aparecem cadastrados na aba Models sem digitar nada.
+   **Confirmado 2026-09-07**: `Test` em `ANTHROPIC_API_KEY` → "✓ Key funciona — chamada de
+   teste no model anthropic/claude-fable-5-1 respondeu normalmente", checklist ao vivo
+   apareceu (já cadastrados aparecem cinza/desabilitados e marcados). Marquei
+   `anthropic/claude-fable-5` e `anthropic/claude-opus-4-8`, cliquei **Cadastrar marcados** →
+   ambos apareceram na aba Models sem digitar nada. (Nota: `Test` em `DEEPSEEK_API_KEY` bateu
+   no limitante já documentado no T1.2 — a lista estática de fallback do LiteLLM instalado tem
+   `deepseek-r1`, que a API real do DeepSeek já não aceita; não impede validar este teste com
+   outro provider.)
 
 ### T2.3 — Editar e apagar ✅ (validado por clique real)
 1. Clique num item da lista de Models pra editar; mude o label; salve.
@@ -163,12 +171,21 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
    da lista curada marcado com `⚠ fora da lista curada`.
 3. Salve um Judge assim (ex.: com um model DeepSeek).
 
-### T8.3 — Editar as instruções do juiz (prompt customizado) ⬜
+### T8.3 — Editar as instruções do juiz (prompt customizado) ✅ (validado por clique real)
 1. Edite o campo "Instruções do juiz", removendo um dos marcadores obrigatórios
    (`{trial_path}`, `{task_section}`, `{criteria_guidance}`).
 2. Salve e rode um Analyze com esse Judge.
 3. **Esperado:** o Harbor não quebra (ele só preenche o que existir no texto), mas o juiz fica
    sem parte da orientação — documentar o que de fato aconteceu.
+   **Confirmado 2026-09-07**: removido `{criteria_guidance}` do prompt do Judge "VALIDACAO —
+   DeepSeek chat" (via Edit real na aba Judges), salvo, rodado Analyze de verdade (aba Analyze
+   standalone) contra o job já existente com esse Judge + rubric Python Quality + Modo
+   validação. Harbor não quebrou: rodou normalmente e devolveu `checks` reais (no_prolixity,
+   clean_code, ambos "pass") — a seção "Guidance:" do prompt só ficou vazia (sem o texto dos
+   critérios), sem afetar a capacidade do juiz de avaliar via as `guidance` que já estavam
+   embutidas nos textos dos próprios critérios (aba 6) mesmo sem o marcador. Prompt original
+   restaurado ao final (via Edit + Save changes de novo) pra não deixar o Judge compartilhado
+   quebrado pros próximos testes.
 
 ---
 
