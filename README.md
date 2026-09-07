@@ -66,6 +66,13 @@ tested one. A newer Harbor will probably work; it just stops being something any
 
 This README is the tour. The depth is elsewhere (in Portuguese):
 
+The next platform improvements are documented **before implementation** in the
+[platform plan](./docs/PLANO_PLATAFORMA_2026-09-07.md), with a
+[Claude continuation prompt](./docs/PROMPT_CLAUDE_PLATAFORMA.md).
+For corporate cloud use, see the [AWS infrastructure plan](./docs/PLANO_AWS_CORPORATIVO.md):
+a small Podman-based pilot with controlled access, persistent storage and usage-based
+operation. **AWS deployment is planned only; it is not implemented or validated.**
+
 | Document | What's in it |
 |---|---|
 | [`DOCUMENTACAO.md`](./DOCUMENTACAO.md) | The complete reference: every decision and its reasoning, step-by-step install, every tab in detail |
