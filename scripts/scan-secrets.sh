@@ -142,17 +142,27 @@ if [ "$MODE" = "staged" ]; then
     fi
   done < <(git diff --cached --name-only --diff-filter=ACMR)
 else
+  # `mapfile` would read this in one line, but it is a bash 4 builtin and macOS still ships
+  # bash 3.2 (frozen in 2007 over GPLv3) as /bin/bash -- CI failed there with
+  # "mapfile: command not found" while Linux and Git Bash passed. This read loop is
+  # bash-3.2-compatible and does the same thing.
   if [ ${#PATHS[@]} -eq 0 ]; then
-    mapfile -t PATHS < <(git ls-files)
+    while IFS= read -r tracked; do
+      [ -n "$tracked" ] && PATHS+=("$tracked")
+    done < <(git ls-files)
   fi
-  for path in "${PATHS[@]}"; do
-    [ -f "$path" ] || continue
-    check_name "$path"
-    # Skip binaries: `grep -I` reports no match for them, which is also how we detect one.
-    # A key pasted into a PNG is out of scope; scanning them only produces null-byte warnings.
-    grep -qI . "$path" 2>/dev/null || continue
-    scan_text "$path" < "$path" || fail=1
-  done
+  # Guarded because expanding an EMPTY array as "${arr[@]}" is an unbound-variable error under
+  # `set -u` on bash 3.2 -- the second half of that same macOS failure.
+  if [ ${#PATHS[@]} -gt 0 ]; then
+    for path in "${PATHS[@]}"; do
+      [ -f "$path" ] || continue
+      check_name "$path"
+      # Skip binaries: `grep -I` reports no match for them, which is also how we detect one.
+      # A key pasted into a PNG is out of scope; scanning them only produces null-byte warnings.
+      grep -qI . "$path" 2>/dev/null || continue
+      scan_text "$path" < "$path" || fail=1
+    done
+  fi
 fi
 
 if [ "$fail" -ne 0 ]; then
