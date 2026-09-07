@@ -3,6 +3,8 @@
 import { $, $$, api, escapeHtml, checkboxGroup } from "./core.js";
 import { state, onRefresh, guessProviderKey } from "./state.js";
 import { renderComparRubricPicker } from "./judging.js";
+import { analyzeCompareRow } from "./compare-analysis.js";
+import { rememberExperiment, setupExperimentHistory } from "./compare-history.js";
 
 // ================= COMPARE =================
 function renderCompareAgentPicker() {
@@ -47,6 +49,7 @@ function addCompareEntryRow(agentId) {
   row.querySelector("button").addEventListener("click", () => {
     row.remove();
     updateCompareEntriesCount();
+    refreshCostEstimate();
   });
 
   $("#compare-entries-list").appendChild(row);
@@ -64,7 +67,7 @@ $("#compare-add-entry-btn").addEventListener("click", () => {
 function currentEntries() {
   return $$("#compare-entries-list > .entry-row").map((row) => ({
     agentId: row.dataset.agentId,
-    modelId: row.querySelector(".entry-model").value || undefined,
+    modelId: row.querySelector(".entry-model").value,
     skillsetIds: $$("input:checked", row.querySelector(".entry-skillsets")).map((i) => i.value),
   }));
 }
@@ -82,6 +85,8 @@ async function refreshCostEstimate() {
   try {
     const est = await api("POST", "/api/compare/estimate", {
       entries,
+      path: form.elements["path"].value,
+      extra: form.elements["extra"].value,
       nAttempts: form.elements["nAttempts"].value || "1",
       jobsDir: form.elements["jobsDir"].value || "jobs",
     });
@@ -97,23 +102,26 @@ async function refreshCostEstimate() {
     el.textContent = `~$${est.estimateUsd.toFixed(4)} em ${est.totalTrials} trial(s)${semHistorico}`;
     el.style.color = cap > 0 && est.estimateUsd > cap ? "var(--warn)" : "var(--ok)";
   } catch {
-    el.textContent = "—";
+    el.textContent = "Preencha uma task/dataset válido para estimar o volume e custo.";
     el.style.color = "";
   }
 }
 
 // Anything that changes the size of the run re-prices it.
 $("#compare-form").addEventListener("input", (e) => {
-  if (["nAttempts", "costCapUsd", "jobsDir"].includes(e.target.name) || e.target.classList.contains("entry-model")) {
+  if (["path", "extra", "nAttempts", "costCapUsd", "jobsDir"].includes(e.target.name) || e.target.classList.contains("entry-model")) {
     refreshCostEstimate();
   }
 });
 $("#compare-form").addEventListener("change", (e) => {
-  if (e.target.classList.contains("entry-model")) refreshCostEstimate();
+  if (e.target.classList.contains("entry-model") || e.target.id === "compare-task-picker") refreshCostEstimate();
 });
+$("#compare-entries-list").addEventListener("change", refreshCostEstimate);
 
+let lastExperimentId = null;
 let lastCompareJobsDir = null;
 let lastCompareRows = [];
+let allowAnalysis = false;
 
 const COMPARE_COL_LABELS = {
   jobName: "jobName", agent: "agent", model: "model", skillset: "skillset", ok: "ok",
@@ -140,7 +148,7 @@ function renderCompareTable() {
       return `<td>${escapeHtml(v)}</td>`;
     }).join("");
     const actionTd = document.createElement("td");
-    if (r.ok) {
+    if (r.ok && allowAnalysis) {
       const btn = document.createElement("button");
       btn.className = "secondary";
       btn.textContent = (r.analyses && r.analyses.length) ? "Re-analisar" : "Analisar";
@@ -152,57 +160,18 @@ function renderCompareTable() {
   });
 }
 
+let analyzing = false;
 async function analyzeRow(idx) {
-  const row = lastCompareRows[idx];
-  const judgeId = $("#compare-judge-picker").value;
-  if (!judgeId) { alert('Escolha um Judge primeiro (cadastre um na aba "Judges" se a lista estiver vazia).'); return; }
-  const checkedRubricIds = $$("#compare-rubric-picker input:checked").map((i) => i.value);
-  const rubricRuns = checkedRubricIds.length > 0 ? checkedRubricIds : ["__default__"];
-  const resultsEl = $("#compare-analysis-results");
-  const path = `${lastCompareJobsDir}/${row.jobName}`;
-
-  row.analyses = row.analyses || [];
-  let totalPass = 0;
-  let totalApplicable = 0;
-  let totalJudgeCostUsd = 0;
-  const block = document.createElement("div");
-  block.className = "panel";
-  block.innerHTML = `<div class="row-title">${escapeHtml(row.jobName)}</div>`;
-
-  for (const rubricId of rubricRuns) {
-    const rubricLabel = rubricId === "__default__"
-      ? "padrão do Harbor"
-      : state.rubrics.find((r) => r.id === rubricId)?.label || rubricId;
-    try {
-      const validationMode = $("#analyze-validation-mode") ? $("#analyze-validation-mode").checked : false;
-      const res = await api("POST", "/api/analyze", { path, rubricId, judgeId, validationMode });
-      const analysis = res.analysis;
-      if (res.validationMode) {
-        block.innerHTML += `<p class="hint" style="color:var(--warn);">⚠ Modo validação: julgado por <code>${escapeHtml(res.judgeModel || "?")}</code>, que está fora da lista curada high-tier. Serve pra confirmar que o pipeline roda — <strong>não</strong> vale como avaliação.</p>`;
-      }
-      row.analyses.push({ rubricLabel, analysis });
-      const cost = analysis && typeof analysis.estimated_cost_usd === "number" ? analysis.estimated_cost_usd : null;
-      if (cost !== null) totalJudgeCostUsd += cost;
-      const checksHtml = analysis && analysis.checks
-        ? Object.entries(analysis.checks).map(([name, c]) => {
-            if (c.outcome === "pass") totalPass++;
-            if (c.outcome !== "not_applicable") totalApplicable++;
-            return `<div class="row-sub"><strong>${escapeHtml(name)}</strong>: ${escapeHtml(c.outcome)} — ${escapeHtml(c.explanation)}</div>`;
-          }).join("")
-        : `<pre class="output">${escapeHtml(res.stdout || res.stderr || "(sem analysis.json legível — veja stdout bruto)")}</pre>`;
-      block.innerHTML += `<h3 class="step">${escapeHtml(rubricLabel)}</h3>` +
-        (analysis && analysis.summary ? `<p class="hint">${escapeHtml(analysis.summary)}</p>` : "") +
-        checksHtml +
-        (cost !== null ? `<p class="hint">Custo do juiz nesta análise: $${cost.toFixed(4)}</p>` : "");
-    } catch (err) {
-      block.innerHTML += `<h3 class="step">${escapeHtml(rubricLabel)}</h3><p class="hint">Erro: ${escapeHtml(err.message)}</p>`;
-    }
-  }
-
-  row.passRate = totalApplicable > 0 ? totalPass / totalApplicable : undefined;
-  row.judgeCostUsd = (row.judgeCostUsd || 0) + totalJudgeCostUsd;
-  resultsEl.prepend(block);
-  renderCompareTable();
+  if (analyzing) return;
+  analyzing = true;
+  const button = $("#compare-analyze-all-btn");
+  button.disabled = true;
+  $("#compare-submit-btn").disabled = true;
+  $("#compare-sort-btn").disabled = true;
+  const startedAt = Date.now();
+  const tick = setInterval(() => { $("#compare-output").textContent = `Analisando há ${Math.round((Date.now() - startedAt) / 1000)}s…`; }, 1000);
+  try { await analyzeCompareRow(lastCompareRows[idx], lastCompareJobsDir, lastExperimentId, renderCompareTable); }
+  finally { clearInterval(tick); analyzing = false; button.disabled = false; $("#compare-submit-btn").disabled = false; $("#compare-sort-btn").disabled = false; $("#compare-output").textContent = "Análise concluída; detalhes e eventuais erros abaixo."; }
 }
 
 $("#compare-analyze-all-btn").addEventListener("click", async () => {
@@ -246,6 +215,8 @@ $("#compare-form").addEventListener("submit", async (e) => {
     // resolves, or there would be no way to call /api/compare/cancel while it's in flight.
     runId: crypto.randomUUID(),
   };
+  rememberExperiment(jobsDir, body.runId);
+  allowAnalysis = false;
   const out = $("#compare-output");
   $("#compare-table").innerHTML = "";
   $("#compare-post-actions").hidden = true;
@@ -283,7 +254,7 @@ $("#compare-form").addEventListener("submit", async (e) => {
     }
   }, 1000);
   out.textContent = "Rodando…";
-  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir);
+  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir, body.runId);
 
   try {
     // The spend guard answers 409 before spawning anything. Offer the choice here instead of
@@ -300,18 +271,12 @@ $("#compare-form").addEventListener("submit", async (e) => {
       }
       result = await api("POST", "/api/compare", { ...body, acknowledgeCost: true });
     }
+    lastExperimentId = result.experimentId ?? null;
     lastCompareJobsDir = jobsDir;
     lastCompareRows = result.rows;
+    allowAnalysis = !body.dryRun;
     renderCompareTable();
-    // A reused job dir means Harbor did not re-run that combination -- the row is the OLD
-    // result, read back. Silently that looks like a fresh comparison, so say it out loud.
-    const reused = result.reusedJobs ?? [];
-    out.textContent = `Pronto. Relatório: ${result.reportCsv}` +
-      (reused.length
-        ? `\n⚠ ${reused.length} job(s) já existiam com este "Job prefix" e foram reaproveitados pelo Harbor ` +
-          `em vez de rodar de novo — os números dessas linhas são da run anterior. ` +
-          `Use outro "Job prefix" para uma comparação realmente nova.`
-        : "");
+    out.textContent = `Experimento ${result.experimentId}. Relatório: ${result.reportCsv}`;
     $("#compare-post-actions").hidden = false;
     if (!body.dryRun && lastCompareRows.some((r) => r.ok)) {
       $("#compare-analyze-panel").hidden = false;
@@ -335,11 +300,8 @@ $("#compare-form").addEventListener("submit", async (e) => {
   }
 });
 
-// Tails whichever job dir harbor touched most recently while a Compare run is in flight. The
-// job name isn't known to the page in advance (the server derives it from the combo), so it
-// follows "newest job dir" rather than a name -- good enough for a progress view, and the Logs
-// tab is there for picking a specific job/file deliberately.
-function startCompareLiveLog(jobsDir) {
+// Follow only jobs belonging to the active experiment, never another concurrent comparison.
+function startCompareLiveLog(jobsDir, experimentId) {
   const box = $("#compare-live");
   const pre = $("#compare-live-log");
   box.hidden = false;
@@ -349,10 +311,16 @@ function startCompareLiveLog(jobsDir) {
   let offset = 0;
   const timer = setInterval(async () => {
     try {
-      if (!job) {
+      {
+        const record = await api("GET", `/api/experiments/${encodeURIComponent(experimentId)}?jobsDir=${encodeURIComponent(jobsDir)}`);
+        lastCompareRows = record.rows;
+        renderCompareTable();
+        const names = new Set(record.plan.candidates.map(c => c.jobName));
         const jobs = await api("GET", `/api/logs/jobs?jobsDir=${encodeURIComponent(jobsDir)}`);
-        const running = jobs.find((j) => j.running) || jobs[0];
+        const ownJobs = jobs.filter(j => names.has(j.name));
+        const running = ownJobs.find(j => j.running) || ownJobs[0];
         if (!running) return;
+        if (job !== running.name) { file = null; offset = 0; pre.textContent = ""; }
         job = running.name;
       }
       if (!file) {
@@ -375,3 +343,24 @@ function startCompareLiveLog(jobsDir) {
 // Registered with the refresh cycle instead of being called by name from state.js --
 // see the note at the top of state.js.
 onRefresh(() => { renderCompareAgentPicker(); });
+
+setupExperimentHistory(record => {
+  if ($("#compare-submit-btn").disabled || analyzing) return;
+  lastExperimentId = record.plan.id;
+  lastCompareJobsDir = record.plan.jobsDir;
+  lastCompareRows = record.rows;
+  allowAnalysis = !record.plan.dryRun && record.status !== "running";
+  renderCompareTable();
+  $("#compare-post-actions").hidden = !record.rows.length;
+  $("#compare-analyze-panel").hidden = record.plan.dryRun || record.status === "running" || !record.rows.some(r => r.ok);
+  $("#compare-output").textContent = `Experimento ${record.plan.id} · ${record.status} · ${record.rows.length}/${record.plan.candidates.length} candidatos com resultado`;
+  const target = $("#compare-analysis-results");
+  target.textContent = "";
+  for (const [job, analyses] of Object.entries(record.analyses || {})) {
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = `${job} — ${analyses.length} análise(s) preservada(s)`;
+    const pre = document.createElement("pre"); pre.className = "output"; pre.textContent = JSON.stringify(analyses, null, 2);
+    details.append(summary, pre); target.append(details);
+  }
+});

@@ -34,7 +34,7 @@ Rationale and the real incident behind each rule: [`docs/ENGENHARIA.md`](docs/EN
    `python` are absent on Git Bash). MSYS `kill` does not kill a native Windows process — use
    `taskkill //PID <pid> //F`. Branch on OS explicitly, in one place, and verify the *effect*
    rather than the exit code.
-3. **Small files**: target ≤400 lines per module; one job per function. `scripts/lib/harbor.ts`
+3. **Small files**: target ≤400 lines per module; one job per function. `scripts/gui-server.ts`
    and `gui/index.html` are already over that — known debt, not a pattern to extend.
 4. **Decoupling**: `lib/` owns the domain, `gui-server.ts` only maps HTTP onto it, the HTML only
    renders. Extending a list (`PROVIDERS`, `JUDGE_MODELS`, `HARBOR_AGENTS`) must never require a

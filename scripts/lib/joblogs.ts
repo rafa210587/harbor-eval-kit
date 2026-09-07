@@ -25,7 +25,7 @@ export interface JobLogListing {
 export function listJobLogs(jobsDir: string): JobLogListing[] {
   if (!existsSync(jobsDir)) return [];
   const out: JobLogListing[] = [];
-  for (const entry of readdirSync(jobsDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+  for (const entry of readdirSync(jobsDir, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith("."))) {
     const dir = join(jobsDir, entry.name);
     let mtimeMs = 0;
     try {

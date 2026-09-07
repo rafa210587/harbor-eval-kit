@@ -11,6 +11,11 @@ as mensagens de erro reais que aparecem quando falta alguma coisa.
 
 ## 1. As três operações
 
+Primeiro experimento com LLM: **Secrets → Models → Agents → Compare**, usando
+`evals/python/soma-fracoes`. Skills, Criteria, Rubrics e Judges são opcionais. GUI e CLI
+persistem planos e resultados em `<jobsDir>/.experiments/<id>/`; cada execução recebe IDs
+novos, e o registro pode ser reaberto sem reaproveitar um job antigo como se fosse novo.
+
 | Operação | O que é | Comando Harbor por trás |
 |---|---|---|
 | **Run** | uma execução: um agent tenta resolver uma task dentro de um container, e o `test.sh` dá o reward | `harbor run` |
@@ -170,9 +175,9 @@ A lista (`JUDGE_MODELS` em `scripts/lib/harbor.ts`) é hoje:
 | GPT-5.1 | `openai/gpt-5.1` |
 | Gemini 3 Pro | `gemini/gemini-3-pro` |
 
-**Motivo:** o juiz existe justamente para pegar o que o teste barato não pegou. Um juiz barato
-derrota o propósito — por isso o padrão do próprio Harbor (`claude-haiku-4-5`) é bloqueado aqui
-de propósito.
+**Motivo:** a lista é uma política operacional para o juiz opcional. Preço ou presença na
+lista não demonstram qualidade; calibre o modelo com exemplos de veredito conhecido.
+O padrão do Harbor (`claude-haiku-4-5`) fica fora dessa política, salvo modo validação explícito.
 
 **Escape hatch — "Modo validação".** Para *conferir se o Analyze funciona na sua máquina* sem
 pagar um model high-tier, marque "Modo validação" nos **dois** lugares: na aba 8 (Judges), que

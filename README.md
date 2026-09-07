@@ -44,15 +44,16 @@ You normally vary **one** dimension and hold the rest fixed:
 
 The reward from your own test script is the real signal, the same way SWE-bench/HumanEval do it.
 The LLM judge is strictly opt-in, for the two things a pass/fail test cannot see: reward hacking,
-and breaking a tie between candidates that all passed. A judge is always locked to a curated
-high-tier model — never Harbor's cheap default — because a cheap judge defeats the point.
+and breaking a tie between candidates that all passed. The judge policy defaults to a curated
+model list. This is an operational guardrail, not proof of accuracy: calibrate the judge
+against examples with known verdicts. Explicit validation mode is for pipeline tests.
 
 ## Compatibility
 
 | | Validated |
 |---|---|
 | **Harbor** | `0.22.0` — pinned by the installers, and the version every parsing assumption here was checked against |
-| **Node** | 22.6+ (native TypeScript execution; no `tsc`, no build step, no `node_modules`) |
+| **Node** | 24+ (native TypeScript execution; no `tsc`, no build step, no `node_modules`) |
 | **Podman** | 6.x, machine running. **No Docker, ever.** |
 | **OS** | Windows validated end-to-end with real runs; macOS/Linux logic-tested, not yet run on real hardware |
 
@@ -90,8 +91,9 @@ runs behind it). It also disables Harbor's own PostHog telemetry unconditionally
 - Windows, macOS, or Linux with [Podman](https://podman.io/) installed and its machine
   running (`podman machine init && podman machine start` on Windows/macOS).
 - [`uv`](https://docs.astral.sh/uv/) to install Harbor in an isolated environment.
-- Node.js 22.6+ (native TypeScript execution — no `tsc`/`ts-node`/build step for anything
+- Node.js 24+ (native TypeScript execution — no `tsc`/`ts-node`/build step for anything
   in `scripts/`).
+- The primitive `harbor-eval doctor/install` smoke requires a **preexisting** `docker.io/library/alpine:3.20` image. It uses `--pull=never`, so it will stop with a clear prerequisite error instead of creating an unowned base image.
 - API keys for whichever model providers you plan to use (Anthropic, OpenAI, etc.) — entered
   into the GUI's Secrets tab, never as a global environment variable or in any tracked file.
 
@@ -147,8 +149,9 @@ Both scripts are idempotent (safe to re-run), print exactly what's missing if so
 ready yet, and exit with a clear error instead of a stack trace if Harbor/Podman aren't found.
 Once running: **http://127.0.0.1:4173**.
 
-Then follow the GUI's own tab order, 1 → 10 (Secrets → Models → Skills → Skill Sets →
-Agents → Criteria → Judge Rubrics → Judges → Tasks → Compare). See
+For a first comparison: **Secrets → Models → Agents → Compare**, selecting the executable
+`evals/python/soma-fracoes` task. Use a model-agnostic adapter such as `mini-swe-agent` when
+comparing providers. Skills, Criteria, Rubrics and Judges are optional. See
 [`DOCUMENTACAO.md` §2](./DOCUMENTACAO.md#2-instalação-e-configuração--passo-a-passo) for the
 fully detailed walkthrough, including the Podman↔Harbor compatibility gate and how to harden
 `secrets.env`'s file permissions.
@@ -165,7 +168,7 @@ fully detailed walkthrough, including the Podman↔Harbor compatibility gate and
 |---|---|---|
 | Best for | interactive exploration, one-off comparisons, editing tasks/rubrics without leaving the browser | scripting, CI, reproducible sweeps from the terminal |
 | Combinations | explicit list of entries (agent + model/skillset overrides), built by hand | full cartesian product via repeatable `--agent`/`--model`/`--skillset` flags |
-| State | persists agents/models/skills/rubrics/judges as JSON registries in `~/.harbor-eval-kit/` | stateless — everything passed as flags |
+| State | named registries plus persisted experiment records | flags configure candidates; experiment records persist on disk |
 | Output | live table in the browser + CSV/JSON report | terminal table + CSV/JSON report |
 | Spend guard | same guard, same estimate source (`--cost-cap-usd` ⇄ the "Teto de gasto" field) | same guard, acknowledged with `--yes-spend` |
 
@@ -176,10 +179,10 @@ your local Podman/Harbor installation.
 ```powershell
 # CLI sweep example (PowerShell)
 node .\scripts\compare-matrix.ts `
-  --path .\evals\python\seed-task `
-  --agent claude-code --agent codex `
+  --path .\evals\python\soma-fracoes `
+  --agent mini-swe-agent `
   --model anthropic/claude-sonnet-5 --model openai/gpt-5.1 `
-  --skillset "" --skillset ".\skills\python-eng" `
+  --skillset "" `
   --dry-run
 ```
 
@@ -189,8 +192,8 @@ node .\scripts\compare-matrix.ts `
 
 ![Compare tab of the Harbor Eval Kit GUI](./docs/screenshots/compare-tab.jpg)
 
-The nav is numbered 1→10 to guide first-time setup; every tab also works standalone
-afterward. Each one has inline hints in the UI itself — this is just the map. For the
+The numbered tabs are a feature map; you do not need every tab for a first evaluation.
+Each one has inline hints in the UI itself — this is just the map. For the
 full explanation of every tab (what it's for, exactly how to use it, edge cases) see
 [`DOCUMENTACAO.md` §10](./DOCUMENTACAO.md#10-cada-aba-em-detalhe).
 
@@ -270,9 +273,30 @@ The **reward** from `tests/test.sh` (deterministic — pytest/shell/asserts writ
 `/logs/verifier/reward.txt`) *is* the real comparison, the same method SWE-bench/HumanEval
 use. **Analyze** (the LLM judge) is a strictly opt-in layer on top, for the cases the cheap
 test can't catch: reward hacking, or breaking a tie between candidates that all passed. The
-judge model is always locked to a small curated high-tier list — never Harbor's own cheap
-default (`claude-haiku-4-5`). Full mechanism, including the N-rubric-per-analysis and
+judge model defaults to a curated list, with explicit validation mode for pipeline tests.
+The list does not establish judge quality; calibration does. Full mechanism, including the N-rubric-per-analysis and
 Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-de-avaliação--reward-vs-juiz).
+
+## Experiment records and shared configuration
+
+Both entry points use the same experiment planner and spend guard. Planned paid volume
+includes **tasks × attempts × candidates**; credentials come from the local secrets file
+and enter child environments only. Extra run arguments are limited to adapter kwargs
+(`--ak` / `--agent-kwarg`) and `--timeout-multiplier`, so they cannot override the guarded plan.
+
+Snapshots accept regular files and exported task/skill directories. Links/junctions, `.git`, and credential filenames are refused explicitly. Image tags, external packages and provider aliases are not frozen by this copy; pin those in the task for stronger repeatability.
+
+Records under `<jobsDir>/.experiments/<id>/` retain the effective plan, input snapshots/hashes,
+results and attached analyses. Reopen a saved comparison in the GUI after refresh. Snapshots
+fix local inputs; they do not freeze provider behavior or external image registries.
+A **Config bundle** shares editable registry definitions. It does not contain credentials,
+external skill folders, tasks or run history and is not a frozen experiment.
+
+Analyze preserves every trial and excludes N/A and unknown outcomes from pass/fail ratios.
+Total judge cost stays blank unless every analyzed trial reports it; partial reported cost is
+identified separately. Validation-mode metadata remains attached to the analysis.
+
+Cleanup is fail-closed: legacy manifests with missing ownership records require reconciliation before removal. `uv` is explicitly preserved because its full installer footprint is not recorded. Cancelling a comparison kills the Harbor process; unrecorded/unlabeled Harbor containers remain for inspection rather than being stopped by a name-prefix guess.
 
 ## Security
 
@@ -388,17 +412,11 @@ itself (Podman is preexisting infrastructure, not something this kit installed).
   trials would run with no history to price them. It is a pre-flight guard, not a hard limit —
   this Harbor exposes no cost flag, so nothing here can stop a run already in progress. A
   combination that has never run has *no* estimate, which is treated as "unknown", not as free.
-- Compare in the GUI is still synchronous — one POST that only answers once every combination
-  finished, so there are no partial per-row results. It is not *blind*, though: the button locks
-  while running, an elapsed-time counter ticks, and a live tail of harbor's own log files shows
-  what's happening (also in the **Logs** tab). **Cancel** works mid-run (kills the `harbor`
-  process and best-effort stops the matching Podman containers), but reloading the page does
-  **not** — the run keeps going server-side with no way to reach it from the UI afterwards.
-- **Re-running with the same "Job prefix" reuses the existing job** instead of running again:
-  job names are derived from prefix + agent + model + skill set, so Harbor finds the directory
-  already there and rereads it (a colliding row finishes in ~1s instead of ~60s), and the
-  `<prefix>-report` files are overwritten. Both the GUI and the CLI now warn when this happens
-  — change the prefix for a genuinely fresh comparison.
+- Compare uses a synchronous POST with elapsed time, logs and best-effort cancellation.
+  Experiment records survive refresh. Restarting the server does not automatically resume
+  interrupted execution.
+- Every execution and candidate gets a unique identity, even with the same Job prefix.
+  Re-running starts a new experiment; automatic reuse/resume is not supported.
 - `harbor dataset list` (this Harbor version) only prints a Hub link, not a browsable list.
 - A Judge can't be given a real tool-accessible skill (no `--skill` flag on `harbor analyze`)
   — only custom instructions via `--prompt`. Confirmed against Harbor's own source, not a gap

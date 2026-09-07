@@ -13,23 +13,22 @@ import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { spawn, type ChildProcess } from "node:child_process";
+import { registerExperimentRoutes, isExperimentActive } from "./experiment-routes.ts";
+import { createRegistryEntry, updateRegistryEntry, deleteRegistryEntry, RegistryNotFoundError } from "./lib/registry-service.ts";
+import { appendExperimentAnalysis, readExperiment } from "./lib/experiment-store.ts";
+import { redactOutput } from "./lib/experiment-runner.ts";
+import { freezeAnalysisInputs } from "./lib/analysis-inputs.ts";
 import {
-  type AgentEntry,
-  type Combo,
   type CriterionEntry,
   type JudgeEntry,
   type ModelEntry,
   type RegistryName,
-  type ResultRow,
   type RubricEntry,
-  type SkillEntry,
-  type SkillsetEntry,
   FREE_AGENTS,
   HARBOR_AGENTS,
   JUDGE_MODELS,
   PROVIDERS,
   buildHarborEnv,
-  buildHarborRunArgs,
   deleteSecret,
   execCommand,
   execHarbor,
@@ -37,7 +36,6 @@ import {
   isHarborAvailable,
   getTaskRubricDefault,
   isJudgeModelAllowed,
-  jobName,
   listSecretNames,
   listTasks,
   loadSecretsEnv,
@@ -46,15 +44,11 @@ import {
   parseResult,
   readRegistry,
   readTaskFiles,
-  resolveAgentInstructionsPath,
-  stopContainersForJob,
   exportConfigBundle,
   importConfigBundle,
-  checkCostGuard,
   checkRequestOrigin,
   isTestedHarborVersion,
   TESTED_HARBOR_VERSION,
-  estimateCompareCost,
   getLitellmGatewayConfig,
   getLitellmGatewayPath,
   safeJoinUnderDir,
@@ -66,13 +60,8 @@ import {
   resolveRubricCriteria,
   resolveRubricPath,
   setTaskRubricDefault,
-  resolveSkillsetPaths,
-  runPool,
-  sanitize,
   saveSecret,
   testProviderKey,
-  writeReport,
-  writeRegistry,
   writeTaskFiles,
 } from "./lib/harbor.ts";
 
@@ -106,7 +95,7 @@ function addRoute(method: string, path: string, handler: Handler): void {
 }
 
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
-  const body = JSON.stringify(data);
+  const body = redactOutput(JSON.stringify(data), loadSecretsEnv());
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
@@ -117,7 +106,12 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     let data = "";
-    req.on("data", (chunk) => (data += chunk));
+    let bytes = 0;
+    req.on("data", (chunk) => {
+      bytes += chunk.length;
+      if (bytes > 10_000_000) { reject(new Error("request body excede 10 MB")); req.resume(); return; }
+      data += chunk;
+    });
     req.on("end", () => resolvePromise(data));
     req.on("error", reject);
   });
@@ -136,35 +130,10 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
 // ---------- registries (agents/models/skillsets) ----------
 
 function registryRoutes(name: RegistryName): void {
-  addRoute("GET", `/api/${name}`, (_req, res) => {
-    sendJson(res, 200, readRegistry(name));
-  });
-  addRoute("POST", `/api/${name}`, (_req, res, _params, body) => {
-    if (!body.label && !body.name) {
-      return sendJson(res, 400, { ok: false, error: "label (or name, for criteria) is required" });
-    }
-    const items = readRegistry<any>(name);
-    // id LAST, never spread-over: with `{ id: newId(), ...body }` a client could dictate its
-    // own id (confirmed: POSTing {"id":"x"} stored id "x"), which collides with existing
-    // entries and puts attacker-chosen text into DOM attributes the GUI renders.
-    const item = { ...body, id: newId() };
-    items.push(item);
-    writeRegistry(name, items);
-    sendJson(res, 201, item);
-  });
-  addRoute("PUT", `/api/${name}/:id`, (_req, res, params, body) => {
-    const items = readRegistry<any>(name);
-    const idx = items.findIndex((i: any) => i.id === params.id);
-    if (idx === -1) return sendJson(res, 404, { ok: false, error: "not found" });
-    items[idx] = { ...items[idx], ...body, id: params.id };
-    writeRegistry(name, items);
-    sendJson(res, 200, items[idx]);
-  });
-  addRoute("DELETE", `/api/${name}/:id`, (_req, res, params) => {
-    const items = readRegistry<any>(name).filter((i: any) => i.id !== params.id);
-    writeRegistry(name, items);
-    sendJson(res, 200, { ok: true });
-  });
+  addRoute("GET", `/api/${name}`, (_req, res) => sendJson(res, 200, readRegistry(name)));
+  addRoute("POST", `/api/${name}`, (_req, res, _params, body) => sendJson(res, 201, createRegistryEntry(name, body)));
+  addRoute("PUT", `/api/${name}/:id`, (_req, res, params, body) => sendJson(res, 200, updateRegistryEntry(name, params.id, body)));
+  addRoute("DELETE", `/api/${name}/:id`, (_req, res, params) => { deleteRegistryEntry(name, params.id); sendJson(res, 200, { ok: true }); });
 }
 
 registryRoutes("agents");
@@ -298,211 +267,8 @@ addRoute("GET", "/api/status", async (_req, res) => {
   });
 });
 
-// ---------- compare ----------
-
-/** A cap of 0/empty/invalid means "no cap" rather than "cap of zero", which would block everything. */
-function capFromBody(raw: unknown): number | null {
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-// Lets the UI show what a Compare is about to cost before the user commits to it. Same
-// estimator the guard uses, so the number shown is the number enforced.
-addRoute("POST", "/api/compare/estimate", (_req, res, _params, body) => {
-  const entries = Array.isArray(body.entries) ? body.entries : [];
-  const agentEntries = readRegistry<AgentEntry>("agents");
-  const modelEntries = readRegistry<ModelEntry>("models");
-  const combos = entries.map((e: { agentId: string; modelId?: string }) => {
-    const agent = agentEntries.find((a) => a.id === e.agentId);
-    const modelValue = e.modelId
-      ? modelEntries.find((m) => m.id === e.modelId)?.value ?? null
-      : agent?.modelId
-        ? modelEntries.find((m) => m.id === agent.modelId)?.value ?? null
-        : null;
-    return { agent: sanitize(agent?.agentValue ?? "?"), model: modelValue ? sanitize(modelValue) : "(default)" };
-  });
-  sendJson(res, 200, estimateCompareCost(String(body.jobsDir || "jobs"), combos, Number(body.nAttempts) || 1));
-});
-
-// ---------- run cancellation ----------
-//
-// Keyed by a runId the BROWSER generates (crypto.randomUUID()) and sends with the /api/compare
-// body -- not something the server invents, because the client must know the id before the
-// POST resolves in order to ever call /api/compare/cancel while that POST is still in flight.
-interface ActiveRun {
-  children: Set<ChildProcess>;
-  cancelled: boolean;
-  jobsDir: string;
-  /** Job names spawned so far, for best-effort container cleanup on cancel. */
-  jobNames: Set<string>;
-}
-const activeRuns = new Map<string, ActiveRun>();
-
-addRoute("POST", "/api/compare/cancel", (_req, res, _params, body) => {
-  const runId = String(body.runId ?? "");
-  const run = activeRuns.get(runId);
-  if (!run) return sendJson(res, 404, { ok: false, error: "run not found (already finished, or wrong id)" });
-
-  run.cancelled = true;
-  for (const child of run.children) child.kill(); // SIGTERM; execCommand's own timeout, if any, still applies
-
-  // Best-effort: Harbor's own container teardown runs on normal completion, which a killed
-  // process never reaches. See stopContainersForJob's own comment for what was observed.
-  const stopped = new Set<string>();
-  for (const jobName of run.jobNames) {
-    for (const name of stopContainersForJob(run.jobsDir, jobName)) stopped.add(name);
-  }
-  sendJson(res, 200, {
-    ok: true,
-    stoppedProcesses: run.children.size,
-    stoppedContainers: [...stopped],
-    note:
-      stopped.size > 0
-        ? "processos e containers parados -- confira `podman ps` se quiser ter certeza"
-        : "processos parados; nenhum container correspondente encontrado ainda rodando (pode já ter terminado sozinho, ou a run estava entre containers)",
-  });
-});
-
-addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
-  const {
-    path: taskPath,
-    entries = [],
-    env = "docker",
-    jobPrefix = "cmp",
-    jobsDir = "jobs",
-    nAttempts = "1",
-    concurrency = 1,
-    dryRun = false,
-    extra = "",
-    runId,
-  } = body;
-
-  if (!taskPath || !Array.isArray(entries) || entries.length === 0) {
-    return sendJson(res, 400, { ok: false, error: "path and at least one entry are required" });
-  }
-
-  const agentEntries = readRegistry<AgentEntry>("agents");
-  const modelEntries = readRegistry<ModelEntry>("models");
-  const skillEntries = readRegistry<SkillEntry>("skills");
-  const skillsetEntries = readRegistry<SkillsetEntry>("skillsets");
-
-  // Each entry is already a fully-resolved combination -- the UI pre-fills model/skillsetIds
-  // from the agent's own defaults and lets the user override per row, so there is no
-  // cross-product to compute here (unlike compare-matrix.ts's CLI sweep, which is unaffected).
-  type ResolvedCombo = Combo & { agentEntry: AgentEntry };
-  const combos: ResolvedCombo[] = [];
-  for (const entry of entries as { agentId: string; modelId?: string; skillsetIds?: string[] }[]) {
-    const agentEntry = agentEntries.find((a) => a.id === entry.agentId);
-    if (!agentEntry) return sendJson(res, 400, { ok: false, error: `unknown agentId: ${entry.agentId}` });
-
-    const modelValue = entry.modelId ? modelEntries.find((m) => m.id === entry.modelId)?.value ?? null : null;
-    const skillsetIds = entry.skillsetIds ?? [];
-    const skillsetLabel =
-      skillsetIds.length > 0
-        ? sanitize(
-            skillsetIds
-              .map((sid) => skillsetEntries.find((s) => s.id === sid)?.label)
-              .filter(Boolean)
-              .join("+") || "none"
-          )
-        : "none";
-    const skillsetPaths = skillsetIds.flatMap((sid) => {
-      const s = skillsetEntries.find((x) => x.id === sid);
-      return s ? resolveSkillsetPaths(s.skillIds, skillEntries) : [];
-    });
-    const instructionsPath = resolveAgentInstructionsPath(agentEntry);
-    const paths = [...(instructionsPath ? [instructionsPath] : []), ...skillsetPaths];
-
-    combos.push({
-      agent: agentEntry.agentValue,
-      model: modelValue,
-      skillset: { label: skillsetLabel, paths },
-      agentEntry,
-    });
-  }
-
-  // Pre-flight spend guard. Estimated from this machine's own history and checked before
-  // anything is spawned -- it cannot stop a run that is already going (Harbor exposes no cost
-  // flag), so it is a guard against the accident, not a hard ceiling. See scripts/lib/cost.ts.
-  const estimate = estimateCompareCost(
-    jobsDir,
-    combos.map((c) => ({ agent: sanitize(c.agent), model: c.model ? sanitize(c.model) : "(default)" })),
-    Number(nAttempts) || 1
-  );
-  const verdict = checkCostGuard(estimate, capFromBody(body.costCapUsd), Boolean(body.acknowledgeCost));
-  if (!verdict.allowed) {
-    return sendJson(res, 409, { ok: false, error: verdict.reason, estimate: verdict.estimate, needsAcknowledge: true });
-  }
-
-  // Job names are prefix+agent+model+skillset, so re-running with the same "Job prefix" lands
-  // on the same job dirs and overwrites the same <prefix>-report files. Harbor then reuses the
-  // existing job rather than running again (observed: a colliding row finished in ~1s against
-  // ~60s for the real one), quietly turning a fresh comparison into a reread of an old one.
-  // Reported, not blocked -- pointing at an existing job dir on purpose is legitimate.
-  const collidingJobs = combos.map((c) => jobName(jobPrefix, c)).filter((n) => existsSync(join(jobsDir, n)));
-  mkdirSync(jobsDir, { recursive: true });
-  const extraArgs = extra ? String(extra).split(/\s+/).filter(Boolean) : [];
-  const secretsEnv = loadSecretsEnv();
-  const concurrencyN = Math.max(1, Number(concurrency) || 1);
-
-  const run: ActiveRun | null = runId
-    ? { children: new Set(), cancelled: false, jobsDir: String(jobsDir), jobNames: new Set() }
-    : null;
-  if (run) activeRuns.set(String(runId), run);
-
-  try {
-    const rows: ResultRow[] = await runPool(combos, concurrencyN, async (c: ResolvedCombo) => {
-      const name = jobName(jobPrefix, c);
-      // Cancelled between combos (not mid-combo): don't start a new paid trial, but do say so
-      // in the row instead of silently omitting it from the report.
-      if (run?.cancelled) return { jobName: name, agent: c.agentEntry.label, model: c.model ?? "(default)", skillset: c.skillset.label, ok: false, durationSec: 0, error: "cancelado antes de iniciar" };
-      run?.jobNames.add(name);
-      const args = buildHarborRunArgs({
-        taskPath,
-        combo: c,
-        jobsDir,
-        name,
-        env,
-        nAttempts: String(nAttempts),
-        extra: extraArgs,
-        autoYes: true,
-        printConfigOnly: Boolean(dryRun),
-      });
-      const execRes = await execHarbor(args, {
-        extraEnv: secretsEnv,
-        onSpawn: run ? (child) => run.children.add(child) : undefined,
-      });
-      const row: ResultRow = {
-        jobName: name,
-        agent: c.agentEntry.label,
-        model: c.model ?? "(default)",
-        skillset: c.skillset.label,
-        ok: execRes.code === 0,
-        durationSec: execRes.durationSec,
-      };
-      if (execRes.code !== 0) {
-        row.error =
-          (run?.cancelled ? "cancelado pelo usuário -- " : "") + (execRes.stderr.trim().slice(-2000) || `exit ${execRes.code}`);
-        return row;
-      }
-      if (!dryRun) Object.assign(row, parseResult(join(jobsDir, name)));
-      return row;
-    });
-
-    const outPrefix = join(jobsDir, `${jobPrefix}-report`);
-    writeReport(rows, outPrefix);
-    sendJson(res, 200, {
-      ok: true,
-      cancelled: run?.cancelled ?? false,
-      rows,
-      reportJson: `${outPrefix}.json`,
-      reportCsv: `${outPrefix}.csv`,
-      reusedJobs: collidingJobs,
-    });
-  } finally {
-    if (runId) activeRuns.delete(String(runId));
-  }
-});
+// Compare, estimate, cancellation and reopen use the shared experiment domain.
+registerExperimentRoutes(addRoute, sendJson);
 
 // ---------- job history ----------
 
@@ -511,7 +277,7 @@ addRoute("GET", "/api/jobs", (req, res) => {
   const dir = url.searchParams.get("dir") || "jobs";
   if (!existsSync(dir)) return sendJson(res, 200, []);
   const rows = readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && !e.name.startsWith("."))
     .map((e) => ({ jobName: e.name, ...parseResult(join(dir, e.name)) }));
   sendJson(res, 200, rows);
 });
@@ -672,7 +438,16 @@ addRoute("POST", "/api/view/:id/stop", (_req, res, params) => {
 // ---------- analyze ----------
 
 addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
-  const { path: trialPath, rubricId, judgeId, judgeModel, agent } = body;
+  let { path: trialPath } = body;
+  const { rubricId, judgeId, judgeModel, agent } = body;
+  if (body.analysisBatchId && (!Number.isSafeInteger(body.analysisBatchSize) || body.analysisBatchSize < 1 || !Number.isSafeInteger(body.analysisBatchIndex) || body.analysisBatchIndex < 0 || body.analysisBatchIndex >= body.analysisBatchSize)) throw new Error("lote de análise inválido");
+  const analysisJobsDir = String(body.jobsDir || "jobs");
+  if (body.experimentId) {
+    const record = readExperiment(analysisJobsDir, String(body.experimentId));
+    if (record.status === "running" || isExperimentActive(record.plan.id) || record.plan.dryRun) throw new Error("aguarde o término de uma execução real antes de analisar");
+    if (!record.plan.candidates.some(c => c.jobName === body.jobName)) throw new Error("job não pertence ao experimento");
+    trialPath = join(record.plan.jobsDir, body.jobName);
+  }
   if (!trialPath) return sendJson(res, 400, { ok: false, error: "path is required" });
 
   // Preferred path: a registered Judge bundles agent + model + optional custom prompt.
@@ -693,13 +468,13 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     }
   }
 
-  // The curated-model gate exists because a cheap judge defeats the point of judging at all
-  // (see JUDGE_MODELS). `validationMode` is a deliberate, per-call escape hatch for smoke-
+  // The curated-model gate is an operational policy, not proof of judge accuracy.
+  // `validationMode` is a deliberate, per-call escape hatch for smoke-
   // testing that the analyze pipeline itself works without paying for a high-tier model -- it
   // never silently relaxes the gate: the caller has to ask for it, and every response and
   // report from such a call is stamped validationMode:true so its verdict can't be mistaken
   // for a real evaluation.
-  const validationMode = Boolean(body.validationMode);
+  const validationMode = body.validationMode === true;
   if (!resolvedModel) {
     return sendJson(res, 400, {
       ok: false,
@@ -729,16 +504,23 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   if (promptPath) args.push("--prompt", promptPath);
 
   const secretsEnv = loadSecretsEnv();
-  const result = await execHarbor(args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
-  const nonCurated = !isJudgeModelAllowed(resolvedModel);
-  sendJson(res, result.code === 0 ? 200 : 500, {
+  const inputs = freezeAnalysisInputs(args);
+  const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
+  const response = {
     ok: result.code === 0,
-    stdout: result.stdout,
-    stderr: result.stderr,
+    stdout: redactOutput(result.stdout, secretsEnv),
+    stderr: redactOutput(result.stderr, secretsEnv),
     judgeModel: resolvedModel,
-    validationMode: validationMode && nonCurated,
+    validationMode,
     analysis: result.code === 0 ? resolveAnalysisJson(String(trialPath), result.stdout) : null,
+  };
+  if (body.experimentId) appendExperimentAnalysis(analysisJobsDir, String(body.experimentId), body.jobName, {
+    ...JSON.parse(redactOutput(JSON.stringify(response), secretsEnv)), createdAt: new Date().toISOString(), judgeId, rubricId, analysisBatchId: body.analysisBatchId, analysisBatchSize: body.analysisBatchSize, analysisBatchIndex: body.analysisBatchIndex,
+    // Exact prompt/rubric used at invocation, not mutable registry references alone.
+    rubric: inputs.rubric,
+    prompt: inputs.prompt,
   });
+  sendJson(res, result.code === 0 ? 200 : 500, response);
 });
 
 // ---------- static + dispatch ----------
@@ -811,7 +593,8 @@ async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void
 
     sendJson(res, 404, { ok: false, error: `no route for ${req.method} ${pathname}` });
   } catch (err) {
-    sendJson(res, 500, { ok: false, error: (err as Error).message ?? String(err) });
+    const error = err as Error & { statusCode?: number; estimate?: unknown; needsAcknowledge?: boolean };
+    sendJson(res, error.statusCode ?? (err instanceof RegistryNotFoundError ? 404 : 400), { ok: false, error: error.message ?? String(err), estimate: error.estimate, needsAcknowledge: error.needsAcknowledge });
   }
 }
 

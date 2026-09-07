@@ -28,6 +28,8 @@ export interface ResultRow {
   costUsd?: number;
   nInputTokens?: number;
   nOutputTokens?: number;
+  passRate?: number;
+  judgeCostUsd?: number;
   error?: string;
 }
 

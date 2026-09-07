@@ -7,6 +7,10 @@ import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { getStateDir, safeJoinUnderDir } from "./paths.ts";
+import { discoverCleanupResources, planCleanup } from "./cleanup.ts";
+import type { CleanupExecutor } from "./cleanup.ts";
+import { loadInstallationManifest } from "./installation.ts";
 import type { ExecOptions, ExecResult } from "./types.ts";
 import { getLitellmGatewayConfig, litellmGatewayEnv } from "./litellm.ts";
 
@@ -95,7 +99,7 @@ export function resolvePodmanDockerHost(): string | null {
  * not be skippable via dockerHostFix/--no-docker-host-fix.
  */
 function withTelemetryDisabled(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (env.HARBOR_TELEMETRY === undefined) env.HARBOR_TELEMETRY = "disabled";
+  env.HARBOR_TELEMETRY = "disabled";
   return env;
 }
 
@@ -201,66 +205,41 @@ export function execHarbor(args: string[], opts: ExecOptions = {}): Promise<Exec
   return execCommand("harbor", args, opts);
 }
 
-/**
- * Best-effort cleanup for a cancelled `harbor run`: SIGTERM/SIGKILL on the `harbor` CLI process
- * stops that process, but Harbor's own container teardown runs as part of its normal
- * completion path (the `--delete`-by-default cleanup mentioned in `harbor run --help`), which a
- * killed process never reaches -- observed directly in this project's own testing, where an
- * interrupted run left `<task>__<trial>__env-main-1` containers behind that needed a manual
- * `podman stop`.
- *
- * This does the same match a human would: read the trial directories Harbor already created
- * under `<jobsDir>/<jobName>` (each is a container-name prefix), list running containers, and
- * stop whichever ones start with a trial directory's name. Every failure is swallowed --
- * "container already gone", "podman not reachable" and "nothing to clean up" all look the same
- * from here, and none of them should surface as an error on top of the cancellation itself.
- *
- * Returns the names it attempted to stop, for the cancel response to report honestly rather
- * than claim a clean stop it cannot verify.
- */
-export function stopContainersForJob(jobsDir: string, jobName: string): string[] {
-  const jobDir = join(jobsDir, jobName);
-  if (!existsSync(jobDir)) return [];
-  let trialPrefixes: string[] = [];
+/** Cancellation stops only manifest-owned, labeled containers with the exact trial service
+ * name. Harbor resources without ownership records are deliberately left for inspection.
+ * Returns only names confirmed absent from the running-container list after stop. */
+export function stopContainersForJob(
+  jobsDir: string,
+  jobName: string,
+  options: { manifestPath?: string; run?: CleanupExecutor } = {}
+): string[] {
+  const run = options.run ?? ((command: string, args: string[]) =>
+    execFileSync(command, args, { stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" }));
+  const stopped: string[] = [];
   try {
-    trialPrefixes = readdirSync(jobDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
-  } catch {
-    return [];
-  }
-  if (trialPrefixes.length === 0) return [];
-
-  let names: string[] = [];
-  try {
-    names = execFileSync("podman", ["ps", "--format", "{{.Names}}"], { stdio: ["ignore", "pipe", "ignore"] })
-      .toString()
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-
-  // Case-insensitive on purpose: Podman/Compose lowercase the project name that becomes the
-  // container name prefix, while the trial directory on disk keeps Harbor's original mixed-case
-  // id (e.g. dir `soma-fracoes__ntPdiGK`, container `soma-fracoes__ntpdigk__env-main-1`) --
-  // confirmed by testing this against a real cancelled run, where the case-sensitive version
-  // matched nothing and left the container running.
-  const toStopLower = new Set<string>();
-  const prefixesLower = trialPrefixes.map((p) => p.toLowerCase());
-  for (const n of names) if (prefixesLower.some((p) => n.toLowerCase().startsWith(p))) toStopLower.add(n);
-  const toStop = [...toStopLower];
-  for (const name of toStop) {
-    try {
-      execFileSync("podman", ["stop", "-t", "2", name], { stdio: "ignore" });
-    } catch {
-      // Already stopped, already gone, or podman hiccupped -- not this function's job to report.
+    const jobDir = safeJoinUnderDir(jobsDir, jobName);
+    if (!jobDir || !existsSync(jobDir)) return [];
+    const manifest = loadInstallationManifest(options.manifestPath ?? process.env.HARBOR_EVAL_MANIFEST ?? join(getStateDir(), "installation-manifest.json"));
+    const expected = new Set(readdirSync(jobDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
+      .map(entry => `${entry.name.toLowerCase()}__env-main-1`));
+    if (!expected.size) return [];
+    const running = () => new Set(run("podman", ["ps", "-q", "--no-trunc"]).split(/\r?\n/).map(id => id.trim()).filter(Boolean));
+    const active = running();
+    for (const resource of discoverCleanupResources(run)) {
+      if (resource.kind !== "containers" || !active.has(resource.id)) continue;
+      const name = resource.names[0]?.replace(/^\//, "");
+      if (!name || !expected.has(name.toLowerCase())) continue;
+      try {
+        // Reuse the same ownership proof as uninstall, excluding dependency removal.
+        planCleanup({ ...manifest, installed_by_kit: {} }, [resource]);
+        run("podman", ["stop", "-t", "2", resource.id]);
+        if (!running().has(resource.id)) stopped.push(name);
+      } catch { /* Ambiguous ownership or failed stop: never claim it stopped. */ }
     }
-  }
-  return toStop;
+  } catch { /* Cancellation itself remains available when manifest/Podman is unavailable. */ }
+  return stopped;
 }
-
 export function isHarborAvailable(): boolean {
   try {
     execFileSync("harbor", ["--version"], { stdio: "ignore" });

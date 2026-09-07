@@ -5,32 +5,29 @@ description: Remove only what this kit created, verified against the installatio
 
 # Harbor Cleanup Guardian
 
-## Trigger
+Use `scripts/harbor-eval.sh uninstall --dry-run` or
+`scripts/harbor-eval.ps1 uninstall -DryRun` first. Both use `scripts/cleanup.ts`;
+Node.js 24+ is required. No Python or shell-specific deletion logic is used.
 
-Use for cleanup, reset or uninstall.
+1. Load the installation manifest before contacting Podman. Missing or invalid manifests abort.
+2. Discover all resources and inspect their ownership; reconcile exact IDs/names with
+   `managed_resources`, prefix `harbor-eval-kit-` and label
+   `io.harbor-eval-kit.managed=true`. All three are required. Image aliases must all use the prefix.
+3. Abort the entire operation before deletion if a related resource has ambiguous ownership.
+   Legacy manifests with empty resource arrays cannot authorize labeled resources automatically.
+   Inspect and reconcile ownership manually; never invent missing installation history.
+4. The JSON dry-run lists exact command argument arrays, including `uv tool uninstall harbor`
+   only when the dependency snapshot proves Harbor was absent, installed by the kit, still at
+   its recorded path, and belongs to the active uv tool directory.
+5. Preserve preexisting dependencies and Podman. Kit-installed uv is explicitly listed as preserved
+   because the upstream installer footprint is not fully recorded; remove it manually only after
+   inspecting its ownership. Other unexpected dependencies abort instead of guessing paths.
+6. Execute the same plan without the dry-run flag. Stop at the first failure and verify that
+   each removed resource/executable is absent. Keep the manifest and its `uninstall_audit`,
+   including the plan, completed actions and final status. Never persist command output.
 
-## Non-negotiable rules
+Never use global prune, wildcard deletion or global package removal. Custom ownership marker
+values are rejected. Do not remove the manifest unless the user separately requests it.
 
-Never use:
-- `podman system prune -a`
-- `podman rm -a`
-- `podman rmi -a`
-- wildcard deletion outside the kit root
-- global package removal without manifest proof
-
-## Procedure
-
-1. Load installation manifest.
-2. Discover resources with:
-   label `io.harbor-eval-kit.managed=true`
-3. Cross-check IDs/names against the manifest.
-4. Produce a dry-run plan.
-5. Delete only confirmed owned resources.
-6. Remove Harbor only if manifest says `installed_by_kit=true`.
-7. Remove uv/Python/Node/Java only if:
-   - installed_by_kit=true
-   - no external ownership ambiguity exists.
-8. Never remove Podman.
-9. Preserve an audit log.
-
-If ownership cannot be proven, skip the resource and report it.
+Validated with offline fake-executor tests; no real resources were deleted. Actual Podman
+cleanup and platform-specific shell execution still require a controlled owned-resource test.

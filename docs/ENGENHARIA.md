@@ -186,6 +186,18 @@ Sem cerimônia de framework — o que estas siglas significam aqui concretamente
 
 ## 5. Testes em cada feature
 
+A correção de 2026-09-07 centralizou a comparação em `experiment-plan.ts`,
+`experiment-runner.ts` e `experiment-store.ts`: GUI e CLI resolvem o mesmo plano, validam
+o mesmo volume (candidatos × tasks × tentativas) e usam snapshots por execução. O nome legível
+do job não é identidade de experimento; cada execução e candidato têm identidade própria.
+`results.ts` preserva todos os trials e só calcula uma avaliação agregada quando o lote está
+completo. Resultados de validação não entram no ranking. `registry-service.ts` valida o estado
+mesclado antes de CRUD; apagar uma referência em uso é erro, não uma ablação silenciosa.
+
+O scanner cobre arquivos versionados e novos não ignorados; ao bloquear uma credencial,
+mostra somente localização e motivo, nunca o valor encontrado. O teste usa valor sintético
+e verifica o código de saída e a ausência desse valor na saída.
+
 **Regra:** toda feature nova sai com teste na mesma mudança. Rodar: `bash scripts/test.sh` (ou
 `pwsh scripts/test.ps1`).
 

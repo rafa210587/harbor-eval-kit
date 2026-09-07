@@ -49,8 +49,9 @@ The deterministic reward from `tests/test.sh` **is** the comparison. Only reach 
 to break a tie between candidates that all passed, or to audit whether a pass was earned or
 reward-hacked.
 
-The judge's model is restricted to the curated high-tier list (`JUDGE_MODELS` in
-`scripts/lib/harbor.ts`) — a cheap judge defeats the purpose of judging. Registering a Judge
+The judge's model defaults to the curated list (`JUDGE_MODELS` in
+`scripts/lib/catalog.ts`). This policy does not establish judge quality: calibrate against
+known verdicts before using its ranking for a decision. Registering a Judge
 therefore needs the full chain: Secret → a Model whose value is literally one of those ids →
 Judge.
 
@@ -60,3 +61,16 @@ checkbox in the GUI (needed in two places: the Judges form, to even offer a non-
 and the Analyze panel, to send the flag). Never treat a validation-mode verdict as an
 evaluation — the response carries `validationMode: true` and the UI stamps it accordingly.
 Without the explicit flag the gate refuses; never work around it by editing `JUDGE_MODELS`.
+
+## Reading persisted comparisons
+
+Read the experiment record under `<jobsDir>/.experiments/<id>/` and the corresponding Harbor
+job artifacts. Verify the effective inputs/hashes before claiming candidates differ only in
+one dimension. A Config bundle contains editable definitions, not a frozen run.
+
+`scripts/lib/results.ts` preserves every Analyze trial in `results` and exposes `aggregate`.
+Use `pass / (pass + fail)`; report N/A and unknown outcomes separately. No checks means unknown
+pass rate. Never select only `results[0]`. `aggregate.costUsd` is available only when every
+trial reports cost; `reportedCostUsd` may be a partial sum and must be labelled as such.
+Preserve `validationMode`, judge model and rubric identity when presenting or exporting results.
+Missing/malformed `result.json` is an error, not a successful evaluation with empty metrics.

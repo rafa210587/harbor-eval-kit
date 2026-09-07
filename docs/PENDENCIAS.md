@@ -41,6 +41,21 @@ afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
   `#0d0f13` **fixo**, não uma variável — no tema claro ficavam caixas pretas dentro de painéis
   brancos. Virou `--input-bg`, com valor próprio por tema.
 
+## 🔲 Próximas melhorias de avaliação
+
+- Intervalos de confiança e comparações pareadas por task, com dispersão entre tentativas.
+  Definir os denominadores e tratar falhas de infraestrutura antes de apresentar rankings.
+- Calibração empírica dos juízes com exemplos de veredito conhecido. A lista curada atual é
+  uma política operacional; não demonstra concordância com avaliação humana.
+- Histórico de custo condicionado à task/workload: a guarda já conta todas as tasks, mas
+  custo médio por agent/model pode não representar uma task muito maior.
+- Retomada explícita de experimento interrompido, com validação de inputs e ownership.
+  A persistência permite consulta; não equivale a reiniciar processos automaticamente.
+
+Correções da auditoria e sua verificação estão em
+[`PLANO_CORRECOES_2026-09-07.md`](PLANO_CORRECOES_2026-09-07.md). Para continuar uma sessão
+interrompida, use [`PROMPT_CONTINUACAO_CLAUDE.md`](PROMPT_CONTINUACAO_CLAUDE.md).
+
 ## 🔲 Licença (decisão do dono do repo, não técnica)
 
 Ainda sem `LICENSE`. Ficou deliberadamente fora de escopo até agora ("uso corporativo interno,

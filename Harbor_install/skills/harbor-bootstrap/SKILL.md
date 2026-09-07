@@ -36,7 +36,7 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
 7. If `uv` is missing, install it user-level using the official installation route appropriate to the OS.
 8. If usable Python is missing, install an isolated/user-level Python rather than replacing system Python.
 9. Install Harbor using:
-   `uv tool install harbor`
+   `uv tool install harbor==0.22.0`
 10. Validate:
     - `harbor --help`
     - `harbor run --help` (its `--agent` option enumerates every accepted adapter — there is
@@ -66,3 +66,17 @@ Return READY only if:
 - Podman smoke tests pass;
 - one Harbor task runs end-to-end;
 - cleanup metadata exists.
+
+## Implemented wrapper scope (2026-09-07)
+
+Both install wrappers require Node.js 24+ and write/preserve the same dependency snapshot
+before installation. They record Harbor only after successful installation and executable
+discovery. Bash also records uv if it installs it; PowerShell requires uv to be provisioned.
+The primitive smoke uses unique names, labels, manifest reservations and audited cleanup.
+It requires an existing `docker.io/library/alpine:3.20` base image and uses `--pull=never` so
+it cannot silently create an unowned upstream image. Provision this prerequisite explicitly.
+
+The wrappers do not automatically execute an end-to-end Harbor task or declare READY.
+Kit-installed uv is recorded but preserved by uninstall because its full upstream installer
+footprint is not captured. Tests are offline with fake tools; no real installation validated
+these changes. Finish and record the remaining compatibility gate before claiming readiness.

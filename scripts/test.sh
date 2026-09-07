@@ -27,7 +27,7 @@ if ! node scripts/check-imports.mjs; then
 fi
 
 echo
-echo "== Scan de credenciais (arquivos versionados) =="
+echo "== Scan de credenciais (versionados + novos não ignorados) =="
 if bash scripts/scan-secrets.sh; then
   echo "  ✓ nenhuma credencial encontrada"
 else

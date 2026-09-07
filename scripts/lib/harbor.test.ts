@@ -327,9 +327,8 @@ describe("rubrics", () => {
     { id: "c2", name: "no_prolixity", description: "É enxuto?", guidance: "PASS se conciso." },
   ];
 
-  test("resolveRubricCriteria ignora id inexistente em vez de quebrar", () => {
-    const r = resolveRubricCriteria(["c1", "fantasma", "c2"], criteria);
-    assert.deepEqual(r.map((c) => c.name), ["clean_code", "no_prolixity"]);
+  test("resolveRubricCriteria recusa rubric incompleta", () => {
+    assert.throws(() => resolveRubricCriteria(["c1", "fantasma", "c2"], criteria), /critério inexistente/);
   });
 
   test("serializeRubricToml gera uma seção por critério", () => {

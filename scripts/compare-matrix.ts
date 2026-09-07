@@ -9,24 +9,9 @@
 // Run with no arguments (or --help) for usage.
 
 import { parseArgs } from "node:util";
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import {
-  type Combo,
-  type ResultRow,
-  type Skillset,
-  buildCombos,
-  buildHarborRunArgs,
-  checkCostGuard,
-  estimateCompareCost,
-  execHarbor,
-  isHarborAvailable,
-  jobName,
-  parseResult,
-  parseSkillset,
-  runPool,
-  writeReport,
-} from "./lib/harbor.ts";
+import { type ResultRow, type Skillset, buildCombos, isHarborAvailable, parseSkillset, writeReport } from "./lib/harbor.ts";
+import { createExperimentPlan, cliCandidates, estimateExperiment } from "./lib/experiment-plan.ts";
+import { runExperiment } from "./lib/experiment-runner.ts";
 
 function printHelp(): void {
   console.log(`Usage: node scripts/compare-matrix.ts --path <task> --agent <name> [options]
@@ -48,18 +33,18 @@ Options:
   --jobs-dir <path>      Harbor --jobs-dir (default: jobs)
   --n-attempts <int>     Harbor --n-attempts / -k (default: 1)
   --concurrency <int>    How many 'harbor run' processes to run in parallel (default: 1)
-  --extra "<args>"       Extra raw args appended to every 'harbor run' call (space-split)
-  --interactive          Do not auto-pass -y; let Harbor prompt (only if this script has a TTY)
+  --extra "<args>"       Only --ak/--agent-kwarg/--timeout-multiplier; quoted values supported
+  --interactive          Unsupported: fails before spawning; use Harbor directly for prompts
   --dry-run              Validate every combo via 'harbor run --print-config' only.
                          No trials run, no cost, no containers.
   --cost-cap-usd <n>     Refuse the run if the estimated cost exceeds this (0/unset = no cap)
   --yes-spend            Acknowledge the spend guard and run anyway
   --no-docker-host-fix   Disable automatic DOCKER_HOST injection on Windows/Podman
-  --out-prefix <path>    Report file prefix (default: <jobs-dir>/<job-prefix>-report)
+  --out-prefix <path>    Optional additional export; canonical report is under .experiments/<id>/
   --help                 Show this help
 
 Example (2 agents x 2 models x 3 skillsets = 12 combos, validated only):
-  node scripts/compare-matrix.ts --path .\\evals\\python\\seed-task \\
+  node scripts/compare-matrix.ts --path .\\evals\\python\\soma-fracoes \\
     --agent claude-code --agent codex \\
     --model anthropic/claude-sonnet-5 --model openai/gpt-5.1 \\
     --skillset "" --skillset ".\\skills\\python-eng" --skillset ".\\skills\\python-eng,.\\skills\\testing" \\
@@ -118,6 +103,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (values.interactive) throw new Error("--interactive não é suportado: este runner fecha stdin; rode harbor diretamente para interação");
+
   if (!isHarborAvailable()) {
     console.error(
       "harbor not found on PATH. Run '.\\scripts\\harbor-eval.ps1 install' (or the .sh equivalent) first."
@@ -133,95 +120,15 @@ async function main(): Promise<void> {
       : [parseSkillset("")];
 
   const combos = buildCombos(agents, models, skillsets);
-  const prefix = values["job-prefix"]!;
-  const jobsDir = values["jobs-dir"]!;
-  const dryRun = values["dry-run"]!;
-  const extra = values.extra ? values.extra.split(/\s+/).filter(Boolean) : [];
-  const concurrency = Math.max(1, parseInt(values.concurrency ?? "1", 10) || 1);
-  const dockerHostFix = !values["no-docker-host-fix"];
-  const autoYes = !values.interactive;
-
-  console.log(`Matrix: ${combos.length} combination(s)${dryRun ? " (dry run, no cost)" : ""}`);
-  for (const c of combos) console.log(" -", jobName(prefix, c));
-
-  // Same spend guard the GUI applies, for the same reason: the incident that motivated it
-  // (four rows x n-attempts=30 launching 120 paid runs with no warning) is reachable from here
-  // too, and the CLI is the easier place to type a big number by accident. A dry run spends
-  // nothing, so it skips the check entirely.
-  if (!dryRun) {
-    const nAttempts = Math.max(1, parseInt(values["n-attempts"] ?? "1", 10) || 1);
-    const estimate = estimateCompareCost(
-      jobsDir,
-      combos.map((c) => ({ agent: c.agent, model: c.model ?? "(default)" })),
-      nAttempts
-    );
-    const capUsd = values["cost-cap-usd"] ? parseFloat(values["cost-cap-usd"]) : null;
-    const verdict = checkCostGuard(estimate, capUsd, values["yes-spend"] ?? false);
-    const shown = estimate.estimateUsd === null ? "não estimável (sem histórico)" : `~$${estimate.estimateUsd.toFixed(4)}`;
-    console.log(`Custo estimado: ${shown} em ${estimate.totalTrials} trial(s)`);
-    if (!verdict.allowed) {
-      console.error(`\nRecusado pela guarda de gasto: ${verdict.reason}`);
-      console.error("Para rodar assim mesmo: --yes-spend (ou aumente/defina --cost-cap-usd).");
-      process.exit(1);
-    }
-  }
-
-  // Job names are derived from prefix+agent+model+skillset, so re-running with the same
-  // --job-prefix lands on the same directories and the same <prefix>-report files. Harbor
-  // reuses the existing job instead of running again (observed: a colliding "run" finished in
-  // 1s against 60s for the real one), which silently turns a fresh comparison into a reread of
-  // an old one. Warn rather than block -- reusing a job dir on purpose is legitimate.
-  const colliding = combos.map((c) => jobName(prefix, c)).filter((n) => existsSync(join(jobsDir, n)));
-  if (colliding.length > 0 && !dryRun) {
-    console.warn(
-      `\nAVISO: ${colliding.length} job(s) já existem em '${jobsDir}' com este --job-prefix ` +
-        `(${colliding.slice(0, 3).join(", ")}${colliding.length > 3 ? ", …" : ""}).\n` +
-        `O Harbor reaproveita o job existente em vez de rodar de novo, e o relatório ` +
-        `'${prefix}-report.*' é sobrescrito. Use outro --job-prefix para uma comparação nova.\n`
-    );
-  }
-
-  mkdirSync(jobsDir, { recursive: true });
-
-  const rows = await runPool(combos, concurrency, async (c: Combo) => {
-    const name = jobName(prefix, c);
-    const args = buildHarborRunArgs({
-      taskPath: values.path!,
-      combo: c,
-      jobsDir,
-      name,
-      env: values.env!,
-      nAttempts: values["n-attempts"]!,
-      extra,
-      autoYes,
-      printConfigOnly: dryRun,
-    });
-    console.log(`\n=== ${name} ===`);
-    console.log("harbor", args.join(" "));
-    const res = await execHarbor(args, { echo: true, dockerHostFix });
-
-    const row: ResultRow = {
-      jobName: name,
-      agent: c.agent,
-      model: c.model ?? "(default)",
-      skillset: c.skillset.label,
-      ok: res.code === 0,
-      durationSec: res.durationSec,
-    };
-    if (res.code !== 0) {
-      row.error = `exit ${res.code}`;
-      return row;
-    }
-    if (!dryRun) Object.assign(row, parseResult(join(jobsDir, name)));
-    return row;
-  });
-
-  const outPrefix = values["out-prefix"] ?? join(jobsDir, `${prefix}-report`);
-  writeReport(rows, outPrefix);
-  console.log(`\nReport written to ${outPrefix}.json and ${outPrefix}.csv`);
-  printTable(rows);
-
-  if (rows.some((r) => !r.ok)) process.exitCode = 1;
+  const plan = createExperimentPlan({ path: values.path!, jobsDir: values["jobs-dir"], jobPrefix: values["job-prefix"], nAttempts: values["n-attempts"], concurrency: values.concurrency, dryRun: values["dry-run"], env: values.env, extra: values.extra }, cliCandidates(combos));
+  const estimate = estimateExperiment(plan);
+  console.log(`Experimento ${plan.id}: ${plan.candidates.length} candidatos × ${plan.tasks.length} tasks × ${plan.nAttempts} tentativas = ${estimate.totalTrials} trials`);
+  console.log(`Estimativa: ${estimate.estimateUsd === null ? "sem histórico" : "$" + estimate.estimateUsd.toFixed(4)}${plan.dryRun ? " (dry run, sem trials)" : ""}`);
+  const result = await runExperiment(plan, { costCapUsd: values["cost-cap-usd"], acknowledgeCost: values["yes-spend"], dockerHostFix: !values["no-docker-host-fix"] });
+  if (values["out-prefix"]) writeReport(result.rows, values["out-prefix"]);
+  console.log(`Relatórios: ${result.reportJson} e ${result.reportCsv}`);
+  printTable(result.rows);
+  if (result.rows.some(r => !r.ok)) process.exitCode = 1;
 }
 
-main();
+main().catch(error => { console.error(error.message); process.exitCode = 1; });

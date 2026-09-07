@@ -53,57 +53,15 @@ resolve_podman_docker_host() {
 }
 
 ensure_state() {
-  mkdir -p "$STATE_DIR"
-  if [ ! -f "$MANIFEST" ]; then
-    python3 - "$MANIFEST" <<'PY'
-import json,sys,datetime,platform,shutil
-p=sys.argv[1]
-tools=["podman","python3","uv","java","javac","mvn","gradle","node","npm","npx","harbor"]
-data={
- "schema_version":1,
- "created_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
- "host":{"platform":platform.platform(),"machine":platform.machine()},
- "preexisting":{},
- "installed_by_kit":{},
- "managed_resources":{"containers":[],"images":[],"volumes":[],"networks":[]},
- "notes":[]
-}
-for t in tools:
-    data["preexisting"][t]={"present":bool(shutil.which(t)),"path":shutil.which(t)}
-with open(p,"w") as f: json.dump(data,f,indent=2)
-PY
-  fi
+  have node || { say "BLOCKED: Node.js 24+ is required to snapshot installation ownership."; return 2; }
+  node "$ROOT/scripts/installation.ts" snapshot "$MANIFEST"
 }
 
 doctor_podman() {
+  ensure_state
   have podman || { say "BLOCKED: podman not found"; return 1; }
-  podman info >/dev/null
-  local img="${PREFIX}doctor-image"
-  local ctr="${PREFIX}doctor-container"
-  local vol="${PREFIX}doctor-volume"
-  local net="${PREFIX}doctor-network"
-
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
-  cat >"$tmp/Containerfile" <<EOF
-FROM docker.io/library/alpine:3.20
-RUN echo ok >/image-ok
-CMD ["sh","-lc","sleep 60"]
-LABEL io.harbor-eval-kit.managed="true"
-EOF
-  podman build -t "$img" "$tmp" >/dev/null
-  podman volume create --label "$LABEL" "$vol" >/dev/null
-  podman network create --label "$LABEL" "$net" >/dev/null
-  podman run -d --name "$ctr" --label "$LABEL" --network "$net" -v "$vol:/managed" "$img" >/dev/null
-  podman exec "$ctr" test -f /image-ok
-  podman exec "$ctr" sh -lc 'echo ok >/managed/volume-ok'
-  podman exec "$ctr" test -f /managed/volume-ok
-  podman rm -f "$ctr" >/dev/null
-  podman volume rm "$vol" >/dev/null
-  podman network rm "$net" >/dev/null
-  podman rmi "$img" >/dev/null
+  node "$ROOT/scripts/installation.ts" smoke "$MANIFEST"
 }
-
 doctor() {
   say "== Harbor Eval Kit doctor =="
   say "OS: $(uname -a 2>/dev/null || true)"
@@ -134,24 +92,15 @@ install_uv() {
   say "Installing uv at user level..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  have uv || { say "uv install did not produce an executable"; return 2; }
+  mark_installed uv
 }
 
 mark_installed() {
-  local tool="$1"
-  python3 - "$MANIFEST" "$tool" <<'PY'
-import json,sys,shutil
-p,t=sys.argv[1:]
-d=json.load(open(p))
-d.setdefault("installed_by_kit",{})[t]={"installed":True,"path":shutil.which(t)}
-json.dump(d,open(p,"w"),indent=2)
-PY
+  node "$ROOT/scripts/installation.ts" mark "$MANIFEST" "$1"
 }
-
 install() {
-  if ! have python3; then
-    say "BLOCKED: python3 missing. Install an isolated/user-level Python appropriate to this OS, then rerun."
-    exit 2
-  fi
+
   ensure_state
   doctor_podman
   install_uv
@@ -204,54 +153,10 @@ eval_cmd() {
   harbor run "$@"
 }
 
-managed_ids() {
-  local kind="$1"
-  case "$kind" in
-    container) podman ps -a --filter "label=$LABEL" --format '{{.ID}} {{.Names}}' ;;
-    image) podman images --filter "label=$LABEL" --format '{{.ID}} {{.Repository}}:{{.Tag}}' ;;
-    volume) podman volume ls --filter "label=$LABEL" --format '{{.Name}}' ;;
-    network) podman network ls --filter "label=$LABEL" --format '{{.ID}} {{.Name}}' ;;
-  esac
-}
-
 uninstall() {
-  local dry="${1:-}"
-  say "Managed containers:"; managed_ids container || true
-  say "Managed images:"; managed_ids image || true
-  say "Managed volumes:"; managed_ids volume || true
-  say "Managed networks:"; managed_ids network || true
-
-  if [ "$dry" = "--dry-run" ]; then
-    say "DRY RUN: nothing removed."
-    return 0
-  fi
-
-  ids="$(podman ps -aq --filter "label=$LABEL" || true)"
-  [ -z "$ids" ] || podman rm -f $ids
-
-  vols="$(podman volume ls -q --filter "label=$LABEL" || true)"
-  [ -z "$vols" ] || podman volume rm $vols
-
-  nets="$(podman network ls -q --filter "label=$LABEL" || true)"
-  [ -z "$nets" ] || podman network rm $nets
-
-  imgs="$(podman images -q --filter "label=$LABEL" || true)"
-  [ -z "$imgs" ] || podman rmi $imgs
-
-  if [ -f "$MANIFEST" ] && have python3; then
-    should_remove="$(python3 - "$MANIFEST" <<'PY'
-import json,sys
-d=json.load(open(sys.argv[1]))
-print("yes" if d.get("installed_by_kit",{}).get("harbor",{}).get("installed") else "no")
-PY
-)"
-    if [ "$should_remove" = "yes" ] && have uv; then
-      uv tool uninstall harbor || true
-    fi
-  fi
-  say "Cleanup complete. Podman and preexisting toolchains preserved."
+  have node || { say "BLOCKED: Node.js 24+ is required for manifest-verified cleanup."; return 2; }
+  node "$ROOT/scripts/cleanup.ts" "--manifest=$MANIFEST" "$@"
 }
-
 cmd="${1:-help}"
 shift || true
 case "$cmd" in
@@ -260,7 +165,7 @@ case "$cmd" in
   status) status ;;
   init-evals) init_evals ;;
   eval) eval_cmd "$@" ;;
-  uninstall|cleanup) uninstall "${1:-}" ;;
+  uninstall|cleanup) uninstall "$@" ;;
   *)
     cat <<EOF
 Usage: $0 {doctor|install|status|init-evals|eval|uninstall [--dry-run]}

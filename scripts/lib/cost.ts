@@ -17,6 +17,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sanitize } from "./naming.ts";
 
 export interface CostSample {
   agent: string;
@@ -73,7 +74,7 @@ export function readCostHistory(jobsDir: string): CostSample[] {
       const trials = r?.n_total_trials;
       // A job that reported no cost (adapter doesn't expose it) is not a zero-cost job -- it is
       // an unknown one, and averaging it in as 0 would under-estimate every future run.
-      if (typeof costUsd !== "number" || costUsd <= 0 || typeof trials !== "number" || trials <= 0) continue;
+      if (!r.finished_at || typeof costUsd !== "number" || !Number.isFinite(costUsd) || costUsd <= 0 || !Number.isSafeInteger(trials) || trials <= 0) continue;
       out.push({ agent: parsed.agent, model: parsed.model, costUsd, trials });
     } catch {
       // A half-written result.json during a live run is normal; skip it.
@@ -94,8 +95,10 @@ const FREE_OF_CHARGE = new Set(["oracle", "nop"]);
 export function estimateCompareCost(
   jobsDir: string,
   combos: { agent: string; model: string }[],
-  nAttempts: number
+  nAttempts: number,
+  nTasks: number = 1
 ): CostEstimate {
+  if (![nAttempts, nTasks].every(n => Number.isSafeInteger(n) && n > 0)) throw new Error("attempts e tasks devem ser inteiros positivos");
   const history = readCostHistory(jobsDir);
   const rows: CostEstimateRow[] = [];
   const unknown: string[] = [];
@@ -110,8 +113,9 @@ export function estimateCompareCost(
     }
     // Prefer samples of the exact agent+model pair; fall back to the same model under any
     // agent, which is still far better than a global average across different models.
-    let samples = history.filter((h) => h.agent === combo.agent && h.model === combo.model);
-    if (samples.length === 0) samples = history.filter((h) => h.model === combo.model);
+    const agent = sanitize(combo.agent), model = combo.model === "(default)" ? combo.model : sanitize(combo.model);
+    let samples = history.filter((h) => h.agent === agent && h.model === model);
+    if (samples.length === 0 && model !== "(default)") samples = history.filter((h) => h.model === model);
 
     if (samples.length === 0) {
       rows.push({ agent: combo.agent, model: combo.model, perTrialUsd: null, samples: 0, estimateUsd: null });
@@ -121,7 +125,7 @@ export function estimateCompareCost(
     const totalCost = samples.reduce((a, s) => a + s.costUsd, 0);
     const totalTrials = samples.reduce((a, s) => a + s.trials, 0);
     const perTrial = totalCost / totalTrials;
-    const est = perTrial * nAttempts;
+    const est = perTrial * nAttempts * nTasks;
     rows.push({ agent: combo.agent, model: combo.model, perTrialUsd: perTrial, samples: samples.length, estimateUsd: est });
     total += est;
     anyKnown = true;
@@ -131,7 +135,7 @@ export function estimateCompareCost(
     estimateUsd: anyKnown ? total : null,
     rows,
     unknown,
-    totalTrials: combos.length * nAttempts,
+    totalTrials: combos.length * nAttempts * nTasks,
   };
 }
 

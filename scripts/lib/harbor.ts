@@ -25,20 +25,16 @@ import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   writeFileSync,
-  readFileSync,
   existsSync,
 } from "node:fs";
-import { join, basename, dirname } from "node:path";
+import { join, dirname } from "node:path";
 
-import type { AgentEntry, CriterionEntry, ExecOptions, ExecResult, RegistryName, ResultRow, RubricCriterion, SkillEntry } from "./types.ts";
-import { getStateDir, newId, safeJoinUnderDir } from "./paths.ts";
+import { getStateDir } from "./paths.ts";
 // `export *` below re-exports these for callers; it does NOT bring them into this file's own
 // scope, so anything used here has to be imported here too.
 import { execCommand } from "./exec.ts";
 
 import { loadSecretsEnv } from "./secrets.ts";
-import { isJudgeModelAllowed } from "./catalog.ts";
-import { sanitize } from "./naming.ts";
 
 export * from "./types.ts";
 export * from "./catalog.ts";
@@ -53,123 +49,8 @@ export * from "./exec.ts";
 export * from "./bundle.ts";
 export * from "./materialize.ts";
 export * from "./httpguard.ts";
+export * from "./results.ts";
 
-
-// ---------- Result parsing / reporting ----------
-
-export function parseResult(jobDir: string): {
-  nTrials?: number;
-  nErrors?: number;
-  meanReward?: number;
-  costUsd?: number;
-  nInputTokens?: number;
-  nOutputTokens?: number;
-  error?: string;
-} {
-  const resultPath = join(jobDir, "result.json");
-  if (!existsSync(resultPath)) return { error: "result.json not found" };
-  try {
-    const data = JSON.parse(readFileSync(resultPath, "utf-8")) as HarborResultJson;
-    const stats = data.stats;
-    if (!stats) return { error: "no 'stats' in result.json" };
-    const evalEntries = Object.values(stats.evals ?? {});
-    let totalTrials = 0;
-    let weightedSum = 0;
-    for (const e of evalEntries) {
-      const mean = e.metrics?.[0]?.mean;
-      const n = e.n_trials ?? 0;
-      if (typeof mean === "number" && n > 0) {
-        totalTrials += n;
-        weightedSum += mean * n;
-      }
-    }
-    return {
-      nTrials: stats.n_completed_trials,
-      nErrors: stats.n_errored_trials,
-      meanReward: totalTrials > 0 ? weightedSum / totalTrials : undefined,
-      costUsd: stats.cost_usd,
-      nInputTokens: stats.n_input_tokens,
-      nOutputTokens: stats.n_output_tokens,
-    };
-  } catch (err) {
-    return { error: String(err) };
-  }
-}
-
-export function csvEscape(v: unknown): string {
-  if (v === undefined || v === null) return "";
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-export function writeReport(rows: ResultRow[], outPrefix: string): void {
-  writeFileSync(`${outPrefix}.json`, JSON.stringify(rows, null, 2));
-  const headers: (keyof ResultRow)[] = [
-    "jobName",
-    "agent",
-    "model",
-    "skillset",
-    "ok",
-    "nTrials",
-    "nErrors",
-    "meanReward",
-    "durationSec",
-    "costUsd",
-    "nInputTokens",
-    "nOutputTokens",
-    "error",
-  ];
-  const lines = [headers.join(",")];
-  for (const r of rows) lines.push(headers.map((h) => csvEscape(r[h])).join(","));
-  writeFileSync(`${outPrefix}.csv`, lines.join("\n") + "\n");
-}
-
-/**
- * Reads `<path>/analysis.json` if `harbor analyze` wrote one there (confirmed in
- * analyzer.py:_write_analysis_json). Best-effort: returns null rather than throwing if the
- * file is missing or the shape differs from what this Harbor version produced -- callers
- * should fall back to showing raw stdout in that case.
- */
-export function parseAnalysisJson(path: string): unknown | null {
-  const p = join(path, "analysis.json");
-  if (!existsSync(p)) return null;
-  try {
-    return JSON.parse(readFileSync(p, "utf-8"));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * `harbor analyze` only writes straight to `<path>/analysis.json` (what parseAnalysisJson
- * checks) when given a bare trial path. Given a job directory instead -- what Compare always
- * passes, since one comparison row is one job that may bundle several trials -- it creates its
- * own fresh, dated output directory and prints where in stdout (`Report: <path>`), using a
- * `{results: [...]}` shape (one entry per trial) instead of the flat `{summary, checks}` shape.
- * Found by testing: without this, every analyze call from Compare (job-level paths) silently
- * got analysis:null and fell back to raw stdout, even though the judge call succeeded and a
- * real analysis.json existed -- just not where parseAnalysisJson was looking.
- */
-export function resolveAnalysisJson(trialPath: string, stdout: string): unknown | null {
-  const direct = parseAnalysisJson(trialPath);
-  if (direct) return direct;
-  const match = stdout.match(/Report:\s*(\S.*\.json)\s*$/m);
-  if (!match) return null;
-  const reportPath = match[1].trim();
-  if (!existsSync(reportPath)) return null;
-  try {
-    const parsed = JSON.parse(readFileSync(reportPath, "utf-8"));
-    if (parsed && typeof parsed === "object" && Array.isArray((parsed as { results?: unknown[] }).results)) {
-      // One Compare row is one trial in the common case (n-attempts=1) -- degrade to the first
-      // result rather than dropping checks entirely when a row bundles more than one.
-      const first = (parsed as { results: Record<string, unknown>[] }).results[0];
-      if (first && typeof first === "object") return { ...first, estimated_cost_usd: first.cost_usd };
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 // ---------- Secrets ----------
 // Local KEY=VALUE file in the state dir, never returned by value over the API,
@@ -312,7 +193,5 @@ export async function testProviderKey(provider: string, envKey: string): Promise
 
 // ---------- Task file editing ----------
 // A task directory (created by `harbor init --task`) is plain project content meant to
-
-
 
 

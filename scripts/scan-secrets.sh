@@ -69,7 +69,7 @@ report() {
   # (Caught by test: an earlier version assigned fail=1 here, printed the warning, and let the
   # commit through anyway.)
   echo "  ✗ $1"
-  echo "      ${2:0:120}"
+  echo "      conteúdo omitido para não registrar a credencial"
 }
 
 check_name() {
@@ -149,7 +149,7 @@ else
   if [ ${#PATHS[@]} -eq 0 ]; then
     while IFS= read -r tracked; do
       [ -n "$tracked" ] && PATHS+=("$tracked")
-    done < <(git ls-files)
+    done < <(git ls-files --cached --others --exclude-standard)
   fi
   # Guarded because expanding an EMPTY array as "${arr[@]}" is an unbound-variable error under
   # `set -u` on bash 3.2 -- the second half of that same macOS failure.

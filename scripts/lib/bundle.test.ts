@@ -93,27 +93,16 @@ describe("importConfigBundle", () => {
     });
   });
 
-  test("bundle sem 'registries' não quebra, só avisa", () => {
+  test("bundle inválido e item sem id abortam sem importação parcial", () => {
     withStateDir(() => {
-      const summary = importConfigBundle({ oops: true });
-      assert.equal(summary.added, 0);
-      assert.ok(summary.warnings.length > 0);
+      assert.throws(() => importConfigBundle({ oops: true }));
+      assert.throws(() => importConfigBundle({ version: 1, registries: {
+        models: [{ id: "m", label: "Model", value: "provider/model" }],
+        criteria: [{ name: "sem_id" }],
+      } }));
+      assert.deepEqual(readRegistry("models"), []);
     });
   });
-
-  test("item sem id é ignorado com aviso, o resto do registro segue importando", () => {
-    withStateDir(() => {
-      const bundle = {
-        version: 1 as const,
-        exportedAt: "x",
-        registries: { criteria: [{ name: "sem_id" }, { id: "c2", name: "com_id" }] },
-      };
-      const summary = importConfigBundle(bundle);
-      assert.equal(summary.added, 1);
-      assert.ok(summary.warnings.some((w) => w.includes("sem id")));
-    });
-  });
-
   test("round-trip: exportar e reimportar reproduz o estado exatamente", () => {
     withStateDir(() => {
       writeRegistry("agents", [{ id: "a1", label: "Oracle", agentValue: "oracle" }]);

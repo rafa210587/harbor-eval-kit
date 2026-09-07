@@ -12,7 +12,8 @@ Use to run model, agent or skill evaluations.
 ## Before running
 
 1. Run doctor.
-2. Confirm secrets exist as environment variables without printing values.
+2. Confirm required secret names exist in `~/.harbor-eval-kit/secrets.env` without printing
+   values. GUI and matrix CLI load them into child environments only; never pass them in argv.
 3. Confirm the agent name against `harbor run --help` (the `--agent` option lists every
    accepted adapter). Do **not** use `harbor agent list` or `harbor agent schema <agent>` —
    verified 2026-09-06 on Harbor 0.22.0: there is no `harbor agent` command at all ("No such
@@ -29,6 +30,20 @@ Use to run model, agent or skill evaluations.
 5. Pin dataset/task revision.
 6. Record skill digest/provenance.
 7. Record Harbor version and environment details.
+
+## Planning and reproducibility
+
+For the first real task use `evals/python/soma-fracoes`; `seed-task` folders are empty stubs.
+GUI and CLI share experiment planning. Preview the full task × attempt × candidate volume,
+including every task discovered in a dataset. Unknown historical cost is not zero cost.
+Extra args support only `--ak`/`--agent-kwarg` and `--timeout-multiplier`; do not try to override
+the task/model/count/job plan through extras. The matrix executor rejects `--interactive`.
+
+Every execution and candidate receives a new identity. Reusing a Job prefix does not reuse
+results. Records in `<jobsDir>/.experiments/<id>/` retain the effective plan, input snapshots
+and hashes, results and attached analyses. Preserve these alongside Harbor job artifacts.
+Snapshots isolate local task/skill input; they do not freeze external providers or image tags.
+There is no automatic resume after server restart. Reopen saved comparisons in the GUI.
 
 ## Watching a run in progress
 

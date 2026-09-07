@@ -55,7 +55,7 @@ outra máquina, ou entender exatamente o que aconteceu.
 
 - Windows 10/11 com **WSL2** habilitado e uma distro Linux instalada (usamos Ubuntu).
 - [`uv`](https://docs.astral.sh/uv/) instalado (gerencia Python isolado e o próprio Harbor).
-- **Node.js 22.6+** (usamos 24.x) — roda os scripts `.ts` direto, sem `tsc`/`ts-node`.
+- **Node.js 24+** (usamos 24.x) — roda os scripts `.ts` direto, sem `tsc`/`ts-node`.
 - **Podman** (CLI) instalado no Windows.
 
 ### 2.2 Diagnóstico (doctor) — antes de instalar qualquer coisa
@@ -83,6 +83,10 @@ podman machine start
 **Não pare no doctor básico.** Ele só confirma que o Podman responde — não que ele consegue
 fazer tudo que o Harbor precisa. Rode os smoke tests completos (ver seção 4) antes de
 declarar o ambiente pronto.
+
+O smoke primitivo comum aos wrappers exige Node 24+ e a imagem base **preexistente**
+`docker.io/library/alpine:3.20`; usa `--pull=never`. Recursos novos recebem nome único, label
+e registro no manifest antes da criação. O teste não declara compatibilidade Harbor nem READY.
 
 ### 2.3 Instalar o Harbor
 
@@ -140,10 +144,12 @@ http://127.0.0.1:4173
 ```
 Roda só em `127.0.0.1` — nunca acessível pela rede, nunca um servidor público.
 
-### 2.7 Primeiro uso — siga a ordem das abas
+### 2.7 Primeiro uso — caminho mínimo
 
-A GUI já numera as abas 1→10 pra guiar a primeira vez (ver seções 9 e 10 pra detalhe de cada
-uma). Resumo de "o que fazer" em sequência:
+Comece com **Secrets → Models → Agents → Compare**, escolhendo a task executável
+`evals/python/soma-fracoes`. Para variar modelos entre providers, use um adapter compatível,
+como `mini-swe-agent`. Skills e a configuração do juiz são opcionais. As abas numeradas
+abaixo são o mapa completo de recursos; não são dez pré-requisitos obrigatórios:
 
 1. **Secrets** — cadastre a key de cada provider que for usar (dropdown já tem os 13
    principais). Sem isso, só dá pra testar com os agents `oracle`/`nop` (gratuitos, sem LLM).
@@ -611,8 +617,8 @@ Agrupa Criteria por checkbox — mesma relação Skill→Skillset. Materializado
 ### 10.8 Judges
 
 **Modo validação (escape hatch explícito do gate de model).** O dropdown de model do Judge só
-mostra a lista curada high-tier, o que é o comportamento certo pra avaliação de verdade — mas
-torna caro só *conferir se o Analyze funciona nesta máquina*. Por isso existe um checkbox
+mostra a lista curada por política operacional; isso não prova a qualidade de um veredito.
+Para *conferir se o Analyze funciona nesta máquina*, existe um checkbox
 "Modo validação" em dois pontos que precisam concordar: aqui, que passa a listar **todos** os
 models cadastrados (cada um fora da lista marcado com `⚠ fora da lista curada`), e no painel
 Analisar do Compare, que envia `validationMode: true` na chamada. Faltando qualquer um dos
@@ -700,7 +706,8 @@ O Compare mostra o **custo estimado** enquanto você monta a comparação, e o s
 run (409) antes de spawnar qualquer coisa** se ela passar do teto.
 
 A estimativa vem do histórico **desta máquina**: custo por trial já medido para aquele
-`agent + model` (lido do `result.json` que o próprio Harbor grava), × n-attempts × linhas. Sem
+`agent + model` (lido do `result.json` que o próprio Harbor grava), × n-attempts × linhas × tasks
+descobertas no caminho informado. Sem
 histórico do par exato, cai para o mesmo model sob outro agent. `oracle`/`nop` são zero por
 definição. Job que não reportou custo é tratado como **desconhecido**, nunca como gratuito —
 entrar como zero na média subestimaria toda run futura.
@@ -717,6 +724,9 @@ run, nunca memorizada):
 desta versão não expõe flag de custo, então depois que a run começa nada aqui a interrompe. Para
 limite real em execução, use o kwarg do próprio adapter no campo "Extra harbor run args" — ex.:
 `--ak cost_limit=0.50` com o `mini-swe-agent`.
+
+Os argumentos extras aceitos são `--ak`/`--agent-kwarg` e `--timeout-multiplier`. Flags que
+alterariam task, modelo, quantidade ou diretório não podem contornar o plano nem a guarda.
 
 Teto `0` = sem teto. Rotas: `POST /api/compare/estimate` (prévia) e o mesmo estimador dentro do
 `POST /api/compare` (enforcement) — o número mostrado é o número aplicado.
@@ -742,6 +752,12 @@ mixed-case original que o Harbor gerou (`soma-fracoes__ntPdiGK`). Corrigido comp
 minúsculas dos dois lados; validado matando uma run real em andamento e confirmando via
 `podman ps` que o container específico (não outro) foi parado.
 
+O cancelamento automático de containers exige identidade completa, prefixo, label e registro no
+manifest. Recursos do Harbor que ainda não possuam esses metadados são preservados para inspeção
+manual. O uninstall também recusa propriedade ambígua; seu dry-run mostra o conjunto exato,
+incluindo Harbor quando comprovadamente instalado pelo kit. uv é explicitamente preservado
+porque o footprint completo do instalador não foi inventariado. A auditoria fica no manifest.
+
 ### 10.10-d Config Bundle — compartilhar configuração entre máquinas
 
 Aba **Config**. Agents, Models, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em
@@ -757,6 +773,28 @@ explicitamente (`bundle.test.ts`, "nunca inclui nada parecido com secret").
 vezes não duplica nada, e um item que só existe naquela máquina (não veio do bundle) nunca é
 apagado. Isso é o que torna o fluxo "commita no repo do time, todo mundo importa" seguro de
 repetir.
+
+O import valida IDs, tipos e referências antes de escrever. Um bundle inválido é recusado;
+ele não pode usar IDs como caminhos para escrever fora dos diretórios gerenciados.
+O bundle compartilha **definições editáveis**: não inclui tasks, diretórios externos de skills,
+credenciais nem histórico. Para auditar uma execução, use o registro de experimento.
+
+### 10.10-e Experimentos persistidos
+
+GUI e CLI usam um plano comum e atribuem uma identidade nova a cada execução e candidato.
+O mesmo Job prefix não reaproveita um job antigo nem faz duas linhas disputarem o diretório.
+Retomada automática de um job anterior não é suportada.
+
+O snapshot recusa links/junctions, `.git` e nomes de arquivos de credenciais. Copia arquivos
+regulares de tasks e skills; tags de imagens, downloads externos e aliases de modelos precisam
+de pins próprios para repetibilidade além da cópia. Não há retomada automática de processos
+após reiniciar o servidor: a tela distingue resultado em disco de atividade não confirmada.
+
+`<jobsDir>/.experiments/<id>/` guarda plano efetivo, snapshots e hashes de inputs locais,
+resultados e análises vinculadas. A GUI permite reabrir esses registros após refresh.
+As skills usadas na execução ficam isoladas das edições posteriores nos cadastros.
+Isso preserva os inputs locais, mas não congela o comportamento do provider nem o conteúdo
+de imagens remotas sem digest. Reiniciar o servidor não retoma automaticamente processos.
 
 ### 10.11 Datasets
 **O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
@@ -827,11 +865,10 @@ reward hacking, ou desempatar candidatos que **todos** passaram.
 Por isso: **nunca automático**. É um botão por resultado (ou "Analisar todas", que roda o
 mesmo botão em toda linha `ok` da tabela, uma de cada vez, sequencial) — você aciona só quando
 o caso pede (empate, suspeita de gambiarra, decisão final entre finalistas), não em toda
-iteração exploratória. E o modelo do juiz é **travado numa lista curada high-tier**
-(`JUDGE_MODELS`/`isJudgeModelAllowed` em `scripts/lib/harbor.ts`) — o próprio Harbor usa
-`claude-haiku-4-5` como padrão, que é uma escolha de custo, não uma escolha pensada pra
-julgar bem. (Os IDs exatos em `JUDGE_MODELS` são ilustrativos — confira contra os
-identificadores reais de cada provider antes de depender deles.)
+iteração exploratória. O padrão usa uma **lista curada de modelos**
+(`JUDGE_MODELS`/`isJudgeModelAllowed` em `scripts/lib/catalog.ts`). É uma política operacional,
+não prova de qualidade: calibre o juiz com exemplos de veredito conhecido. O modo validação
+continua explícito e marcado nos resultados. Confira os IDs reais no provider antes de usar.
 
 **Quem é o juiz é registrado como um Judge (aba 8)**, não escolhido solto toda vez: um Judge
 junta `--agent` (quem executa a leitura — um agente Harbor real com acesso a arquivo, não uma
@@ -845,7 +882,7 @@ juiz avalia é reescrever essas instruções (ver 10.8 pro detalhe completo).
 "Qual foi melhor mesmo com todos passando" fica respondido rankeando pelo `passRate`
 calculado no lado do kit (pass/total de critérios aplicáveis) entre resultados já analisados
 — o Harbor avalia uma trajetória por vez, não várias numa chamada só; quem rankeia é a
-própria GUI (`analyzeRow`/`compare-sort-btn` em `gui/index.html`).
+própria GUI (`analyzeRow`/`compare-sort-btn` em `gui/app/compare.js`).
 
 **Um resultado pode ser analisado por N rubrics ao mesmo tempo.** O checkbox-picker do painel
 Analisar (seção 10.10) aceita marcar mais de um Judge Rubric; `analyzeRow` faz **uma chamada
@@ -855,6 +892,12 @@ usado pra ordenar soma pass/aplicável de **todos** os rubrics analisados naquel
 então rodar 2 rubrics (ex.: "Python Quality" + "Reward Hacking Check") sobre o mesmo job conta
 os critérios dos dois juntos, não substitui um pelo outro. Se nenhum rubric for marcado, cai
 no rubric padrão do próprio Harbor (`reward_hacking` + `task_specification`).
+
+O parser mantém **todos os trials** retornados pelo Harbor. Cada critério de cada trial
+conta separadamente: `passRate = pass / (pass + fail)`; N/A e outcomes desconhecidos são
+contabilizados à parte. Ausência de checks não vira zero nem aprovação. Reanalisar mantém
+o histórico, mas o indicador exibido representa o lote de rubrics daquela análise.
+`validationMode` e o modelo do juiz acompanham os registros persistidos.
 
 Pra não ter que marcar isso toda vez: uma Task pode ter um Judge + rubrics **pinados**
 (seção 10.9) — o painel Analisar detecta que a run atual usou aquela task e já vem com esse
@@ -867,14 +910,15 @@ Dois custos diferentes existem e não devem ser somados como se fossem um só:
 
 - **Custo do agent que resolveu a task** — aparece direto na tabela do Compare (`custo agent
   (USD)`, `tokens in/out`), lido de `stats.cost_usd`/`n_input_tokens`/`n_output_tokens` no
-  `result.json` do job (`parseResult` em `scripts/lib/harbor.ts`). São os números reais de
+  `result.json` do job (`parseResult` em `scripts/lib/results.ts`). São os números reais de
   billing que o próprio Harbor calculou (mesmo `compute_token_cost_totals()` que o `harbor
   check`/`harbor analyze` usam para as próprias contas) — não é uma estimativa deste kit.
   Fica em branco quando o adapter do agent usado não reporta isso.
 - **Custo do Judge** — só existe depois de clicar "Analisar"; aparece como "custo juiz (USD)"
   na tabela (soma de todos os rubrics analisados naquela linha) e como uma linha por rubric no
-  painel de resultado, lido de `estimated_cost_usd` no `analysis.json` que o `harbor analyze`
-  grava. É o custo de o Judge *ler* o resultado, sempre separado do custo de tê-lo *produzido*.
+  painel de resultado, lido de `cost_usd`/`estimated_cost_usd` nos trials do `analysis.json`.
+  O total fica ausente se qualquer trial não reportar custo; `reportedCostUsd` identifica
+  explicitamente uma soma parcial. É o custo de o Judge *ler* o resultado, separado do de produzi-lo.
 
 **Velocidade**: `durationSec` na tabela do Compare é o tempo de parede da chamada `harbor run`
 inteira daquela linha (medido pelo próprio kit, em `execCommand`) — inclui subir o
@@ -888,23 +932,21 @@ não lê esses campos hoje; `durationSec` é a métrica de velocidade disponíve
 
 `compare-matrix.ts` é a ferramenta de linha de comando, pra scriptar/automatizar: sweep
 completo via `--agent`/`--model`/`--skillset` repetíveis (produto cartesiano de verdade, ao
-contrário da GUI). Continua exatamente como era — **não foi tocado** nas rodadas de mudança
-na GUI. Use quando quiser rodar de um script, CI, ou preferir terminal.
+contrário da GUI). Use quando quiser rodar de um script, CI, ou preferir terminal.
 
 A GUI (`gui-server.ts`) é pra uso interativo — registries persistentes, editor de arquivos,
 Compare por entradas com override por linha, Analyze integrado. As duas falam com o mesmo
-Harbor por baixo, só a forma de montar a chamada muda.
+Harbor por baixo e compartilham planejamento, normalização e guarda. Ambas carregam
+`secrets.env` apenas para o ambiente dos filhos e persistem os experimentos. A CLI recusa
+`--interactive`: o executor não oferece stdin interativo; use o Harbor diretamente se precisar.
 
 ---
 
 ## 13. Limitações conhecidas (decisões conscientes, não esquecimento)
 
-- Compare na GUI ainda é **síncrono** — um POST só responde quando todas as combinações
-  terminam, então não há resultado parcial linha a linha nem como cancelar no meio. O que
-  deixou de ser verdade (2026-09-06) é a *cegueira* durante a espera: o botão agora trava
-  enquanto roda (antes dava pra clicar duas vezes e disparar duas `harbor run` no mesmo job
-  name), aparece um cronômetro, e o painel "Log ao vivo" — mais a aba **Logs** (10.11-b) —
-  mostram o que o `harbor` está escrevendo em disco naquele instante.
+- Compare mantém um POST síncrono, cronômetro, logs e botão **Cancelar** durante a execução.
+  O registro persistido permite reabrir a comparação após refresh; reiniciar o servidor não
+  oferece retomada automática de uma execução interrompida.
 - `harbor view` ativo não sobrevive a um restart do `gui-server` (registro só em memória).
 - `Datasets` → `harbor dataset list` nesta versão do Harbor só imprime um link pro Hub, não
   uma lista navegável — limitação do CLI, não da GUI.

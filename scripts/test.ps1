@@ -19,7 +19,7 @@ node scripts/check-imports.mjs
 if ($LASTEXITCODE -ne 0) { $status = 1 }
 
 Write-Host ""
-Write-Host "== Scan de credenciais (arquivos versionados) =="
+Write-Host "== Scan de credenciais (versionados + novos não ignorados) =="
 bash scripts/scan-secrets.sh
 if ($LASTEXITCODE -eq 0) {
   Write-Host "  ✓ nenhuma credencial encontrada"

@@ -10,13 +10,15 @@ have(){ command -v "$1" >/dev/null 2>&1; }
 echo "== Harbor Eval Kit -- start-gui =="
 
 if ! have node; then
-  echo "BLOCKED: node not found. Install Node.js 22.6+ first (needed for native TS execution)." >&2
+  echo "BLOCKED: node not found. Install Node.js 24+ first (needed for native TS execution)." >&2
   exit 1
 fi
 
+node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)" || { echo "BLOCKED: Node.js 24+ required." >&2; exit 1; }
+
 if ! have harbor; then
   echo "Harbor CLI not found. Install it with:"
-  echo "  uv tool install harbor"
+  echo '  uv tool install "harbor==0.22.0"'
   echo "(or ask Claude Code / Codex to follow Harbor_install/skills/harbor-bootstrap/SKILL.md,"
   echo "which does this plus the Podman compatibility check for you.)"
   exit 1

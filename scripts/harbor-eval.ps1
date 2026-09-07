@@ -58,6 +58,14 @@ function Resolve-PodmanDockerHost {
   return $null
 }
 
+function Installation-State([string]$Operation, [string]$Tool = "") {
+  if (-not (Has "node")) { throw "Node.js 24+ is required to snapshot installation ownership." }
+  $installationArgs = @($Operation, $Manifest)
+  if ($Tool) { $installationArgs += $Tool }
+  & node (Join-Path $PSScriptRoot "installation.ts") @installationArgs
+  if ($LASTEXITCODE -ne 0) { throw "Installation ownership operation failed: $Operation" }
+}
+
 function Doctor {
   Write-Host "== Harbor Eval Kit doctor =="
   foreach ($t in @("podman","python","py","uv","java","javac","mvn","gradle","node","npm","npx","harbor")) {
@@ -69,12 +77,14 @@ function Doctor {
     }
   }
   if (-not (Has "podman")) { throw "BLOCKED: Podman not found" }
-  podman info | Out-Null
-  Write-Host "Podman info: PASS"
+  Installation-State "snapshot"
+  Installation-State "smoke"
+  Write-Host "Podman primitive smoke tests: PASS"
   Write-Host "Harbor<->Podman still requires an end-to-end Harbor task smoke test."
 }
 
 function Install {
+  Installation-State "snapshot"
   Doctor
   if (-not (Has "uv")) {
     throw "uv missing. Install uv user-level in WSL/Linux or Windows, then rerun. This PowerShell wrapper refuses to silently install system-wide runtimes."
@@ -84,8 +94,11 @@ function Install {
     # release's CLI/output behaviour. Keep in lockstep with TESTED_HARBOR_VERSION in
     # scripts/lib/catalog.ts (a test enforces that they match).
     uv tool install "harbor==0.22.0"
+    if ($LASTEXITCODE -ne 0) { throw "Harbor installation failed" }
+    Installation-State "mark" "harbor"
   }
   harbor --help | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Harbor CLI smoke test failed" }
   Write-Host "Harbor CLI: PASS"
 }
 
@@ -114,32 +127,13 @@ function Eval {
 }
 
 function Uninstall {
-  Write-Host "Managed resources selected strictly by label: $Label"
-  podman ps -a --filter "label=$Label"
-  podman images --filter "label=$Label"
-  podman volume ls --filter "label=$Label"
-  podman network ls --filter "label=$Label"
-
-  if ($DryRun) {
-    Write-Host "DRY RUN: nothing removed."
-    return
-  }
-
-  $containers = @(podman ps -aq --filter "label=$Label")
-  if ($containers.Count -gt 0) { podman rm -f $containers }
-
-  $volumes = @(podman volume ls -q --filter "label=$Label")
-  if ($volumes.Count -gt 0) { podman volume rm $volumes }
-
-  $networks = @(podman network ls -q --filter "label=$Label")
-  if ($networks.Count -gt 0) { podman network rm $networks }
-
-  $images = @(podman images -q --filter "label=$Label")
-  if ($images.Count -gt 0) { podman rmi $images }
-
-  Write-Host "Podman and preexisting toolchains preserved."
+  if (-not (Has "node")) { throw "Node.js 24+ is required for manifest-verified cleanup." }
+  $cleanupArgs = @("--manifest=$Manifest")
+  if ($DryRun -or ($Rest -contains "--dry-run")) { $cleanupArgs += "--dry-run" }
+  if (@($Rest | Where-Object { $_ -ne "--dry-run" }).Count -gt 0) { throw "Unknown cleanup argument" }
+  & node (Join-Path $PSScriptRoot "cleanup.ts") @cleanupArgs
+  if ($LASTEXITCODE -ne 0) { throw "Cleanup aborted; inspect the manifest and ownership before retrying." }
 }
-
 switch ($Command) {
   "doctor" { Doctor }
   "install" { Install }

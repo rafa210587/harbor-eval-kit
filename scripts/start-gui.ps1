@@ -12,13 +12,16 @@ function Test-Command($name) {
 Write-Host "== Harbor Eval Kit -- start-gui =="
 
 if (-not (Test-Command "node")) {
-  Write-Error "BLOCKED: node not found. Install Node.js 22.6+ first (needed for native TS execution)."
+  Write-Error "BLOCKED: node not found. Install Node.js 24+ first (needed for native TS execution)."
   exit 1
 }
 
+node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)"
+if ($LASTEXITCODE -ne 0) { throw "Node.js 24+ required." }
+
 if (-not (Test-Command "harbor")) {
   Write-Host "Harbor CLI not found. Install it with:"
-  Write-Host "  uv tool install harbor"
+  Write-Host '  uv tool install "harbor==0.22.0"'
   Write-Host "(or ask Claude Code / Codex to follow Harbor_install\skills\harbor-bootstrap\SKILL.md,"
   Write-Host "which does this plus the Podman compatibility check for you.)"
   exit 1

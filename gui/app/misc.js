@@ -35,7 +35,6 @@ $("#analyze-form").addEventListener("submit", async (e) => {
   out.textContent = "Analyzing… (chamada de LLM, pode demorar)";
   try {
     const res = await api("POST", "/api/analyze", data);
-    out.textContent = res.analysis ? JSON.stringify(res.analysis, null, 2) : (res.stdout || "") + (res.stderr || "");
+    out.textContent = res.analysis ? JSON.stringify({ validationMode: !!res.validationMode, judgeModel: res.judgeModel, analysis: res.analysis }, null, 2) : (res.stdout || "") + (res.stderr || "");
   } catch (err) { out.textContent = "Error: " + err.message; }
 });
-

@@ -1,0 +1,64 @@
+import { $, $$, api, escapeHtml } from "./core.js";
+import { state } from "./state.js";
+
+export async function analyzeCompareRow(row, jobsDir, experimentId, renderTable) {
+  const analysisBatchId = crypto.randomUUID();
+  const judgeId = $("#compare-judge-picker").value;
+  if (!judgeId) { alert('Escolha um Judge primeiro (cadastre um na aba "Judges" se a lista estiver vazia).'); return; }
+  const checkedRubricIds = $$("#compare-rubric-picker input:checked").map((i) => i.value);
+  const rubricRuns = checkedRubricIds.length > 0 ? checkedRubricIds : ["__default__"];
+  const resultsEl = $("#compare-analysis-results");
+  const path = `${jobsDir}/${row.jobName}`;
+
+  row.analyses = row.analyses || [];
+  let totalPass = 0;
+  let totalApplicable = 0;
+  let totalJudgeCostUsd = 0;
+  let costComplete = true;
+  let scoreComplete = true;
+  const block = document.createElement("div");
+  block.className = "panel";
+  block.innerHTML = `<div class="row-title">${escapeHtml(row.jobName)}</div>`;
+
+  for (const [analysisBatchIndex, rubricId] of rubricRuns.entries()) {
+    const rubricLabel = rubricId === "__default__"
+      ? "padrão do Harbor"
+      : state.rubrics.find((r) => r.id === rubricId)?.label || rubricId;
+    try {
+      const validationMode = $("#analyze-validation-mode") ? $("#analyze-validation-mode").checked : false;
+      const res = await api("POST", "/api/analyze", { path, rubricId, judgeId, validationMode, experimentId: experimentId, jobName: row.jobName, jobsDir, analysisBatchId, analysisBatchIndex, analysisBatchSize: rubricRuns.length });
+      const analysis = res.analysis;
+      if (res.validationMode) {
+        block.innerHTML += `<p class="hint" style="color:var(--warn);">⚠ Modo validação: julgado por <code>${escapeHtml(res.judgeModel || "?")}</code>, que está fora da lista curada high-tier. Serve pra confirmar que o pipeline roda — <strong>não</strong> vale como avaliação.</p>`;
+      }
+      row.analyses.push({ analysisBatchId, rubricId, rubricLabel, judgeId, judgeModel: res.judgeModel, validationMode: !!res.validationMode, analysis });
+      const aggregate = analysis?.aggregate;
+      if (res.validationMode || !aggregate || aggregate.unknown > 0) scoreComplete = false;
+      const cost = aggregate?.costUsd;
+      if (typeof cost === "number") totalJudgeCostUsd += cost;
+      else costComplete = false;
+      totalPass += aggregate?.pass ?? 0;
+      totalApplicable += aggregate?.applicable ?? 0;
+      const trials = analysis?.results ?? (analysis ? [analysis] : []);
+      block.innerHTML += '<h3 class="step">' + escapeHtml(rubricLabel) + '</h3>';
+      for (const [trialIndex, trial] of trials.entries()) {
+        block.innerHTML += '<h4>Trial ' + (trialIndex + 1) + ' — ' + escapeHtml(trial.trial_name || trial.trial_path || '') + '</h4>' +
+          (trial.summary ? '<p class="hint">' + escapeHtml(trial.summary) + '</p>' : '') +
+          Object.entries(trial.checks || {}).map(([name, check]) => '<div class="row-sub"><strong>' + escapeHtml(name) + '</strong>: ' + escapeHtml(check?.outcome) + ' — ' + escapeHtml(check?.explanation) + '</div>').join('');
+      }
+      if (!trials.length) block.innerHTML += '<pre class="output">' + escapeHtml(res.stdout || res.stderr || '(sem analysis.json legível)') + '</pre>';
+      block.innerHTML += typeof cost === "number"
+        ? '<p class="hint">Custo do juiz nesta análise: $' + cost.toFixed(4) + '</p>'
+        : '<p class="hint">Custo total do juiz não reportado para todos os trials.</p>';
+    } catch (err) {
+      costComplete = false;
+      scoreComplete = false;
+      block.innerHTML += `<h3 class="step">${escapeHtml(rubricLabel)}</h3><p class="hint">Erro: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  row.passRate = scoreComplete && totalApplicable > 0 ? totalPass / totalApplicable : undefined;
+  row.judgeCostUsd = costComplete ? totalJudgeCostUsd : undefined;
+  resultsEl.prepend(block);
+  renderTable();
+}

@@ -6,7 +6,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 import type { AgentEntry, CriterionEntry, RubricCriterion, SkillEntry } from "./types.ts";
-import { getStateDir, safeJoinUnderDir } from "./paths.ts";
+import { managedPath, safeJoinUnderDir } from "./paths.ts";
+import { assertSafeId, validateRegistryEntry } from "./registry-validation.ts";
 
 // ---------- Skill materialization ----------
 // A Skill authored in the GUI (free-text instructions) has no filesystem home of its
@@ -15,7 +16,8 @@ import { getStateDir, safeJoinUnderDir } from "./paths.ts";
 // "instructions" (treated as an implicit one-off skill) resolve to a real path.
 
 function getManagedSkillDir(key: string): string {
-  return join(getStateDir(), "skills", key);
+
+  return managedPath("skills", key);
 }
 
 /**
@@ -37,6 +39,10 @@ function materializeSkillMd(
   extraFiles?: { name: string; content: string }[]
 ): string {
   const dir = getManagedSkillDir(key);
+  // Validate all names before removing the previous snapshot.
+  for (const f of extraFiles ?? []) {
+    if (!safeJoinUnderDir(dir, f.name)) throw new Error("arquivo extra fora do diretório gerenciado");
+  }
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), instructions ?? "", "utf-8");
@@ -52,6 +58,7 @@ function materializeSkillMd(
 }
 
 export function resolveSkillPath(skill: SkillEntry): string | null {
+  validateRegistryEntry("skills", skill);
   if (skill.mode === "path") {
     return skill.path && skill.path.trim() ? skill.path.trim() : null;
   }
@@ -62,7 +69,7 @@ export function resolveSkillsetPaths(skillIds: string[], skills: SkillEntry[]): 
   const paths: string[] = [];
   for (const id of skillIds) {
     const skill = skills.find((s) => s.id === id);
-    if (!skill) continue;
+    if (!skill) throw new Error("skillset referencia skill inexistente");
     const p = resolveSkillPath(skill);
     if (p) paths.push(p);
   }
@@ -71,6 +78,7 @@ export function resolveSkillsetPaths(skillIds: string[], skills: SkillEntry[]): 
 
 /** Agent-level "instructions" are treated as an implicit skill, always attached to its runs. */
 export function resolveAgentInstructionsPath(agent: AgentEntry): string | null {
+  validateRegistryEntry("agents", agent);
   if (!agent.instructions || !agent.instructions.trim()) return null;
   return materializeSkillMd(`agent-${agent.id}`, agent.instructions);
 }
@@ -95,6 +103,7 @@ export function serializeRubricToml(criteria: RubricCriterion[]): string {
 }
 
 export function resolveRubricCriteria(criterionIds: string[], criteria: CriterionEntry[]): RubricCriterion[] {
+  if (criterionIds.some(id => !criteria.some(c => c.id === id))) throw new Error("rubric referencia critério inexistente");
   return criterionIds
     .map((id) => criteria.find((c) => c.id === id))
     .filter((c): c is CriterionEntry => Boolean(c))
@@ -102,9 +111,10 @@ export function resolveRubricCriteria(criterionIds: string[], criteria: Criterio
 }
 
 export function resolveRubricPath(rubricId: string, resolvedCriteria: RubricCriterion[]): string {
-  const dir = join(getStateDir(), "rubrics", rubricId);
+  assertSafeId(rubricId);
+  const dir = managedPath("rubrics", rubricId);
   mkdirSync(dir, { recursive: true });
-  const p = join(dir, "rubric.toml");
+  const p = managedPath("rubrics", rubricId, "rubric.toml");
   writeFileSync(p, serializeRubricToml(resolvedCriteria), "utf-8");
   return p;
 }
@@ -116,9 +126,10 @@ export function resolveRubricPath(rubricId: string, resolvedCriteria: RubricCrit
 // trial_path/task_section/criteria_guidance). Materialize on demand, same pattern as rubrics.
 
 export function resolveJudgePromptPath(judgeId: string, promptTemplate: string): string {
-  const dir = join(getStateDir(), "judges", judgeId);
+  assertSafeId(judgeId);
+  const dir = managedPath("judges", judgeId);
   mkdirSync(dir, { recursive: true });
-  const p = join(dir, "prompt.txt");
+  const p = managedPath("judges", judgeId, "prompt.txt");
   writeFileSync(p, promptTemplate, "utf-8");
   return p;
 }

@@ -67,3 +67,13 @@ Report but do not automatically mutate during doctor:
 - BLOCKED
 
 Every BLOCKED item must include the exact failing command and safe remediation.
+
+## Current wrapper implementation
+
+Both wrappers call `scripts/installation.ts smoke` after the immutable installation snapshot.
+Node.js 24+ and an already provisioned `docker.io/library/alpine:3.20` image are prerequisites;
+the smoke refuses an implicit base pull. Each run uses unique prefixed names and the managed
+label, records intended names before creation, and verifies cleanup. A failed smoke leaves
+its manifest reservations for inspection and cleanup. It does not remove other managed runs.
+This covers Podman primitives, not the full Docker compatibility/Harbor task gate above.
+The shared implementation has offline fake-runner coverage; real host validation is pending.

@@ -42,7 +42,7 @@
 <!-- Shared by the Agents and Judges forms: the --agent values the installed Harbor accepts,
      fetched once from /api/harbor-agents (server-side list, mirrors `harbor run --help`). -->
 <datalist id="harbor-agents-list"></datalist>
-<p class="hint" style="text-align:center;padding:6px 16px 0;">Siga a ordem 1→10 na primeira vez: cadastre chaves, modelos, skills, agentes, critérios/rubrics de avaliação, um juiz e uma task antes de comparar. Datasets/Trajectories/Analyze são ferramentas de apoio, use quando precisar.</p>
+<p class="hint" style="text-align:center;padding:6px 16px 0;">Primeira comparação: Secrets → Models → Agents → Compare, usando a task soma-fracoes. Skills, critérios, rubrics e juiz são opcionais; configure quando fizerem parte do experimento.</p>
 
 <main>
 
@@ -71,8 +71,8 @@
         <label for="compare-task-picker">Task existente <span class="hint" style="display:inline;margin:0;">— escolha uma criada na aba Tasks, ou digite/cole outro caminho abaixo (ex.: um dataset baixado).</span></label>
         <select id="compare-task-picker"><option value="">— escolher uma task cadastrada —</option></select>
         <label for="f-task-dataset-path">Task / dataset path</label>
-        <input id="f-task-dataset-path" type="text" name="path" placeholder=".\evals\python\seed-task" required>
-        <p class="hint">Os <code>evals/*/seed-task</code> de exemplo deste kit são stubs vazios — crie e preencha uma de verdade na aba "Tasks" primeiro.</p>
+        <input id="f-task-dataset-path" type="text" name="path" placeholder=".\evals\python\soma-fracoes" required>
+        <p class="hint">Para começar, selecione <code>evals/python/soma-fracoes</code>, que tem teste e solução. Os <code>seed-task</code> são stubs para criar outras tasks.</p>
 
         <div class="row-inline">
           <div><label for="f-env">Env</label><input id="f-env" type="text" name="env" value="docker"></div>
@@ -92,11 +92,12 @@
           <div><label for="f-teto-de-gasto-desta-run-usd">Teto de gasto desta run (USD)</label><input id="f-teto-de-gasto-desta-run-usd" type="number" name="costCapUsd" value="1.00" min="0" step="0.0001"></div>
           <div><label>Custo estimado</label><p id="cost-estimate" class="hint status-line" style="margin:6px 0 0;">—</p></div>
         </div>
-        <p class="hint">A estimativa vem do histórico de runs <strong>desta máquina</strong> (custo por trial já medido para aquele agent+model, × n-attempts × linhas) e aparece sozinha ao montar a comparação. Se passar do teto, a run é recusada e você escolhe: aumentar o teto ou confirmar. <strong>0 = sem teto.</strong> Combinação nunca rodada não tem como ser estimada — nesse caso vale um limite de volume: acima de 5 trials pagos às cegas, também pede confirmação.</p>
+        <p class="hint">A estimativa vem do histórico de runs <strong>desta máquina</strong> (custo por trial já medido para aquele agent+model, × n-attempts × tasks × linhas) e aparece sozinha ao montar a comparação. Se passar do teto, a run é recusada e você escolhe: aumentar o teto ou confirmar. <strong>0 = sem teto.</strong> Combinação nunca rodada não tem como ser estimada — nesse caso vale um limite de volume: acima de 5 trials pagos às cegas, também pede confirmação.</p>
         <p class="hint" style="color:var(--warn);">⚠ É uma guarda <strong>pré-voo</strong>, não um limite rígido: o <code>harbor run</code> desta versão não expõe flag de custo, então depois que a run começa nada aqui a interrompe se ela passar do estimado. Para limite real em execução, alguns adapters aceitam o próprio kwarg — ex.: <code>--ak cost_limit=0.50</code> no campo "Extra harbor run args" com o <code>mini-swe-agent</code>.</p>
 
         <label for="f-extra-harbor-run-args-opcional-avancado">Extra harbor run args (opcional, avançado)</label>
         <input id="f-extra-harbor-run-args-opcional-avancado" type="text" name="extra" placeholder="--timeout-multiplier 1.5">
+        <p class="hint">Aceita --timeout-multiplier e --ak/--agent-kwarg. Outros flags são recusados para não alterar modelo, task, tentativas ou volume por fora da prévia. Credenciais entram apenas por Secrets.</p>
 
         <div class="checkbox-inline">
           <input type="checkbox" name="dryRun" id="dryRun">
@@ -107,11 +108,22 @@
         <button class="secondary" type="button" id="compare-cancel-btn" hidden>Cancelar</button>
       </form>
       <p class="hint">Chaves de API cadastradas em "Secrets" são injetadas automaticamente nesta run.</p>
-      <p class="hint">"Cancelar" para os processos <code>harbor</code> e tenta parar os containers daquela run — mas é <strong>melhor esforço</strong>, não garantido: o Harbor limpa containers como parte do término normal de uma run, que um processo morto no meio não alcança. Confira <code>podman ps</code> depois se quiser ter certeza.</p>
+      <p class="hint">"Cancelar" solicita a parada do processo <code>harbor</code>. Containers só são parados quando manifest, label, prefixo e identidade comprovam a propriedade. Containers do Harbor sem esses metadados são preservados; confira <code>podman ps</code> e os logs do job antes de qualquer limpeza manual.</p>
       <pre id="compare-output" class="output status-line" aria-live="polite"></pre>
       </div>
 
       <div class="compare-results">
+      <div class="panel">
+        <h3>Reabrir experimento</h3>
+        <p class="hint">Consulte comparações salvas pela GUI ou CLI, com entradas congeladas e análises. Use Atualizar e Reabrir para acompanhar resultados em disco. Uma nova execução sempre recebe outro ID.</p>
+        <label for="experiment-history-dir">Pasta de jobs do histórico</label>
+        <input id="experiment-history-dir" value="jobs">
+        <label for="experiment-history-picker">Experimento salvo</label>
+        <select id="experiment-history-picker"><option value="">— escolher experimento —</option></select>
+        <button type="button" class="secondary" id="experiment-history-refresh">Atualizar histórico</button>
+        <button type="button" class="secondary" id="experiment-history-open">Reabrir</button>
+        <p id="experiment-history-status" class="status-line" aria-live="polite"></p>
+      </div>
       <!-- Live tail of whatever harbor is writing to disk right now. The run itself is still
            synchronous (one POST that only answers at the end) -- this reads the job's own log
            files from the jobs dir in parallel, so a multi-minute run stops looking frozen. -->

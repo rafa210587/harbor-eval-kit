@@ -50,13 +50,14 @@ Pontos que valem destacar (detalhados no `DOCUMENTACAO.md` §3, §6 e §7):
 
 ## 2. A ordem cognitiva das abas, visualmente
 
-A numeração 1→10 na GUI não é decorativa — cada aba depende do que foi cadastrado nas
-anteriores. Este é o mesmo fluxo do `DOCUMENTACAO.md` §9, só que como grafo:
+A numeração organiza recursos; não obriga a preencher dez abas. O primeiro fluxo é
+**Secrets → Models → Agents → Compare**, com `evals/python/soma-fracoes`. Skills e juiz
+são opcionais. O grafo abaixo mostra relações entre recursos, incluindo os opcionais:
 
 ```mermaid
 flowchart LR
     S1["1. Secrets"] --> S2["2. Models"]
-    S2 --> S3["3. Skills"]
+    S3["3. Skills (opcional)"]
     S3 --> S4["4. Skill Sets"]
     S2 --> S5["5. Agents"]
     S4 --> S5
