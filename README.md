@@ -27,6 +27,12 @@ the deterministic test reward.
 > skipped item (search in simple lists — not worth building for a volume nobody has yet). Layout
 > (two-column Compare, compact-hints mode, grouped nav), accessibility (label associations,
 > `aria-live`) and a light theme (`prefers-color-scheme`, no toggle) are done.
+>
+> ✔️ **Manual UI test plan:
+> [`docs/PLANO_TESTES_UI.md`](./docs/PLANO_TESTES_UI.md)** (in Portuguese) — 49 scenarios across
+> every tab, each with exact steps and expected result, honestly marked as click-tested,
+> API-only-tested, or never tested, so a real click-through session knows exactly where the
+> gaps are instead of re-checking what's already solid.
 
 ## Why this exists
 
