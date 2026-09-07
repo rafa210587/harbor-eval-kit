@@ -28,7 +28,7 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 
 ## 1. Secrets
 
-### T1.1 — Salvar uma chave pelo dropdown de provider ⬜
+### T1.1 — Salvar uma chave pelo dropdown de provider ✅ (validado por clique real)
 1. Aba **1. Secrets**. Provider = `DeepSeek`.
 2. Confirme que **Name** se preencheu sozinho com `DEEPSEEK_API_KEY`.
 3. Cole um valor qualquer em **Value**, clique **Save key**.
@@ -44,7 +44,7 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 1. Cadastre uma chave falsa qualquer, clique **Test**.
 2. **Esperado:** erro real da API do provider (ex.: `AuthenticationError`), não um erro genérico.
 
-### T1.4 — Remove ⬜
+### T1.4 — Remove ✅ (validado por clique real)
 1. Clique **Remove** numa chave de teste.
 2. **Esperado:** some da lista; `GET /api/secrets` não lista mais o nome.
 
@@ -52,7 +52,7 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 
 ## 2. Models
 
-### T2.1 — Cadastrar model manualmente ⬜
+### T2.1 — Cadastrar model manualmente ✅ (validado por clique real)
 1. Aba **2. Models**. Label = `Teste`, provider/model = `deepseek/deepseek-v4-flash`.
 2. **Esperado:** aparece na lista com badge indicando se `DEEPSEEK_API_KEY` já está cadastrada.
 
@@ -61,7 +61,7 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 2. Marque 1-2 checkboxes do checklist que aparece.
 3. **Esperado:** os models marcados aparecem cadastrados na aba Models sem digitar nada.
 
-### T2.3 — Editar e apagar ⬜
+### T2.3 — Editar e apagar ✅ (validado por clique real)
 1. Clique num item da lista de Models pra editar; mude o label; salve.
 2. Apague um model de teste.
 3. **Esperado:** edição reflete na lista; apagar remove e não quebra Agents que o referenciam
@@ -77,11 +77,11 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 3. Salve.
 4. **Esperado:** skill aparece na lista com o arquivo extra registrado.
 
-### T3.2 — Skill por pasta existente ⬜
+### T3.2 — Skill por pasta existente ✅ (validado por clique real)
 1. Modo "Usar pasta existente", aponte pra um caminho real no disco.
 2. **Esperado:** salva sem materializar nada (é só uma referência de caminho).
 
-### T3.3 — Anexar `.md` via input de arquivo ⬜
+### T3.3 — Anexar `.md` via input de arquivo ✅ (validado por clique real)
 1. No modo "Escrever instruções", use o `<input type=file accept=".md">` pra carregar um
    arquivo `.md` local.
 2. **Esperado:** o textarea de instructions é preenchido com o conteúdo do arquivo.
@@ -111,11 +111,11 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 3. **Esperado:** salva; ao adicionar esse agent no Compare depois, model e skillset vêm
    pré-marcados na linha.
 
-### T5.2 — Anexar Instructions via `.md` ⬜
+### T5.2 — Anexar Instructions via `.md` ✅ (validado por clique real)
 1. Em outro agent, use o `<input type=file>` abaixo do textarea de Instructions.
 2. **Esperado:** textarea preenchido com o conteúdo do arquivo anexado.
 
-### T5.3 — Editar e cancelar edição ⬜
+### T5.3 — Editar e cancelar edição ✅ (validado por clique real)
 1. Clique num agent existente pra editar; o formulário muda pra "Save changes" +
    "Cancel edit".
 2. Clique **Cancel edit**.
@@ -129,7 +129,7 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 1. Aba **6. Criteria**: name, description, guidance.
 2. **Esperado:** aparece na lista; disponível no picker da aba Judge Rubrics.
 
-### T6.2 — Editar e apagar (com uso em rubric) ⬜
+### T6.2 — Editar e apagar (com uso em rubric) ✅ (validado por clique real)
 1. Apague um critério que **já está marcado** num Judge Rubric existente.
 2. **Esperado:** não trava; o rubric deve continuar existindo (com os critérios restantes) —
    confirme que `resolveRubricCriteria` filtra o id inexistente sem quebrar a análise.
@@ -188,15 +188,32 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 2. **Esperado:** ao usar essa task no Compare depois, o painel Analisar já abre com esse
    Judge/rubrics pré-marcados.
 
-### T9.4 — Steps > 0 (task multi-etapa) ⬜
+### T9.4 — Steps > 0 (task multi-etapa) ✅ (validado por clique/curl real — achou e corrigiu um bug)
 1. Crie uma task com **Steps = 2**.
 2. **Esperado:** gera `steps/step-1/` e `steps/step-2/`, cada um com seu próprio
-   `instruction.md`/`test.sh`. **Nunca testado nesta sessão** — comportamento multi-step do
-   Harbor em si não foi exercitado.
+   `instruction.md`/`test.sh`.
 
-### T9.5 — Skip pytest/solution templates ⬜
+**Bug real encontrado e corrigido (2026-09-07):** criar uma task pelo formulário com **Org em
+branco** e Name **sem `/`** travava por **60 segundos inteiros**, terminando em
+"Internal Server Error". Causa: sem `--org`, o `harbor init --task` **pergunta
+interativamente** "Organization: " no stdin — e como o processo filho nunca recebe resposta,
+fica pendurado até o timeout do servidor matar ele. Corrigido em duas camadas:
+1. `POST /api/tasks/init` agora recusa na hora (400, ~0.1s) quando falta `org` e o `name` não
+   tem `/` — mensagem explica exatamente o motivo.
+2. `execCommand` (`scripts/lib/exec.ts`) fecha o **stdin** de todo processo filho
+   (`stdio: ["ignore", ...]`) — defesa extra: se outro comando do Harbor perguntar algo no
+   futuro, falha na hora com EOF em vez de travar por um minuto.
+
+Confirmado depois da correção: sem org + sem barra → 400 em 0,135s; com org → 200 em 0,8s; name
+com `/` embutido sem org → 200 em 0,7s; multi-step com org → gerou `steps/step-1/` e
+`steps/step-2/` corretamente.
+
+### T9.5 — Skip pytest/solution templates ✅ (validado por API real)
 1. Crie uma task marcando **Skip pytest template** e/ou **Skip solution template**.
-2. **Esperado:** o esqueleto gerado não inclui esses arquivos de exemplo.
+2. **Esperado:** o esqueleto gerado não inclui esses arquivos de exemplo. **Confirmado**: com
+   `noSolution:true` a pasta `solution/` não é criada; com `noPytest:true` o `tests/test.sh`
+   ainda existe (é onde o reward é escrito, sempre existe) mas vem como esqueleto genérico sem
+   exemplo baseado em pytest.
 
 ---
 
@@ -207,22 +224,45 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 2. Na linha criada, troque o model no `<select class="entry-model">` pra outro cadastrado.
 3. **Esperado:** a linha reflete o override sem alterar o agent original.
 
-### T10.2 — Remover uma entrada ⬜
+### T10.2 — Remover uma entrada ✅ (validado por clique real)
 1. Clique **Remover esta entrada** numa linha.
 2. **Esperado:** some da lista; contador de "N entradas adicionadas" atualiza.
+   Confirmado: "2 entradas adicionadas" → "1 entrada adicionada" após remover uma.
 
 ### T10.3 — Estimativa de custo ao vivo ✅ (validado por clique real)
 1. Com uma linha adicionada e uma task escolhida, observe **Custo estimado**.
 2. Mude n-attempts de 1 pra 5.
 3. **Esperado:** o texto atualiza sozinho (sem precisar rodar), multiplicando pelo histórico.
 
-### T10.4 — Guarda de gasto: teto excedido bloqueia ✅ (validado por clique real, via API)
+### T10.4 — Guarda de gasto: teto excedido bloqueia ✅ (validado por clique real, achou e corrigiu 2 bugs)
 1. Configure um teto baixo (ex.: `0.001`) sabendo que a estimativa é maior.
 2. Clique **Run comparison**.
 3. **Esperado:** aparece um `confirm()` do navegador com a mensagem da guarda; cancelar não
-   gasta nada; confirmar roda mesmo assim. **Fazer este teste clicando o botão de verdade, não
-   só via curl** (a versão via API já foi validada; falta clicar `Run comparison` de propósito
-   sobre um teto estourado e ver o `confirm()` nativo aparecer).
+   gasta nada; confirmar roda mesmo assim.
+
+**Confirmado 2026-09-07**: clicar o botão real dispara `POST /api/compare` → `409`, o app
+chama `confirm("Guarda de gasto:\n\nestimativa de $0.0024 passa do teto de $0.0010...")`,
+cancelar mostra "Cancelado pela guarda de gasto — nada foi executado." e não roda nada
+(confirmado sem novo job/container em disco).
+
+**Bug 1 (real, corrigido)**: o `<input type="number" name="costCapUsd">` tinha
+`step="0.01"` — qualquer teto sub-centavo (ex.: `0.0001`, útil pra testar a guarda contra
+custos reais tipicamente < $0.01) falhava a validação HTML5 nativa **silenciosamente**: o
+clique no botão disparava o evento `click` mas o navegador nunca disparava `submit` no form
+(bloqueado por constraint validation), e o app nunca chama `reportValidity()` — do ponto de
+vista do usuário, o botão simplesmente não fazia nada, sem nenhum feedback visual. Corrigido
+em `gui/index.html`: `step="0.0001"` (mesma precisão que a própria estimativa já exibe, ex.
+"~$0.0024").
+
+**Bug 2 (real, corrigido)**: a mensagem da guarda formatava o teto com `capUsd.toFixed(2)`
+enquanto a estimativa usa `toFixed(4)` — um teto sub-centavo (ex. `0.001`, exatamente o tipo
+de valor que o Bug 1 passou a permitir) aparecia como "teto de $0.00" na mensagem, indistinguível
+do "0 = sem teto" que a própria UI documenta ao lado do campo — o usuário não teria como saber
+se o teto que digitou foi realmente aplicado. Corrigido em `scripts/lib/cost.ts`: `capUsd.toFixed(4)`.
+
+Ambos exigiram restart do processo `node scripts/gui-server.ts` (roda TS nativo, sem hot-reload)
+pra pegar a mudança em `cost.ts` — `gui/index.html` é servido estático, pegou a mudança só com
+reload da página.
 
 ### T10.5 — Guarda de gasto: volume às cegas bloqueia ⬜
 1. Use um agent+model **nunca rodado antes** (sem histórico), com n-attempts alto (ex.: 10).
@@ -234,17 +274,25 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 2. **Esperado:** botão trava, texto "Rodando…" com cronômetro, botão **Cancelar** aparece,
    log ao vivo popula, ao terminar a tabela mostra reward/custo/tokens reais.
 
-### T10.7 — Cancelar uma run em andamento (💰 gasta um pouco de API) ⬜ desde o layout novo
+### T10.7 — Cancelar uma run em andamento (💰 gastou $0,0009) ✅ (validado por clique real, pós-layout)
 1. Dispare uma run real, e **antes de terminar**, clique **Cancelar**.
 2. **Esperado:** texto muda pra "Cancelando…", depois mostra quantos processos/containers
    foram parados; a linha na tabela final (se aparecer) mostra `error: cancelado pelo usuário`.
-   **Validado por clique real numa sessão anterior ao layout de 2 colunas — repetir pra
-   confirmar que a reestruturação do HTML não quebrou o botão/seu texto.**
+   **Confirmado 2026-09-07**: container `soma-fracoes__ldwd4rj__env-main-1` parado de verdade
+   (`podman ps` ficou vazio), linha final: `error: "cancelado pelo usuário -- [killed: signal
+   SIGTERM]"`, botão destravou, Cancelar sumiu de novo. Achado no caminho: uma aba do Chrome
+   que já sofreu vários reloads/timeouts do CDP acumula requests "pending" fantasmas (network
+   panel mostrava `/api/compare` e `/api/compare/estimate` presos, mas o mesmo request via
+   `curl` direto respondia em 4ms) — não é bug do app, é estado da aba. Abrir uma aba nova
+   resolveu. Também descoberto: **recarregar a página no meio de uma run NÃO aborta o processo
+   no servidor** — o `harbor` continua rodando órfão até terminar sozinho (sem jeito de
+   cancelar pela UI depois do reload). Vale documentar como limitação conhecida.
 
-### T10.8 — Dry run ⬜
+### T10.8 — Dry run ✅ (validado por clique real)
 1. Marque **Dry run**, rode.
 2. **Esperado:** `harbor run --print-config`, sem container, sem custo. Confirmar que o painel
-   de log ao vivo **não** aparece (só ativa quando `!dryRun`).
+   de log ao vivo **não** aparece (só ativa quando `!dryRun`). Confirmado: rodou em 0,7s,
+   painel de log ao vivo ficou escondido, `ok:true` sem reward/custo (não é run de verdade).
 
 ### T10.9 — Aviso de Judge faltando ✅ (validado por clique real)
 1. Com rubrics cadastrados e **zero** Judges, olhe o painel "4. Analisar" após uma run.
@@ -279,9 +327,15 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 1. Após uma run, clique **Ver trajetórias**.
 2. **Esperado:** abre uma nova aba com o `harbor view` daquele jobs dir.
 
-### T10.16 — Layout responsivo (colapso de 2 colunas) ⬜
+### T10.16 — Layout responsivo (colapso de 2 colunas) 🔶 (regra CSS confirmada, viewport real não testado)
 1. Redimensione a janela do navegador pra menos de 1100px de largura.
 2. **Esperado:** `.compare-layout` colapsa pra uma coluna só (config em cima, resultado embaixo).
+   **Nota:** confirmei que a regra `@media (max-width: 1100px) { .compare-layout {
+   grid-template-columns: 1fr; } }` existe no CSS carregado, exatamente como escrita. Não
+   consegui forçar o viewport real a encolher com as ferramentas de automação disponíveis
+   (`resize_window` redimensiona a janela do SO, não o viewport de renderização neste
+   ambiente). **Pendente confirmação visual manual** — redimensione a janela de verdade uma
+   vez e confirme que o layout colapsa como esperado.
 
 ---
 
@@ -302,17 +356,18 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 
 ## 12. Config Bundle
 
-### T12.1 — Exportar clicando o botão de verdade ⬜ desde o layout novo
+### T12.1 — Exportar clicando o botão de verdade ✅ (validado por clique real, pós-layout)
 1. Aba **Config**, clique **Exportar bundle (.json)**.
 2. **Esperado:** o navegador baixa um arquivo `harbor-eval-kit-config-<data>.json`; o texto de
-   status mostra a contagem por registry. **Só validado via `fetch()` direto depois do layout
-   novo — falta clicar o botão de verdade e confirmar que o download realmente cai no disco.**
+   status mostra a contagem por registry. **Confirmado 2026-09-07**: arquivo apareceu de
+   verdade em `Downloads/harbor-eval-kit-config-2026-09-07.json`, status mostrou
+   `skills: 1, skillsets: 1, models: 9, agents: 4, criteria: 2, rubrics: 1, judges: 1`.
 
-### T12.2 — Importar clicando o botão de verdade ⬜ desde o layout novo
-1. Use o `<input type=file>` da aba Config pra selecionar o `.json` baixado no T12.1 (ou peça
-   pro usuário escolher manualmente, já que scripts não conseguem simular escolha de arquivo
-   real do SO).
+### T12.2 — Importar clicando o botão de verdade ✅ (validado por clique real, pós-layout)
+1. Use o `<input type=file>` da aba Config pra selecionar o `.json` baixado no T12.1.
 2. **Esperado:** status mostra "Importado -- N novo(s), M atualizado(s)" e a lista reflete.
+   **Confirmado 2026-09-07** (via `DataTransfer` simulando a escolha real de arquivo, disparando
+   o `change` real do input): `0 novo(s), 19 atualizado(s)` — idempotente, nada duplicou.
 
 ### T12.3 — Idempotência: apagar um item e reimportar ✅ (validado por clique real, antes do layout novo)
 1. Apague um critério; importe o bundle exportado antes de apagar.
@@ -327,17 +382,17 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 2. **Esperado:** job picker já vem preenchido (marcando `▶` o que está rodando), arquivo
    preferencial é o `trial.log` (não o `reward.txt` de 1 byte), conteúdo aparece sozinho.
 
-### T13.2 — Trocar de job/arquivo manualmente ⬜
+### T13.2 — Trocar de job/arquivo manualmente ✅ (validado por clique real)
 1. Com jobs antigos no histórico, troque o **Job** e o **Arquivo de log** nos selects.
 2. **Esperado:** conteúdo atualiza pro arquivo escolhido, offset reseta (não mistura conteúdo
    de dois arquivos diferentes).
 
-### T13.3 — Desmarcar "Seguir" ⬜
+### T13.3 — Desmarcar "Seguir" ✅ (validado por clique real)
 1. Durante uma run, desmarque o checkbox **Seguir**.
 2. **Esperado:** o conteúdo para de atualizar sozinho (polling continua rodando em background,
    mas o texto não se move) — confirmar que voltar a marcar retoma sem perder o que já tinha.
 
-### T13.4 — Botão "Atualizar lista" manual ⬜
+### T13.4 — Botão "Atualizar lista" manual ✅ (validado por clique real)
 1. Clique **Atualizar lista** sem trocar de aba.
 2. **Esperado:** relista os jobs (útil se uma run nova começou enquanto você já estava na aba).
 
@@ -345,11 +400,11 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 
 ## 14. Trajectories
 
-### T14.1 — Iniciar viewer direto nesta aba (sem vir do Compare) ⬜
+### T14.1 — Iniciar viewer direto nesta aba (sem vir do Compare) ✅ (validado por clique real)
 1. Aba **Trajectories**, preencha **Jobs dir** manualmente, clique **Start viewer**.
 2. **Esperado:** mesmo comportamento do T10.15, mas iniciado daqui.
 
-### T14.2 — Múltiplos viewers simultâneos ⬜
+### T14.2 — Múltiplos viewers simultâneos ✅ (validado por clique real)
 1. Inicie 2 viewers pra jobs dirs diferentes.
 2. **Esperado:** lista mostra os 2, cada um com seu próprio **Stop**; parar um não afeta o outro.
 
@@ -357,11 +412,20 @@ Ao rodar um teste, troque o status pra ✅ (ou anote o que quebrou) — este arq
 
 ## 15. Analyze (standalone)
 
-### T15.1 — Analisar um path digitado à mão ⬜
+### T15.1 — Analisar um path digitado à mão ✅ (validado por clique real — achou e corrigiu um bug)
 1. Aba **Analyze**, cole um path de trial já existente (ex.: de uma run anterior), escolha
    Judge, clique o botão de analisar.
 2. **Esperado:** mesmo resultado que analisar pela tabela do Compare, mas sem precisar ter
    acabado de rodar naquela sessão.
+
+**Bug real encontrado e corrigido (2026-09-07):** a aba Analyze standalone **não tinha o
+checkbox "Modo validação"** que o painel de Analyze do Compare tem — então era **impossível**
+usar um Judge cadastrado em modo validação (ex.: DeepSeek) a partir desta aba: o gate do
+servidor sempre recusava por faltar o flag, sem essa aba ter como enviá-lo. Corrigido
+adicionando o mesmo checkbox (`gui/index.html`); `FormData` já lida sozinha com o
+`Boolean("on")`/ausente, então nenhum JS extra foi necessário. Confirmado rodando de verdade
+com o Judge de validação DeepSeek sobre um trial já existente em disco: `analysis.json`
+gerado, resumo real da trajetória, renderizado corretamente em `#analyze-output`.
 
 ---
 

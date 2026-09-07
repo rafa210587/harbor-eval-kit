@@ -194,7 +194,7 @@ export function checkCostGuard(
   return {
     allowed: false,
     reason:
-      `estimativa de $${estimate.estimateUsd.toFixed(4)} passa do teto de $${capUsd.toFixed(2)}. ` +
+      `estimativa de $${estimate.estimateUsd.toFixed(4)} passa do teto de $${capUsd.toFixed(4)}. ` +
       `Aumente o teto ou confirme explicitamente para rodar assim mesmo.`,
     estimate,
   };

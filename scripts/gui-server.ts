@@ -499,6 +499,18 @@ addRoute("GET", "/api/jobs", (req, res) => {
 addRoute("POST", "/api/tasks/init", async (_req, res, _params, body) => {
   const { name, org, outputDir, description, author, noPytest, noSolution, steps } = body;
   if (!name) return sendJson(res, 400, { ok: false, error: "name is required (org/name format)" });
+  // Found by testing: without --org, `harbor init --task` prompts interactively for
+  // "Organization: " on stdin whenever `name` has no "org/" prefix of its own -- the spawned
+  // process then has no way to answer, so every such call used to hang for the full 60s
+  // timeout and surface as an opaque "Internal Server Error". Reject fast with a clear message
+  // instead of ever letting that prompt happen (stdin is also closed in exec.ts as a second,
+  // independent layer, in case some other harbor subcommand prompts for something else).
+  if (!org && !String(name).includes("/")) {
+    return sendJson(res, 400, {
+      ok: false,
+      error: "org is required when name has no 'org/' prefix (harbor init --task would otherwise prompt interactively and hang)",
+    });
+  }
   const args = ["init", String(name), "--task"];
   if (org) args.push("--org", String(org));
   if (outputDir) args.push("-o", String(outputDir));

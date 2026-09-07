@@ -141,7 +141,16 @@ export function execCommand(
     const env = dockerHostFix
       ? buildHarborEnv(opts.extraEnv)
       : withPythonUtf8(withTelemetryDisabled({ ...process.env, ...opts.extraEnv }));
-    const child = spawn(cmd, args, { env, cwd: opts.cwd });
+    // stdin is explicitly closed ("ignore"), never left as an open, silently-empty pipe.
+    // Found by testing: `harbor init --task` with no --org and a bare (no "/") name prompts
+    // interactively for "Organization: " on stdin. A default `spawn()` pipe leaves that stdin
+    // open but never written to, so the CLI just sits there -- the request only ever ends via
+    // the 60s timeout, surfacing as an opaque "Internal Server Error" instead of a fast, clear
+    // failure. Closing stdin makes any interactive prompt (this one, or one we haven't hit yet
+    // in some other harbor subcommand) fail immediately with EOF instead of hanging for a
+    // minute -- defense in depth on top of the actual fix, which is validating --org up front
+    // (see the /api/tasks/init route).
+    const child = spawn(cmd, args, { env, cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
     opts.onSpawn?.(child);
     let stdout = "";
     let stderr = "";
