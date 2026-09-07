@@ -9,7 +9,7 @@
 // Run with no arguments (or --help) for usage.
 
 import { parseArgs } from "node:util";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   type Combo,
@@ -17,6 +17,8 @@ import {
   type Skillset,
   buildCombos,
   buildHarborRunArgs,
+  checkCostGuard,
+  estimateCompareCost,
   execHarbor,
   isHarborAvailable,
   jobName,
@@ -50,6 +52,8 @@ Options:
   --interactive          Do not auto-pass -y; let Harbor prompt (only if this script has a TTY)
   --dry-run              Validate every combo via 'harbor run --print-config' only.
                          No trials run, no cost, no containers.
+  --cost-cap-usd <n>     Refuse the run if the estimated cost exceeds this (0/unset = no cap)
+  --yes-spend            Acknowledge the spend guard and run anyway
   --no-docker-host-fix   Disable automatic DOCKER_HOST injection on Windows/Podman
   --out-prefix <path>    Report file prefix (default: <jobs-dir>/<job-prefix>-report)
   --help                 Show this help
@@ -97,6 +101,8 @@ async function main(): Promise<void> {
       interactive: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
       "no-docker-host-fix": { type: "boolean", default: false },
+      "cost-cap-usd": { type: "string" },
+      "yes-spend": { type: "boolean", default: false },
       "out-prefix": { type: "string" },
       help: { type: "boolean", default: false },
     },
@@ -137,6 +143,43 @@ async function main(): Promise<void> {
 
   console.log(`Matrix: ${combos.length} combination(s)${dryRun ? " (dry run, no cost)" : ""}`);
   for (const c of combos) console.log(" -", jobName(prefix, c));
+
+  // Same spend guard the GUI applies, for the same reason: the incident that motivated it
+  // (four rows x n-attempts=30 launching 120 paid runs with no warning) is reachable from here
+  // too, and the CLI is the easier place to type a big number by accident. A dry run spends
+  // nothing, so it skips the check entirely.
+  if (!dryRun) {
+    const nAttempts = Math.max(1, parseInt(values["n-attempts"] ?? "1", 10) || 1);
+    const estimate = estimateCompareCost(
+      jobsDir,
+      combos.map((c) => ({ agent: c.agent, model: c.model ?? "(default)" })),
+      nAttempts
+    );
+    const capUsd = values["cost-cap-usd"] ? parseFloat(values["cost-cap-usd"]) : null;
+    const verdict = checkCostGuard(estimate, capUsd, values["yes-spend"] ?? false);
+    const shown = estimate.estimateUsd === null ? "não estimável (sem histórico)" : `~$${estimate.estimateUsd.toFixed(4)}`;
+    console.log(`Custo estimado: ${shown} em ${estimate.totalTrials} trial(s)`);
+    if (!verdict.allowed) {
+      console.error(`\nRecusado pela guarda de gasto: ${verdict.reason}`);
+      console.error("Para rodar assim mesmo: --yes-spend (ou aumente/defina --cost-cap-usd).");
+      process.exit(1);
+    }
+  }
+
+  // Job names are derived from prefix+agent+model+skillset, so re-running with the same
+  // --job-prefix lands on the same directories and the same <prefix>-report files. Harbor
+  // reuses the existing job instead of running again (observed: a colliding "run" finished in
+  // 1s against 60s for the real one), which silently turns a fresh comparison into a reread of
+  // an old one. Warn rather than block -- reusing a job dir on purpose is legitimate.
+  const colliding = combos.map((c) => jobName(prefix, c)).filter((n) => existsSync(join(jobsDir, n)));
+  if (colliding.length > 0 && !dryRun) {
+    console.warn(
+      `\nAVISO: ${colliding.length} job(s) já existem em '${jobsDir}' com este --job-prefix ` +
+        `(${colliding.slice(0, 3).join(", ")}${colliding.length > 3 ? ", …" : ""}).\n` +
+        `O Harbor reaproveita o job existente em vez de rodar de novo, e o relatório ` +
+        `'${prefix}-report.*' é sobrescrito. Use outro --job-prefix para uma comparação nova.\n`
+    );
+  }
 
   mkdirSync(jobsDir, { recursive: true });
 

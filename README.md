@@ -1,56 +1,89 @@
 # Harbor Eval Kit
 
-A **Podman-only** (no Docker) local GUI + CLI for installing, running, and comparing
-coding-agent evals with the [Harbor Framework](https://github.com/harbor-framework/harbor) —
-model vs. model, agent vs. agent, skill ablation, and an optional LLM-judge layer on top of
-the deterministic test reward.
+A local **evaluation workbench** for coding agents, built on top of the
+[Harbor Framework](https://github.com/harbor-framework/harbor).
 
-> 📖 **Full documentation, step-by-step install, and the reasoning behind every decision:
-> [`DOCUMENTACAO.md`](./DOCUMENTACAO.md)** (in Portuguese). This README is the quick tour;
-> that file is the complete reference.
->
-> 🗺️ **Prefer diagrams and a worked example?
-> [`docs/COMO_FUNCIONA.md`](./docs/COMO_FUNCIONA.md)** (in Portuguese) walks through the
-> architecture, what happens end-to-end on a Compare run, and a full story comparing
-> DeepSeek vs. Claude on the same task — including a real invalid-API-key error and how it
-> got fixed via the Secrets tab's **Test** button.
->
-> ✅ **"What do I have to register before this works?"
-> [`docs/FLUXO_RUN_COMPARE_ANALYZE.md`](./docs/FLUXO_RUN_COMPARE_ANALYZE.md)** (in Portuguese)
-> is the prerequisite map: required vs. optional per operation (Run / Compare / Analyze), why
-> each registry exists, why a Judge forces a curated high-tier model, the zero-cost first run
-> via the `oracle` agent, and every real error message with its fix.
->
-> 🚧 **What's next, and why?
-> [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md)** (in Portuguese) tracks what's left — today
-> that's just the licensing decision (a business call, not a technical one) and a deliberately
-> skipped item (search in simple lists — not worth building for a volume nobody has yet). Layout
-> (two-column Compare, compact-hints mode, grouped nav), accessibility (label associations,
-> `aria-live`) and a light theme (`prefers-color-scheme`, no toggle) are done.
->
-> ✔️ **Manual UI test plan:
-> [`docs/PLANO_TESTES_UI.md`](./docs/PLANO_TESTES_UI.md)** (in Portuguese) — 49 scenarios across
-> every tab, each with exact steps and expected result, honestly marked as click-tested,
-> API-only-tested, or never tested, so a real click-through session knows exactly where the
-> gaps are instead of re-checking what's already solid.
+Harbor runs a coding agent against a task in a container and reports what happened. This kit is
+the layer around that: it lets you compose the *experiment* — which agents, which models, which
+skills, on which task, how many attempts — run the whole matrix, and compare the results side by
+side, from a local GUI or a script. Container runtime is **Podman only**; it never installs Docker.
 
-## Why this exists
+The question it exists to answer is the boring one that's annoyingly hard to answer well:
 
-Harbor itself is model/runtime-agnostic, but its Docker-oriented backend doesn't just talk to
-Podman out of the box on any platform — the fix differs per OS (a Docker-pipe mismatch on
-Windows, a per-machine socket path on macOS, usually nothing needed on native Linux). This
-kit detects the OS and resolves the right one automatically — see
+> *Is this model actually better than that one for my task — or did I just change three things
+> at once and read the tea leaves?*
+
+## What Harbor does vs. what this kit adds
+
+| Harbor owns | Harbor Eval Kit owns |
+|---|---|
+| running a task in a container (the harness) | composing the comparison: agent × model × skill set × attempts |
+| agent adapters (43 of them: `claude-code`, `mini-swe-agent`, …) | registries so those pieces are named, reusable and shareable, not retyped flags |
+| trials, trajectories, `result.json`, its own `analyze` | the spend guard, the judge/rubric policy, the GUI/CLI, the comparison table |
+| the deterministic reward from your `tests/test.sh` | the reproducibility plumbing around it (config bundles, pinned Harbor version) |
+
+Nothing here reimplements Harbor. Every run is a real `harbor` CLI call — this kit builds the
+argv, injects the right credentials and reads the results back.
+
+## The evaluation model
+
+```text
+Task  ×  Agent  ×  Model  ×  Skill Set  ×  N attempts
+                      │
+                      ▼
+        deterministic reward (tests/test.sh)   ← this IS the comparison
+                      │
+                      └── optional: Judge × Rubric   ← only for what the test can't see
+```
+
+You normally vary **one** dimension and hold the rest fixed:
+
+- **Model comparison** — same task, same agent, same skills; model A vs. model B.
+- **Agent comparison** — same task, same model (where the adapter supports one), same skills.
+- **Skill ablation** — same everything; no skills vs. skill A vs. skill A+B.
+
+The reward from your own test script is the real signal, the same way SWE-bench/HumanEval do it.
+The LLM judge is strictly opt-in, for the two things a pass/fail test cannot see: reward hacking,
+and breaking a tie between candidates that all passed. A judge is always locked to a curated
+high-tier model — never Harbor's cheap default — because a cheap judge defeats the point.
+
+## Compatibility
+
+| | Validated |
+|---|---|
+| **Harbor** | `0.22.0` — pinned by the installers, and the version every parsing assumption here was checked against |
+| **Node** | 22.6+ (native TypeScript execution; no `tsc`, no build step, no `node_modules`) |
+| **Podman** | 6.x, machine running. **No Docker, ever.** |
+| **OS** | Windows validated end-to-end with real runs; macOS/Linux logic-tested, not yet run on real hardware |
+
+The Harbor pin is deliberate: this kit mirrors one release's adapter list, parses its
+`harbor analyze` output and reads its `result.json` field names — all of which change *silently*,
+not loudly. The GUI's status bar reports the installed version and flags a mismatch against the
+tested one. A newer Harbor will probably work; it just stops being something anyone verified.
+
+## Documentation map
+
+This README is the tour. The depth is elsewhere (in Portuguese):
+
+| Document | What's in it |
+|---|---|
+| [`DOCUMENTACAO.md`](./DOCUMENTACAO.md) | The complete reference: every decision and its reasoning, step-by-step install, every tab in detail |
+| [`docs/COMO_FUNCIONA.md`](./docs/COMO_FUNCIONA.md) | Diagrams + a worked story: DeepSeek vs. Claude on the same task, including a real API-key failure and its fix |
+| [`docs/FLUXO_RUN_COMPARE_ANALYZE.md`](./docs/FLUXO_RUN_COMPARE_ANALYZE.md) | "What must I register before this works?" — required vs. optional per operation, with every real error message and its fix |
+| [`docs/PLANO_TESTES_UI.md`](./docs/PLANO_TESTES_UI.md) | 49 manual UI scenarios, each honestly marked click-tested / API-only / never tested |
+| [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md) | What's deliberately not built yet, and why |
+| [`docs/ENGENHARIA.md`](./docs/ENGENHARIA.md) | The engineering rules every change follows, and the real incident behind each one |
+
+## Why Podman-only is a feature, not a limitation
+
+Harbor's backend is Docker-oriented, and it does not talk to Podman out of the box on every
+platform — the fix differs per OS (a Docker-pipe collision on Windows, a per-machine socket path
+on macOS, usually nothing on native Linux). This kit detects the OS and resolves the right
+`DOCKER_HOST` automatically, scoped to the child process so it never touches your shell. See
 [the compatibility gate](./DOCUMENTACAO.md#4-o-gate-de-compatibilidade-podmanharbor-windows-macos-linux)
-for the exact mechanism per platform, and its honest caveat: the Windows path has been
-validated end-to-end with real runs; macOS/Linux have the resolution logic validated in
-isolation, not yet a live run on real hardware. This kit:
-
-- Never installs Docker — validates and uses **Podman** as the container runtime.
-- Explicitly gates on Podman↔Harbor compatibility before declaring anything "ready", per OS.
-- Wraps `harbor run`/`harbor analyze`/`harbor init --task`/`harbor dataset` behind a local
-  GUI and a couple of scripts, so you don't need to memorize CLI flags to run a comparison.
-- Disables Harbor's own default telemetry (PostHog) and hardens where secrets live — see
-  [Security](#security) below.
+for the mechanism per platform, and its honest caveat (Windows is the path with real end-to-end
+runs behind it). It also disables Harbor's own PostHog telemetry unconditionally — see
+[Security](#security).
 
 ## Prerequisites
 
@@ -133,6 +166,7 @@ fully detailed walkthrough, including the Podman↔Harbor compatibility gate and
 | Combinations | explicit list of entries (agent + model/skillset overrides), built by hand | full cartesian product via repeatable `--agent`/`--model`/`--skillset` flags |
 | State | persists agents/models/skills/rubrics/judges as JSON registries in `~/.harbor-eval-kit/` | stateless — everything passed as flags |
 | Output | live table in the browser + CSV/JSON report | terminal table + CSV/JSON report |
+| Spend guard | same guard, same estimate source (`--cost-cap-usd` ⇄ the "Teto de gasto" field) | same guard, acknowledged with `--yes-spend` |
 
 Both are thin orchestrators around real `harbor` CLI calls — neither reimplements anything
 Harbor already does. Both run **locally**, never as a hosted page, because they need to reach
@@ -249,6 +283,15 @@ Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-
   injected into every `harbor` child process) — confirmed via the installed package's source
   that no API key ever enters that payload, but usage data (models tried, cost, reward) would
   leave the machine by default otherwise.
+- **The local API refuses requests that didn't come from its own page.** Binding to `127.0.0.1`
+  keeps the network out but not your own browser: any site you have open can send a
+  `Content-Type: text/plain` POST to `http://127.0.0.1:4173` — a CORS "simple request", so
+  there's no preflight to refuse — and while it can't read the reply, the side effect lands.
+  That was enough to spend real API credit via `/api/compare`, repoint a Judge's model, or
+  delete a registry. Every request is now checked on two axes: `Origin` must be this server's
+  own page (absent is fine — curl and the kit's own scripts don't send one), and `Host` must be
+  loopback on the right port, which is what catches DNS rebinding, where the page *is*
+  same-origin by the time it fires.
 - Full threat-model writeup, including what *isn't* guaranteed (plain-text file on disk,
   Windows ACL hardening steps): [`DOCUMENTACAO.md` §7](./DOCUMENTACAO.md#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é).
 
@@ -318,14 +361,22 @@ itself (Podman is preexisting infrastructure, not something this kit installed).
 
 ## Known limitations
 
-- **Spend guard**: Compare previews the estimated cost from this machine's own run history and
-  refuses (409) before spawning anything if it exceeds the cap, or if more than 5 paid trials
-  would run with no history to price them. It is a pre-flight guard, not a hard limit — this
-  Harbor exposes no cost flag, so nothing here can stop a run already in progress.
+- **Spend guard**: both the GUI and the CLI preview the estimated cost from this machine's own
+  run history and refuse before spawning anything if it exceeds the cap, or if more than 5 paid
+  trials would run with no history to price them. It is a pre-flight guard, not a hard limit —
+  this Harbor exposes no cost flag, so nothing here can stop a run already in progress. A
+  combination that has never run has *no* estimate, which is treated as "unknown", not as free.
 - Compare in the GUI is still synchronous — one POST that only answers once every combination
-  finished, so there are no partial per-row results and no way to cancel mid-run. It is no
-  longer *blind*, though: the button locks while running, an elapsed-time counter ticks, and a
-  live tail of harbor's own log files shows what's happening (also in the **Logs** tab).
+  finished, so there are no partial per-row results. It is not *blind*, though: the button locks
+  while running, an elapsed-time counter ticks, and a live tail of harbor's own log files shows
+  what's happening (also in the **Logs** tab). **Cancel** works mid-run (kills the `harbor`
+  process and best-effort stops the matching Podman containers), but reloading the page does
+  **not** — the run keeps going server-side with no way to reach it from the UI afterwards.
+- **Re-running with the same "Job prefix" reuses the existing job** instead of running again:
+  job names are derived from prefix + agent + model + skill set, so Harbor finds the directory
+  already there and rereads it (a colliding row finishes in ~1s instead of ~60s), and the
+  `<prefix>-report` files are overwritten. Both the GUI and the CLI now warn when this happens
+  — change the prefix for a genuinely fresh comparison.
 - `harbor dataset list` (this Harbor version) only prints a Hub link, not a browsable list.
 - A Judge can't be given a real tool-accessible skill (no `--skill` flag on `harbor analyze`)
   — only custom instructions via `--prompt`. Confirmed against Harbor's own source, not a gap

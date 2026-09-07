@@ -156,7 +156,11 @@ install() {
   doctor_podman
   install_uv
   if ! have harbor; then
-    uv tool install harbor
+    # Pinned, not "latest": this kit parses `harbor analyze` stdout, mirrors `harbor run --help`'s
+    # adapter list, and reads result.json field names -- all of which are one release's behaviour
+    # and all of which fail silently when it changes. Keep in lockstep with
+    # TESTED_HARBOR_VERSION in scripts/lib/catalog.ts (a test enforces that they match).
+    uv tool install "harbor==0.22.0"
     export PATH="$HOME/.local/bin:$PATH"
     mark_installed harbor
   fi

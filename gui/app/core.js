@@ -71,10 +71,16 @@ $$('input[type=file][data-attach-target]').forEach((input) => {
 });
 
 
+// `sub` is escaped HERE, not by the callers. It used to be interpolated raw, and the callers
+// escaped only some of what they concatenated into it -- an agent's free-text `--agent value`,
+// a criterion name and a skill label all reached the DOM unescaped, while `notes` next to them
+// was escaped. Escaping at the sink is the only version of this that cannot rot: a new caller
+// gets it right by default instead of having to remember. Matters beyond self-XSS because a
+// config bundle is meant to be shared and imported, and this page can reach the whole local API.
 export function makeRow(item, { title, sub, onEdit, onDelete }) {
   const row = document.createElement("div");
   row.className = "row";
-  row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(title)}</div>${sub ? `<div class="row-sub">${sub}</div>` : ""}</div><div class="row-actions"></div>`;
+  row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(title)}</div>${sub ? `<div class="row-sub">${escapeHtml(sub)}</div>` : ""}</div><div class="row-actions"></div>`;
   const actions = row.querySelector(".row-actions");
   const editBtn = document.createElement("button");
   editBtn.textContent = "Edit";
@@ -104,7 +110,10 @@ export function checkboxGroup(container, items, { name, checkedIds = [] }) {
   const labels = items.map((item) => {
     const label = document.createElement("label");
     const checked = checkedIds.includes(item.id) ? "checked" : "";
-    label.innerHTML = `<input type="checkbox" name="${name}" value="${item.id}" ${checked}> ${escapeHtml(item.label)}`;
+    // item.id is escaped too: ids are server-generated UUIDs for locally created entries, but
+    // an imported config bundle carries whatever ids the file says, and this one lands inside
+    // an HTML attribute where a bare quote would break out of it.
+    label.innerHTML = `<input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(item.id)}" ${checked}> ${escapeHtml(item.label)}`;
     label.dataset.searchText = item.label.toLowerCase();
     return label;
   });

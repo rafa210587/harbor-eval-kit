@@ -21,7 +21,7 @@ const agentsEdit = wireEditableForm(agentsForm, {
 function renderAgentModelSelect(selectedId = "") {
   const sel = $("#agent-model-select");
   sel.innerHTML = '<option value="">— nenhum (usa o padrão do Harbor) —</option>' +
-    state.models.map((m) => `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)}</option>`).join("");
+    state.models.map((m) => `<option value="${escapeHtml(m.id)}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)}</option>`).join("");
 }
 
 function renderAgentDefaultSkillsetPicker(checkedIds = []) {
@@ -37,7 +37,7 @@ function renderAgentsList() {
     if (modelLabel) bits.push(`model: ${modelLabel}`);
     if (item.instructions && item.instructions.trim()) bits.push("+instructions");
     if (item.defaultSkillsetIds && item.defaultSkillsetIds.length) bits.push(`+${item.defaultSkillsetIds.length} skill set(s)`);
-    if (item.notes) bits.push(escapeHtml(item.notes));
+    if (item.notes) bits.push(item.notes);
     list.appendChild(makeRow(item, {
       title: item.label,
       sub: bits.join(" · "),

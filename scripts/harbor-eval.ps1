@@ -80,7 +80,10 @@ function Install {
     throw "uv missing. Install uv user-level in WSL/Linux or Windows, then rerun. This PowerShell wrapper refuses to silently install system-wide runtimes."
   }
   if (-not (Has "harbor")) {
-    uv tool install harbor
+    # Pinned, not "latest" -- same reasoning as harbor-eval.sh: this kit encodes one Harbor
+    # release's CLI/output behaviour. Keep in lockstep with TESTED_HARBOR_VERSION in
+    # scripts/lib/catalog.ts (a test enforces that they match).
+    uv tool install "harbor==0.22.0"
   }
   harbor --help | Out-Null
   Write-Host "Harbor CLI: PASS"

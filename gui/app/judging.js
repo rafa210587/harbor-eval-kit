@@ -21,7 +21,7 @@ function renderCriteriaList() {
   for (const item of state.criteria) {
     list.appendChild(makeRow(item, {
       title: item.name,
-      sub: escapeHtml(item.description || ""),
+      sub: item.description || "",
       onEdit: () => criteriaEdit.startEdit(item.id, () => {
         criteriaForm.name.value = item.name;
         criteriaForm.description.value = item.description;
@@ -96,7 +96,7 @@ function renderJudgeModelSelect(selectedId = "") {
     options.map((m) => {
       const nonCurated = !allowedValues.has(m.value);
       const suffix = nonCurated ? " ⚠ fora da lista curada" : "";
-      return `<option value="${m.id}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)} (${escapeHtml(m.value)})${suffix}</option>`;
+      return `<option value="${escapeHtml(m.id)}" ${m.id === selectedId ? "selected" : ""}>${escapeHtml(m.label)} (${escapeHtml(m.value)})${suffix}</option>`;
     }).join("");
   $("#judge-model-values-hint").textContent = state.judgeModels.map((m) => m.value).join(", ");
 }
@@ -118,7 +118,7 @@ function renderJudgesList() {
     bits.push(modelLabel ? `model: ${modelLabel}` : "model: (nenhum — não roda até cadastrar um)");
     if (item.promptTemplate && item.promptTemplate.trim()) bits.push("+instruções custom");
     if (item.defaultRubricIds && item.defaultRubricIds.length) bits.push(`+${item.defaultRubricIds.length} rubric(s)`);
-    if (item.notes) bits.push(escapeHtml(item.notes));
+    if (item.notes) bits.push(item.notes);
     list.appendChild(makeRow(item, {
       title: item.label,
       sub: bits.join(" · "),
@@ -152,7 +152,7 @@ function renderJudgePickers() {
   // Standalone Analyze tab stays single-rubric (ad-hoc use); Compare and the task pinning
   // support N rubrics (see renderComparRubricPicker / renderTaskRubricPicker below).
   const rubricOpts = '<option value="__default__">— padrão do Harbor (reward_hacking + task_specification) —</option>' +
-    state.rubrics.map((r) => `<option value="${r.id}">${escapeHtml(r.label)}</option>`).join("");
+    state.rubrics.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.label)}</option>`).join("");
   const analyzeSel = $("#analyze-rubric-select");
   if (analyzeSel) analyzeSel.innerHTML = rubricOpts;
 

@@ -51,6 +51,9 @@ import {
   exportConfigBundle,
   importConfigBundle,
   checkCostGuard,
+  checkRequestOrigin,
+  isTestedHarborVersion,
+  TESTED_HARBOR_VERSION,
   estimateCompareCost,
   getLitellmGatewayConfig,
   getLitellmGatewayPath,
@@ -141,7 +144,10 @@ function registryRoutes(name: RegistryName): void {
       return sendJson(res, 400, { ok: false, error: "label (or name, for criteria) is required" });
     }
     const items = readRegistry<any>(name);
-    const item = { id: newId(), ...body };
+    // id LAST, never spread-over: with `{ id: newId(), ...body }` a client could dictate its
+    // own id (confirmed: POSTing {"id":"x"} stored id "x"), which collides with existing
+    // entries and puts attacker-chosen text into DOM attributes the GUI renders.
+    const item = { ...body, id: newId() };
     items.push(item);
     writeRegistry(name, items);
     sendJson(res, 201, item);
@@ -264,8 +270,17 @@ addRoute("GET", "/api/status", async (_req, res) => {
     execCommand("podman", ["--version"], { dockerHostFix: false }),
     execCommand("podman", ["info"], { dockerHostFix: false }),
   ]);
+  const installedHarbor = harborVersion?.stdout.trim() ?? null;
   sendJson(res, 200, {
-    harbor: { available: harborAvailable, version: harborVersion?.stdout.trim() ?? null },
+    harbor: {
+      available: harborAvailable,
+      version: installedHarbor,
+      // Reported, not enforced: a different Harbor usually still runs, it just stops being the
+      // one this kit's parsing/argv assumptions were validated against (see
+      // TESTED_HARBOR_VERSION for the exact list of what is version-coupled).
+      testedVersion: TESTED_HARBOR_VERSION,
+      versionMatchesTested: isTestedHarborVersion(installedHarbor),
+    },
     podman: {
       available: podmanVersion.code === 0,
       version: podmanVersion.code === 0 ? podmanVersion.stdout.trim() : null,
@@ -419,6 +434,12 @@ addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
     return sendJson(res, 409, { ok: false, error: verdict.reason, estimate: verdict.estimate, needsAcknowledge: true });
   }
 
+  // Job names are prefix+agent+model+skillset, so re-running with the same "Job prefix" lands
+  // on the same job dirs and overwrites the same <prefix>-report files. Harbor then reuses the
+  // existing job rather than running again (observed: a colliding row finished in ~1s against
+  // ~60s for the real one), quietly turning a fresh comparison into a reread of an old one.
+  // Reported, not blocked -- pointing at an existing job dir on purpose is legitimate.
+  const collidingJobs = combos.map((c) => jobName(jobPrefix, c)).filter((n) => existsSync(join(jobsDir, n)));
   mkdirSync(jobsDir, { recursive: true });
   const extraArgs = extra ? String(extra).split(/\s+/).filter(Boolean) : [];
   const secretsEnv = loadSecretsEnv();
@@ -476,6 +497,7 @@ addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
       rows,
       reportJson: `${outPrefix}.json`,
       reportCsv: `${outPrefix}.csv`,
+      reusedJobs: collidingJobs,
     });
   } finally {
     if (runId) activeRuns.delete(String(runId));
@@ -752,8 +774,20 @@ async function serveStatic(pathname: string, res: ServerResponse): Promise<boole
   return true;
 }
 
+/** Port this process is listening on -- the origin guard needs it to tell this server's own
+ *  page apart from anything else pointing at loopback. Set once in main(). */
+let listeningPort = 4173;
+
 async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
+    // Before routing anything: 127.0.0.1 keeps the network out, this keeps the user's own
+    // browser out. See scripts/lib/httpguard.ts for the two attacks it stops.
+    const guard = checkRequestOrigin(
+      { host: req.headers.host, origin: req.headers.origin as string | undefined },
+      listeningPort
+    );
+    if (!guard.allowed) return sendJson(res, 403, { ok: false, error: guard.reason });
+
     const url = new URL(req.url ?? "/", "http://localhost");
     const pathname = url.pathname;
 
@@ -784,6 +818,7 @@ async function dispatch(req: IncomingMessage, res: ServerResponse): Promise<void
 function main(): void {
   const { values } = parseArgs({ options: { port: { type: "string", default: "4173" } } });
   const port = parseInt(values.port ?? "4173", 10);
+  listeningPort = port;
 
   const server = createServer((req, res) => {
     void dispatch(req, res);

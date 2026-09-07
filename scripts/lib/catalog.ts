@@ -10,6 +10,34 @@
  * Update this list by hand as new high-tier models ship; never accept a judge model that
  * isn't in it (see isJudgeModelAllowed).
  */
+// ---------- Harbor compatibility contract ----------
+/**
+ * The Harbor release every version-sensitive assumption in this kit was validated against.
+ *
+ * This is not decoration: a surprising amount of this code is a mirror of one Harbor version's
+ * behaviour, and all of it fails *silently* rather than loudly when Harbor changes underneath
+ * it. The list below is what breaks, and each entry was verified by hand against 0.22.0:
+ *
+ * - HARBOR_AGENTS (below) mirrors `harbor run --help`'s `--agent` choices.
+ * - resolveAnalysisJson() parses the `Report: <path>` line `harbor analyze` prints, and the
+ *   `{results: [...]}` shape it writes for a job-level path.
+ * - parseResult() reads result.json's field names.
+ * - materialize.ts writes a rubric TOML matching harbor/analyze/prompts/analyze-rubric.toml,
+ *   and a judge prompt using harbor's {trial_path}/{task_section}/{criteria_guidance} markers.
+ * - the /api/tasks/init route knows `harbor init --task` prompts for "Organization:" on stdin.
+ *
+ * Installers pin this exact version (scripts/harbor-eval.sh / .ps1). The GUI compares it to
+ * the Harbor actually installed and warns on a mismatch instead of blocking: a newer Harbor
+ * usually still works, it just stops being something this kit has verified.
+ */
+export const TESTED_HARBOR_VERSION = "0.22.0";
+
+/** Whether the installed Harbor is the one this kit's assumptions were validated against.
+ *  `null` version means Harbor was not detected at all -- caller decides what to say. */
+export function isTestedHarborVersion(installed: string | null | undefined): boolean {
+  return Boolean(installed) && installed === TESTED_HARBOR_VERSION;
+}
+
 export const JUDGE_MODELS: { label: string; value: string }[] = [
   { label: "Claude Opus 5", value: "anthropic/claude-opus-5" },
   { label: "Claude Fable 5.1", value: "anthropic/claude-fable-5-1" },

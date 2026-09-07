@@ -52,6 +52,7 @@ export * from "./cost.ts";
 export * from "./exec.ts";
 export * from "./bundle.ts";
 export * from "./materialize.ts";
+export * from "./httpguard.ts";
 
 
 // ---------- Result parsing / reporting ----------

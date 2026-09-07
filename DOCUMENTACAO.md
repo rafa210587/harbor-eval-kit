@@ -391,6 +391,19 @@ mora ali; tudo que é sobre **as evals em si** mora na GUI + `~/.harbor-eval-kit
   (`listSecretNames()`).
 - O valor nunca é logado em console, nunca escrito em relatório, nunca no manifest.
 - O servidor só escuta em `127.0.0.1` — inacessível pela rede.
+- **E também recusa requisição que não veio da própria página dele.** Escutar só em
+  `127.0.0.1` barra a rede, mas *não* barra o seu próprio navegador: qualquer site aberto
+  numa aba podia mandar um POST com `Content-Type: text/plain` pra `http://127.0.0.1:4173`
+  — isso é "simple request" no CORS, então não tem preflight pra recusar — e mesmo sem
+  conseguir ler a resposta, o efeito colateral acontecia. Foi reproduzido de verdade contra
+  este servidor antes da correção: um POST com `Origin: https://evil.example.com` criou uma
+  entrada de registry e ela persistiu em disco. Dava pra gastar API key de verdade via
+  `/api/compare`, trocar o model de um Judge (corrompendo a avaliação em silêncio) ou apagar
+  registries. Agora toda requisição passa por duas checagens independentes
+  (`scripts/lib/httpguard.ts`): o `Origin`, quando presente, tem que ser a própria página
+  local (ausente é permitido — curl e os scripts do kit não mandam `Origin`), e o `Host` tem
+  que ser loopback na porta certa, que é o que pega **DNS rebinding** — o ataque em que a
+  página já *é* same-origin na hora do disparo e só o `Host` denuncia.
 - **A ACL do arquivo foi travada** (seção 2.8) pra só a conta do usuário — nem
   Administradores, nem SYSTEM têm mais acesso explícito (antes era herdado do perfil, que já
   bloqueava outras contas, mas não era explícito).

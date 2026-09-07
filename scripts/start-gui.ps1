@@ -42,4 +42,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Harbor: $((harbor --version 2>&1) | Select-Object -First 1)"
 Write-Host "Podman: $((podman --version 2>&1) | Select-Object -First 1) -- info OK"
 Write-Host "Starting GUI at http://127.0.0.1:4173 ..."
-& node "$Root\scripts\gui-server.ts"
+# Set-Location first: the server resolves "evals", "datasets" and "jobs" relative to the
+# process's cwd, so launching this script from anywhere else used to silently scan the wrong
+# directories and show an empty task list. Same fix as start-gui.sh.
+Set-Location $Root
+& node "scripts\gui-server.ts" @args

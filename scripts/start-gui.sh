@@ -41,4 +41,8 @@ fi
 echo "Harbor: $(harbor --version 2>&1 | head -n1)"
 echo "Podman: $(podman --version 2>&1 | head -n1) -- info OK"
 echo "Starting GUI at http://127.0.0.1:4173 ..."
-exec node "$ROOT/scripts/gui-server.ts"
+# cd first: the server resolves "evals", "datasets" and "jobs" relative to the process's cwd,
+# so launching this script from anywhere else (e.g. `cd /tmp && /path/to/start-gui.sh`) used to
+# silently scan the wrong directories and show an empty task list.
+cd "$ROOT"
+exec node scripts/gui-server.ts "$@"

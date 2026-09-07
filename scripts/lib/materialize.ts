@@ -2,7 +2,7 @@
 // understands. Harbor takes --skill <dir with SKILL.md>, --rubric <toml> and
 // --prompt <file>, so free text has to be written to disk under the state dir before a run.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 import type { AgentEntry, CriterionEntry, RubricCriterion, SkillEntry } from "./types.ts";
@@ -18,12 +18,26 @@ function getManagedSkillDir(key: string): string {
   return join(getStateDir(), "skills", key);
 }
 
+/**
+ * Writes the skill's current contents as an EXACT snapshot: the managed directory is wiped
+ * first, so a file the user removed in the GUI actually disappears from disk.
+ *
+ * Without the wipe this only ever added files. Harbor uploads the whole skill directory into
+ * the agent's environment (harbor/trial/trial.py, `_upload_injected_skills`), not just
+ * SKILL.md -- so a deleted example kept being handed to the agent, and the run was no longer
+ * evaluating the skill the user was looking at. Silent, and it corrupts exactly the thing this
+ * kit exists to measure.
+ *
+ * Only ever called for directories this kit owns under the state dir (`skills/<key>`), never
+ * for a `mode: "path"` skill, which points at a folder belonging to the user.
+ */
 function materializeSkillMd(
   key: string,
   instructions: string,
   extraFiles?: { name: string; content: string }[]
 ): string {
   const dir = getManagedSkillDir(key);
+  rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), instructions ?? "", "utf-8");
   for (const f of extraFiles ?? []) {

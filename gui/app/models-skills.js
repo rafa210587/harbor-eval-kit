@@ -99,12 +99,14 @@ function renderSkillsList() {
   const list = $("#skills-list");
   list.innerHTML = state.skills.length ? "" : '<p class="muted">Nothing registered yet.</p>';
   for (const item of state.skills) {
+    // Plain text on both: makeRow escapes title and sub itself now. The badge markup is added
+    // by the .row-title overwrite below, which escapes each field it interpolates.
     const sub = item.mode === "path"
-      ? `path: ${escapeHtml(item.path || "")}`
-      : escapeHtml((item.instructions || "").slice(0, 100)) + ((item.instructions || "").length > 100 ? "…" : "")
+      ? `path: ${item.path || ""}`
+      : (item.instructions || "").slice(0, 100) + ((item.instructions || "").length > 100 ? "…" : "")
         + (item.extraFiles && item.extraFiles.length ? ` · +${item.extraFiles.length} arquivo(s) extra` : "");
     list.appendChild(makeRow(item, {
-      title: `${item.label} <span class="badge">${item.mode}</span>`,
+      title: item.label,
       sub,
       onEdit: () => skillsEdit.startEdit(item.id, () => {
         skillsForm.label.value = item.label;
@@ -117,7 +119,7 @@ function renderSkillsList() {
       }),
       onDelete: async () => { await api("DELETE", `/api/skills/${item.id}`); await refreshAll(); },
     }));
-    list.lastChild.querySelector(".row-title").innerHTML = `${escapeHtml(item.label)} <span class="badge">${item.mode}</span>`;
+    list.lastChild.querySelector(".row-title").innerHTML = `${escapeHtml(item.label)} <span class="badge">${escapeHtml(item.mode)}</span>`;
   }
 }
 

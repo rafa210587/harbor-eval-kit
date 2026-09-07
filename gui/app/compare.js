@@ -8,7 +8,7 @@ import { renderComparRubricPicker } from "./judging.js";
 function renderCompareAgentPicker() {
   const sel = $("#compare-agent-picker");
   sel.innerHTML = state.agents.length
-    ? state.agents.map((a) => `<option value="${a.id}">${escapeHtml(a.label)}</option>`).join("")
+    ? state.agents.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join("")
     : '<option value="">nenhum agent cadastrado — vá em "Agents"</option>';
 }
 
@@ -29,7 +29,7 @@ function addCompareEntryRow(agentId) {
   const modelOptions = state.models.map((m) => {
     const key = guessProviderKey(m.value);
     const missing = key && !state.secretNames.includes(key) ? ` — falta ${key}` : "";
-    return `<option value="${m.id}" ${m.id === agent.modelId ? "selected" : ""}>${escapeHtml(m.label)}${missing}</option>`;
+    return `<option value="${escapeHtml(m.id)}" ${m.id === agent.modelId ? "selected" : ""}>${escapeHtml(m.label)}${missing}</option>`;
   }).join("");
 
   row.innerHTML = `
@@ -303,7 +303,15 @@ $("#compare-form").addEventListener("submit", async (e) => {
     lastCompareJobsDir = jobsDir;
     lastCompareRows = result.rows;
     renderCompareTable();
-    out.textContent = `Pronto. Relatório: ${result.reportCsv}`;
+    // A reused job dir means Harbor did not re-run that combination -- the row is the OLD
+    // result, read back. Silently that looks like a fresh comparison, so say it out loud.
+    const reused = result.reusedJobs ?? [];
+    out.textContent = `Pronto. Relatório: ${result.reportCsv}` +
+      (reused.length
+        ? `\n⚠ ${reused.length} job(s) já existiam com este "Job prefix" e foram reaproveitados pelo Harbor ` +
+          `em vez de rodar de novo — os números dessas linhas são da run anterior. ` +
+          `Use outro "Job prefix" para uma comparação realmente nova.`
+        : "");
     $("#compare-post-actions").hidden = false;
     if (!body.dryRun && lastCompareRows.some((r) => r.ok)) {
       $("#compare-analyze-panel").hidden = false;
