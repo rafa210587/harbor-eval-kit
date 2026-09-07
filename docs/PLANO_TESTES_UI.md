@@ -264,10 +264,17 @@ Ambos exigiram restart do processo `node scripts/gui-server.ts` (roda TS nativo,
 pra pegar a mudança em `cost.ts` — `gui/index.html` é servido estático, pegou a mudança só com
 reload da página.
 
-### T10.5 — Guarda de gasto: volume às cegas bloqueia ⬜
+### T10.5 — Guarda de gasto: volume às cegas bloqueia ✅ (validado por clique real)
 1. Use um agent+model **nunca rodado antes** (sem histórico), com n-attempts alto (ex.: 10).
 2. Clique **Run comparison**.
 3. **Esperado:** recusa por "às cegas" antes dos 5 trials pagos, mesmo sem teto configurado.
+
+**Confirmado 2026-09-07**: agent DeepSeek v4-flash com model override `deepseek-reasoner`
+(0 samples de histórico), n-attempts=10, teto=1.00 (sem relação — a guarda de volume às
+cegas roda antes da checagem de teto). Estimativa mostrou "não estimável ainda (10
+trial(s)) — rode uma vez para aprender o custo"; clicar **Run comparison** disparou
+`confirm("...sem histórico para estimar o custo de mini-swe-agent + deepseek-deepseek-reasoner,
+e isto dispararia 10 trials pagos (limite às cegas: 5)...")`; cancelar não rodou nada.
 
 ### T10.6 — Rodar de verdade (💰 gasta API) ✅ (validado por clique real, múltiplas vezes)
 1. Task real + 1 linha com model barato, n-attempts=1. Clique **Run comparison**.
@@ -299,29 +306,101 @@ reload da página.
 2. **Esperado:** aviso `⚠ Você já tem rubrics cadastrados, mas nenhum Judge` em vez de um
    dropdown vazio sem explicação.
 
-### T10.10 — Analisar uma linha (💰 gasta API do juiz) ✅ (validado por clique real)
+### T10.10 — Analisar uma linha (💰 gasta API do juiz) ✅ (validado por clique real — achou e corrigiu um bug, ver T10.13)
 1. Após uma run com `ok:true`, escolha um Judge (curado) + marque um rubric, clique
    **Analisar** na linha.
 2. **Esperado:** painel de resultado com summary + checks (pass/fail/n-a) reais.
+   **Nota 2026-09-07**: esta marcação ✅ original (de uma sessão anterior) provavelmente só
+   viu o *fallback* de stdout bruto, não checks estruturados de verdade — ver o bug real
+   descoberto e corrigido em **T10.13**, que afeta exatamente este botão. Reconfirmado
+   funcionando (checks reais) depois do fix.
 
 ### T10.11 — Modo validação no painel Analisar (💰 gasta API do juiz, barato) ✅ (validado por clique real)
 1. Use um Judge cadastrado em modo validação (T8.2), marque **Modo validação** no painel
    Analisar também, clique **Analisar**.
 2. **Esperado:** resultado vem com aviso `⚠ Modo validação: julgado por <model>...`.
+   **Reconfirmado 2026-09-07** depois do fix do T10.13: aviso aparece, e agora vem acompanhado
+   de checks reais (antes só do fallback de stdout bruto).
 
-### T10.12 — Analisar sem marcar Modo validação, com Judge de validação ⬜
+### T10.12 — Analisar sem marcar Modo validação, com Judge de validação ✅ (validado por clique real)
 1. Mesmo Judge do T8.2, mas **sem** marcar Modo validação no painel Analisar.
 2. **Esperado:** recusado (400/409) com a mensagem do gate — nunca deixa passar mesmo tendo
    marcado no cadastro do Judge.
+   **Confirmado 2026-09-07**: Judge "VALIDACAO — DeepSeek chat" escolhido, checkbox "Modo
+   validação" do painel Analisar deixado desmarcado, clique real em **Analisar** numa linha
+   `ok:true` → painel mostrou "Erro: the judge's model must be one of the curated high-tier
+   judge models (...), or pass validationMode to smoke-test the pipeline with a non-curated
+   model" — o gate nunca deixa passar mesmo o Judge já tendo sido cadastrado em modo validação.
 
-### T10.13 — Analisar todas ⬜
+### T10.13 — Analisar todas ✅ (validado por clique real, achou e corrigiu um bug grande)
 1. Com 2+ linhas `ok:true`, clique **Analisar todas**.
 2. **Esperado:** roda o mesmo Judge+rubrics em cada linha, uma de cada vez (sequencial, não
    paralelo).
 
-### T10.14 — Ordenar por avaliação ⬜
+**Confirmado 2026-09-07**: 2 linhas `ok:true` (DeepSeek v4-flash duas vezes), **Analisar
+todas** disparou 2 chamadas reais ao juiz, uma depois da outra (confirmado pelo
+`read_network_requests`: 1 request completa antes da 2ª começar) — sequencial, como esperado.
+
+**Bug real (grande) encontrado e corrigido**: o painel de análise do Compare sempre caiu no
+fallback de stdout bruto (`<pre>...Analyzing trial(s)... Mean: 1.000...</pre>`) em vez de
+mostrar os checks estruturados (PASS/FAIL/N-A por critério) — e a coluna `passRate` da
+tabela sempre ficava vazia. Isso provavelmente **nunca funcionou de verdade** desde que a
+feature foi escrita, porque ficava mascarado: o stdout bruto ainda parecia informativo o
+bastante pra não levantar suspeita.
+
+Causa raiz: `parseAnalysisJson(path)` (em `scripts/lib/harbor.ts`) sempre procurou
+`<path>/analysis.json` diretamente. Isso é verdade quando `harbor analyze` recebe o caminho
+de um trial isolado — mas o Compare **sempre** passa o caminho do **job** (`jobsDir/jobName`),
+já que uma linha da matriz é um job inteiro (pode ter mais de 1 trial se n-attempts > 1). Ao
+receber um caminho de job, o Harbor instalado (0.22.0) cria uma pasta de saída nova, com
+timestamp (`jobs/2026-09-07__15-07-23/`), grava lá um `analysis.json` com um formato
+diferente (`{"results": [{"trial_name", "checks", "cost_usd", ...}]}` em vez do formato
+plano `{"summary", "checks", "estimated_cost_usd"}`), e só informa onde na última linha do
+stdout: `Report: jobs\2026-09-07__15-07-23\analysis.json`. `parseAnalysisJson` nunca olhava
+pra essa linha nem sabia desse segundo formato — resultado: `analysis: null` na resposta da
+API sempre que chamado a partir do Compare, silenciosamente, apesar do `harbor analyze` em si
+ter rodado com sucesso e produzido dados reais.
+
+**Fix** (`scripts/lib/harbor.ts` + `scripts/gui-server.ts`): nova função
+`resolveAnalysisJson(trialPath, stdout)` — tenta `parseAnalysisJson` primeiro (compatível com
+o comportamento antigo/caminho de trial isolado); se vier vazio, extrai o caminho da linha
+`Report: <path>` do stdout, lê esse arquivo, e se o formato for o `{results: [...]}` de
+job, "achata" pro formato plano que o cliente já sabe ler (pegando o primeiro resultado —
+cobre o caso comum de n-attempts=1; um job com mais de 1 trial por linha ainda descarta os
+demais resultados, ver limitação abaixo). `/api/analyze` agora chama
+`resolveAnalysisJson(trialPath, result.stdout)` em vez de `parseAnalysisJson(trialPath)`.
+
+**Verificado depois do fix**: reiniciado o `gui-server`, `curl` direto confirmou
+`analysis.checks` populado com `no_prolixity`/`clean_code` reais; depois **reconfirmado via
+clique de verdade** na aba Analyze standalone (T15.1) apontando pro mesmo job — painel
+mostrou o JSON estruturado completo, não mais o fallback. `bash scripts/test.sh` e
+`node scripts/check-imports.mjs` verdes depois do fix.
+
+**Limitação conhecida (não corrigida, fora de escopo deste fix)**: se uma linha do Compare
+tiver n-attempts > 1 (múltiplos trials no mesmo job), `resolveAnalysisJson` hoje só devolve o
+primeiro resultado do array — os `checks` dos outros trials daquela linha são calculados pelo
+Harbor mas descartados na resposta da API. Não teve teste desta sessão com n-attempts > 1
+analisado, então o impacto prático não foi observado, só inferido lendo o código.
+
+**Achado incidental**: adicionar o **mesmo agent+model+skillset sem nenhum override**
+duas vezes na matriz gera o mesmo `jobName` para as duas linhas — a 2ª entrada não roda um
+trial novo de verdade, só reaproveita/relê o job já criado pela 1ª (confirmado: 2ª linha
+terminou em ~1s, contra ~60s da 1ª, e só existe 1 pasta de trial em disco). Pra 2 trials
+genuinamente independentes da mesma combinação, seria preciso variar algo (model, skill set,
+ou rodar em jobs dirs diferentes) — a UI já avisa "overrides diferentes" no texto de ajuda,
+então isso é uso incorreto do recurso, não um bug, mas vale documentar pra não confundir
+resultados no futuro.
+
+### T10.14 — Ordenar por avaliação ✅ (validado por clique real)
 1. Após analisar algumas linhas (com `passRate` diferente), clique **Ordenar por avaliação**.
 2. **Esperado:** tabela reordena por `passRate` desc.
+   **Confirmado 2026-09-07**: com o fix do T10.13, as 2 linhas (Oracle e DeepSeek v4-flash)
+   ficaram com `passRate` real (1.00 as duas — ambas passaram nos 2 critérios). Clicar
+   **Ordenar por avaliação** re-renderizou a tabela sem erro; como as duas ficaram empatadas
+   em 1.00, a ordem visível não mudou (esperado — o comparator `(b.passRate ?? -1) -
+   (a.passRate ?? -1)` é estável para empates). Não foi observada uma reordenação visível de
+   verdade por falta de linhas com `passRate` diferente nesta sessão, mas o mecanismo (clique
+   → sort → re-render, sem exceptions) foi exercitado com dados reais.
 
 ### T10.15 — Ver trajetórias a partir do Compare ✅ (validado por clique real)
 1. Após uma run, clique **Ver trajetórias**.
@@ -341,10 +420,11 @@ reload da página.
 
 ## 11. Datasets
 
-### T11.1 — Listar link do Hub ⬜
+### T11.1 — Listar link do Hub ✅ (validado por clique real)
 1. Aba **Datasets**, clique **List registry datasets**.
 2. **Esperado:** imprime um link pro Hub do Harbor (não uma lista navegável — limitação
    conhecida do Harbor, não desta UI).
+   **Confirmado 2026-09-07**: `View registered datasets at https://hub.harborframework.com/datasets`.
 
 ### T11.2 — Baixar um dataset real ⬜ **nunca testado em nenhuma sessão**
 1. Pegue um nome real de dataset no link do Hub, cole no form, clique **Download**.

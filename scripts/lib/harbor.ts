@@ -139,6 +139,37 @@ export function parseAnalysisJson(path: string): unknown | null {
   }
 }
 
+/**
+ * `harbor analyze` only writes straight to `<path>/analysis.json` (what parseAnalysisJson
+ * checks) when given a bare trial path. Given a job directory instead -- what Compare always
+ * passes, since one comparison row is one job that may bundle several trials -- it creates its
+ * own fresh, dated output directory and prints where in stdout (`Report: <path>`), using a
+ * `{results: [...]}` shape (one entry per trial) instead of the flat `{summary, checks}` shape.
+ * Found by testing: without this, every analyze call from Compare (job-level paths) silently
+ * got analysis:null and fell back to raw stdout, even though the judge call succeeded and a
+ * real analysis.json existed -- just not where parseAnalysisJson was looking.
+ */
+export function resolveAnalysisJson(trialPath: string, stdout: string): unknown | null {
+  const direct = parseAnalysisJson(trialPath);
+  if (direct) return direct;
+  const match = stdout.match(/Report:\s*(\S.*\.json)\s*$/m);
+  if (!match) return null;
+  const reportPath = match[1].trim();
+  if (!existsSync(reportPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(reportPath, "utf-8"));
+    if (parsed && typeof parsed === "object" && Array.isArray((parsed as { results?: unknown[] }).results)) {
+      // One Compare row is one trial in the common case (n-attempts=1) -- degrade to the first
+      // result rather than dropping checks entirely when a row bundles more than one.
+      const first = (parsed as { results: Record<string, unknown>[] }).results[0];
+      if (first && typeof first === "object") return { ...first, estimated_cost_usd: first.cost_usd };
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- Secrets ----------
 // Local KEY=VALUE file in the state dir, never returned by value over the API,
 

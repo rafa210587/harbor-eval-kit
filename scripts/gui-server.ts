@@ -42,7 +42,7 @@ import {
   listTasks,
   loadSecretsEnv,
   newId,
-  parseAnalysisJson,
+  resolveAnalysisJson,
   parseResult,
   readRegistry,
   readTaskFiles,
@@ -715,7 +715,7 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     stderr: result.stderr,
     judgeModel: resolvedModel,
     validationMode: validationMode && nonCurated,
-    analysis: result.code === 0 ? parseAnalysisJson(String(trialPath)) : null,
+    analysis: result.code === 0 ? resolveAnalysisJson(String(trialPath), result.stdout) : null,
   });
 });
 
