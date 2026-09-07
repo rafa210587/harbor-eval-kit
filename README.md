@@ -18,7 +18,7 @@ The question it exists to answer is the boring one that's annoyingly hard to ans
 | Harbor owns | Harbor Eval Kit owns |
 |---|---|
 | running a task in a container (the harness) | composing the comparison: agent × model × skill set × attempts |
-| agent adapters (43 of them: `claude-code`, `mini-swe-agent`, …) | registries so those pieces are named, reusable and shareable, not retyped flags |
+| the agent adapters (`claude-code`, `mini-swe-agent`, `aider`, …) | registries so those pieces are named, reusable and shareable, not retyped flags |
 | trials, trajectories, `result.json`, its own `analyze` | the spend guard, the judge/rubric policy, the GUI/CLI, the comparison table |
 | the deterministic reward from your `tests/test.sh` | the reproducibility plumbing around it (config bundles, pinned Harbor version) |
 
@@ -70,7 +70,7 @@ This README is the tour. The depth is elsewhere (in Portuguese):
 | [`DOCUMENTACAO.md`](./DOCUMENTACAO.md) | The complete reference: every decision and its reasoning, step-by-step install, every tab in detail |
 | [`docs/COMO_FUNCIONA.md`](./docs/COMO_FUNCIONA.md) | Diagrams + a worked story: DeepSeek vs. Claude on the same task, including a real API-key failure and its fix |
 | [`docs/FLUXO_RUN_COMPARE_ANALYZE.md`](./docs/FLUXO_RUN_COMPARE_ANALYZE.md) | "What must I register before this works?" — required vs. optional per operation, with every real error message and its fix |
-| [`docs/PLANO_TESTES_UI.md`](./docs/PLANO_TESTES_UI.md) | 49 manual UI scenarios, each honestly marked click-tested / API-only / never tested |
+| [`docs/PLANO_TESTES_UI.md`](./docs/PLANO_TESTES_UI.md) | 59 manual UI scenarios, each honestly marked click-tested / API-only / never tested (54 click-tested today; the 3 remaining need a human at the keyboard) |
 | [`docs/PENDENCIAS.md`](./docs/PENDENCIAS.md) | What's deliberately not built yet, and why |
 | [`docs/ENGENHARIA.md`](./docs/ENGENHARIA.md) | The engineering rules every change follows, and the real incident behind each one |
 
@@ -121,8 +121,9 @@ The doctor/cleanup counterparts (`harbor-doctor`, `harbor-cleanup`) work the sam
 ### Option B — do it yourself
 
 ```bash
-# 1. Install Harbor in an isolated environment
-uv tool install harbor
+# 1. Install Harbor in an isolated environment, pinned to the version this kit was
+#    validated against (see Compatibility above for why the pin is not cosmetic)
+uv tool install "harbor==0.22.0"
 
 # 2. Make sure Podman is up and compatible with Harbor's Docker-oriented backend
 podman machine init && podman machine start   # if not already running
@@ -213,6 +214,10 @@ full explanation of every tab (what it's for, exactly how to use it, edge cases)
 7. **Judge Rubrics** — bundle 1+ Criteria into a named rubric, reused across languages/tasks.
 8. **Judges** — a judge's "usage profile": which `--agent` executes the judging, which
    (curated, high-tier-only) model, optional custom instructions, and default rubrics.
+   A **validation mode** escape hatch exists for smoke-testing the analyze pipeline with a
+   cheap non-curated model: it has to be asked for explicitly *both* when registering the
+   judge and on the analyze call itself, and every result from it is stamped
+   `⚠ não vale como avaliação`. It never silently relaxes the curated-model gate.
 9. **Tasks** — `harbor init --task` plus an in-browser editor for `instruction.md`,
    `Dockerfile`, `solve.sh`, `test.sh` — no external editor needed. A task can also pin a
    default Judge + rubrics, auto-suggested later in Compare.
@@ -220,7 +225,7 @@ full explanation of every tab (what it's for, exactly how to use it, edge cases)
     point at a Task, run. Reward, cost, tokens, and duration show up per row; an optional
     **Analyze** panel judges any result afterward (never automatic).
 
-Four support tools, not numbered because they're used situationally, not sequentially:
+Five support tools, not numbered because they're used situationally, not sequentially:
 
 - **Datasets** — pull a published third-party task suite (`harbor dataset download`); its
   tasks then show up automatically alongside your own in Tasks/Compare.
@@ -234,6 +239,16 @@ Four support tools, not numbered because they're used situationally, not sequent
   memory.
 - **Trajectories** — opens Harbor's own step-by-step viewer (`harbor view`) for a finished
   job, so you can see exactly what an agent did inside the container, not just its reward.
+- **Analyze** — the same judge run as Compare's Analyze panel, but pointed at a path you type
+  by hand. For auditing a job that was run earlier, or from the CLI, without rebuilding the
+  comparison that produced it.
+
+Across every tab: each field carries an inline hint explaining what it's for and when to skip
+it (a **compact mode** toggle in the header hides all of them once you no longer need them,
+remembered per browser), labels are wired to their inputs so clicking the text focuses the
+field, long operations stream a live log instead of freezing, and dead ends name the single
+missing step rather than showing an empty dropdown. The theme follows your OS's
+`prefers-color-scheme` — there is no toggle to get wrong.
 
 Compare also has a **Cancel** button once a real run starts, and a live cost estimate (from
 this machine's own run history) with a configurable cap that refuses to start a run before
@@ -292,6 +307,11 @@ Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-
   own page (absent is fine — curl and the kit's own scripts don't send one), and `Host` must be
   loopback on the right port, which is what catches DNS rebinding, where the page *is*
   same-origin by the time it fires.
+- **Your registries survive a bad write.** Each registry file is written to a temp file and
+  renamed over the target, so an interrupted write leaves either the old file or the new one —
+  never a half-written one. And a registry that *is* unreadable makes the kit stop and say so,
+  instead of quietly reading it as "empty" and then overwriting your agents/judges/rubrics with
+  whatever you added next.
 - Full threat-model writeup, including what *isn't* guaranteed (plain-text file on disk,
   Windows ACL hardening steps): [`DOCUMENTACAO.md` §7](./DOCUMENTACAO.md#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é).
 
@@ -299,13 +319,14 @@ Task↔Judge pinning: [`DOCUMENTACAO.md` §11](./DOCUMENTACAO.md#11-o-mecanismo-
 
 ```bash
 bash scripts/setup-hooks.sh    # once per clone: activates the credential guard
-bash scripts/test.sh           # unit tests (node --test) + credential scan
+bash scripts/test.sh           # unit tests + import/cycle checker + credential scan
 ```
 
 No test framework, no `node_modules`, no build step anywhere — `node --test` runs the `.ts`
 files directly via native type stripping, and the GUI ships native ES modules the browser
-loads as-is.
-directly via Node's native type stripping, like everything else in `scripts/`.
+loads as-is. The suite is deterministic and fully offline: it never spawns Podman, never calls
+a provider, and never needs Harbor installed. Anything that costs money or runs a container is
+validated by a real run and written down in the docs instead.
 
 The rules that apply to every change (credentials, cross-platform parity, small files,
 decoupling, a test per feature, explanatory UI, observability, docs in the same commit) are
@@ -324,7 +345,7 @@ harbor-eval-kit/
 ├── .gitattributes                pins .sh to LF (CRLF would break the hook on Windows)
 ├── .github/workflows/ci.yml      unit tests + import checker + credential scan, 3 OSes
 ├── .claude/skills/               project skills: ship-change, secret-guard, cross-platform
-├── docs/PENDENCIAS.md            open punch list (layout, a11y, licensing) for any agent
+├── docs/PENDENCIAS.md            what's deliberately not built yet, and why
 ├── config/defaults.env           non-secret default env var names/paths
 ├── manifests/                    example installation-manifest schema
 ├── docs/screenshots/             images used in this README
@@ -338,8 +359,9 @@ harbor-eval-kit/
 │   ├── compare-matrix.ts         CLI sweep tool (cartesian product via repeatable flags)
 │   ├── gui-server.ts             local HTTP server + all /api/* routes
 │   ├── check-imports.mjs        finds missing cross-module imports + cycles, offline
-│   └── lib/*.ts                 13 modules: exec, registries, secrets, materialization,
-│                                   cost guard, config bundle, ... (harbor.ts is the barrel)
+│   └── lib/*.ts                 14 modules: exec, registries, secrets, materialization,
+│                                   cost guard, config bundle, origin guard, ...
+│                                   (harbor.ts is the barrel; *.test.ts sit alongside)
 ├── gui/
 │   ├── index.html                markup for the 15 tabs
 │   ├── styles.css                styles

@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { readRegistry, writeRegistry, getRegistryPath } from "./paths.ts";
-import { TESTED_HARBOR_VERSION, isTestedHarborVersion } from "./catalog.ts";
+import { HARBOR_AGENTS, TESTED_HARBOR_VERSION, isTestedHarborVersion } from "./catalog.ts";
 import { resolveSkillPath } from "./materialize.ts";
 import type { SkillEntry } from "./types.ts";
 
@@ -158,5 +158,32 @@ describe("Harbor compatibility contract", () => {
     assert.equal(isTestedHarborVersion(null), false);
     assert.equal(isTestedHarborVersion(undefined), false);
     assert.equal(isTestedHarborVersion(""), false);
+  });
+});
+
+describe("docs and code agree on the numbers they both state", () => {
+  test("o README cita a mesma quantidade de adapters que o catálogo tem", () => {
+    // The README and gui-server's own comment had drifted to 42 and 43 while the catalog held
+    // another number. A stated count is a claim like any other -- pin it instead of trusting
+    // that whoever adds an adapter remembers to grep the docs.
+    const readme = readFileSync(join(import.meta.dirname, "..", "..", "README.md"), "utf-8");
+    const claimed = readme.match(/Harbor accepts \*\*(\d+)\*\* `--agent` adapters/)?.[1];
+    assert.ok(claimed, "README precisa dizer quantos adapters o Harbor aceita");
+    assert.equal(
+      Number(claimed),
+      HARBOR_AGENTS.length,
+      `README diz ${claimed} adapters, o catálogo tem ${HARBOR_AGENTS.length}`
+    );
+  });
+
+  test("o README cita a mesma quantidade de cenários que o plano de testes tem", () => {
+    // Same rot as the adapter count: the plan's own summary claimed 49 while the file had 59.
+    const root = join(import.meta.dirname, "..", "..");
+    const plan = readFileSync(join(root, "docs", "PLANO_TESTES_UI.md"), "utf-8");
+    const readme = readFileSync(join(root, "README.md"), "utf-8");
+    const real = (plan.match(/^### T[0-9X]+\.[0-9]+/gm) ?? []).length;
+    const claimed = readme.match(/(\d+) manual UI scenarios/)?.[1];
+    assert.ok(claimed, "README precisa dizer quantos cenários o plano tem");
+    assert.equal(Number(claimed), real, `README diz ${claimed} cenários, o plano tem ${real}`);
   });
 });

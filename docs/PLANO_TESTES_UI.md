@@ -551,15 +551,28 @@ gerado, resumo real da trajetória, renderizado corretamente em `#analyze-output
 
 ---
 
-## Resumo de cobertura (antes de rodar este plano)
+## Resumo de cobertura
 
-| Categoria | Quantidade |
-|---|---|
-| ✅ Já validado por clique real | 20 |
-| 🔶 Só validado por API | 2 |
-| ⬜ Nunca testado | 27 |
-| **Total de cenários mapeados** | **49** |
+O total abaixo foi recontado direto dos cabeçalhos `### T*` deste arquivo em 2026-09-07 — a
+tabela anterior dizia 49, que era uma contagem errada desde que o plano foi escrito (nunca
+foram 49 cenários; sempre foram 59).
 
-Maiores lacunas concentradas em: **Tasks** (multi-step, skip templates), **Datasets**
-(nunca baixou nada de verdade), **Config Bundle** (export/import pós-layout-novo), e
-**Logs/Trajectories** (interações manuais, fora do fluxo automático do Compare).
+| Categoria | Antes de rodar o plano | Agora |
+|---|---|---|
+| ✅ Validado por clique real | 20 | **54** |
+| 🔶 Só validado por API | 2 | 2 |
+| ⬜ Nunca testado | 37 | **3** |
+| **Total de cenários mapeados** | **59** | **59** |
+
+Os 3 que sobraram não são esquecimento — cada um depende de algo que a automação não alcança:
+
+- **T11.2** (baixar dataset real) — precisa de um nome real de dataset do Hub, escolha do dono.
+- **TX.3** (tema claro) — precisa da emulação de `prefers-color-scheme` do DevTools de verdade.
+- **TX.4** (nav responsiva) — precisa redimensionar a janela real do navegador.
+
+Como conferir estes números sem confiar nesta tabela:
+
+```bash
+grep -c '^### T[0-9X]*\.[0-9]*' docs/PLANO_TESTES_UI.md              # total
+grep -c '^### T[0-9X]*\.[0-9]*.*✅' docs/PLANO_TESTES_UI.md          # validados por clique
+```

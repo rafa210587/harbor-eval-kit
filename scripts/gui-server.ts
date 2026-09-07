@@ -205,7 +205,7 @@ addRoute("GET", "/api/providers", (_req, res) => {
 
 // The `--agent` values the installed Harbor accepts. Served from the one server-side list so
 // the Agents/Judges forms can offer real autocomplete instead of asking the user to remember
-// 43 adapter names (and to surface which ones can drive an arbitrary provider's model).
+// 42 adapter names (and to surface which ones can drive an arbitrary provider's model).
 addRoute("GET", "/api/harbor-agents", (_req, res) => {
   sendJson(res, 200, { agents: HARBOR_AGENTS, freeAgents: FREE_AGENTS });
 });
