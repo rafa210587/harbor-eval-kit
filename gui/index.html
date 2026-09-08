@@ -491,7 +491,7 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-secrets" class="tab">
     <div class="panel">
       <h2>Credenciais de providers</h2>
-      <p class="hint">Comece por aqui. Cadastre a chave de cada provider que for usar — os models e agents das próximas abas mostram se a chave esperada já está configurada. Gravadas localmente em <code>secrets.env</code> (state dir do kit), <strong>não</strong> como variável de ambiente do Windows/sistema — só entram no ambiente do processo `harbor`/`podman` que a GUI dispara, na hora da run, e em mais nenhum lugar. Escrita apenas — o valor nunca é mostrado de novo, nunca aparece em nenhum relatório.</p>
+      <p class="hint">Comece por aqui. Cadastre a chave de cada provider direto ou a chave de inferência de seu gateway LiteLLM — veja a seção opcional abaixo. Os models e agents das próximas abas mostram a credencial esperada. Gravadas localmente em <code>secrets.env</code> (state dir do kit), não como variável do Windows/sistema. São usadas apenas nas operações que precisam delas, como execuções, descoberta e testes explícitos. Escrita apenas — o valor nunca é mostrado de novo nem incluído nos exports.</p>
       <form id="secrets-form">
         <label for="secret-provider-select">Provider</label>
         <select id="secret-provider-select">

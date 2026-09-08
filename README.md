@@ -233,10 +233,13 @@ encurtar `jobs-dir` ou o nome da task.
 
 ## LiteLLM
 
-O SDK LiteLLM já é dependência de alguns adapters e do teste de credencial. O proxy opcional
-está preparado e **OFF por padrão**. Config ausente/OFF não muda tráfego; configuração ON inválida
-bloqueia com diagnóstico. O proxy não foi exercitado nesta rodada e não deve ser ativado como
-efeito colateral de testes. Veja [LiteLLM](./docs/LITELLM.md).
+O proxy opcional permanece **OFF por padrão**. Na aba **Credenciais**, o cartão do gateway
+guarda a chave virtual de inferência, descobre aliases do proxy e permite registrá-los e testar
+um modelo escolhido explicitamente. Os controles dos providers continuam sendo chamadas diretas.
+As chaves dos providers e a chave administrativa ficam no proxy; nenhuma credencial entra no
+export. Configuração ON inválida bloqueia com diagnóstico. O cliente foi testado com HTTP local
+simulado, sem API paga; um proxy real e o roteamento de cada adapter ainda exigem validação.
+Veja [configuração, uso e limites do LiteLLM](./docs/LITELLM.md).
 
 ## Segurança e reprodutibilidade
 

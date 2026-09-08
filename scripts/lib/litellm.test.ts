@@ -110,4 +110,26 @@ describe("contrato do gateway LiteLLM", () => {
       else process.env.LITELLM_UNRELATED_PROCESS_ONLY = unrelated;
     }
   });
+
+  test("runtime usa só inferência salva, com precedência extras > arquivo > processo", () => {
+    const state = mkdtempSync(join(tmpdir(), "harbor-eval-kit-litellm-saved-"));
+    const previousState = process.env.HARBOR_EVAL_STATE_DIR;
+    const previousKey = process.env.LITELLM_INFERENCE_KEY;
+    try {
+      process.env.HARBOR_EVAL_STATE_DIR = state;
+      process.env.LITELLM_INFERENCE_KEY = "process-fixture";
+      writeFileSync(join(state, "secrets.env"), "LITELLM_INFERENCE_KEY=saved-fixture\nLITELLM_MASTER_KEY=admin-fixture\nUNRELATED_KEY=unrelated-fixture\n");
+      const env = buildLitellmRuntimeEnv({}, validConfig());
+      assert.deepEqual(env, { OPENAI_BASE_URL: "http://gateway.internal:4000/v1", OPENAI_API_KEY: "saved-fixture" });
+      assert.equal(buildLitellmRuntimeEnv({ LITELLM_INFERENCE_KEY: "extra-fixture" }, validConfig()).OPENAI_API_KEY, "extra-fixture");
+      writeFileSync(join(state, "secrets.env"), "UNRELATED_KEY=unrelated-fixture\n");
+      assert.equal(buildLitellmRuntimeEnv({}, validConfig()).OPENAI_API_KEY, "process-fixture");
+    } finally {
+      if (previousState === undefined) delete process.env.HARBOR_EVAL_STATE_DIR;
+      else process.env.HARBOR_EVAL_STATE_DIR = previousState;
+      if (previousKey === undefined) delete process.env.LITELLM_INFERENCE_KEY;
+      else process.env.LITELLM_INFERENCE_KEY = previousKey;
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
 });

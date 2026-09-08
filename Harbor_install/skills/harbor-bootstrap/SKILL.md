@@ -85,6 +85,13 @@ Return READY only if:
 
 ## Implemented wrapper scope (2026-09-07)
 
+Optional LiteLLM (2026-09-08): leave the gateway OFF unless the user configures a proxy.
+The Credentials gateway card can save an inference virtual key, discover aliases and perform
+an explicitly selected paid probe. Provider controls remain direct SDK probes. Keep provider
+and administrative keys at the proxy; never ask for them in chat. Follow `docs/LITELLM.md`
+for host/container URLs and adapter-specific mappings. Local HTTP mocks cover the client;
+they do not certify a real proxy, arbitrary adapters or platform network connectivity.
+
 macOS command correction (2026-09-08): machine inspect must use its default JSON
 output, without `--format json` (that prints a literal Go template). See
 `docs/MACOS_VALIDACAO_2026-09-08.md`; the CLI defect was reproduced read-only, but

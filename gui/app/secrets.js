@@ -37,7 +37,9 @@ function renderSecretsList() {
     const actions = row.querySelector(".row-actions");
     const resultEl = row.querySelector(".secret-test-result");
     const modelSelect = row.querySelector(".secret-test-model");
-    describeField(modelSelect, `Escolhe o modelo exato da pequena chamada paga. Ex.: ${provider?.id || "provider"}/modelo. Padrão: nenhum; obrigatório para testar.`);
+    const gatewayCredential = n === (state.gateway?.inferenceKeyEnv || "LITELLM_INFERENCE_KEY");
+    if (gatewayCredential) modelSelect.dataset.fieldHelp = "off";
+    else describeField(modelSelect, `Escolhe o modelo exato da pequena chamada paga. Ex.: ${provider?.id || "provider"}/modelo. Padrão: nenhum; obrigatório para testar.`);
 
     const testBtn = document.createElement("button");
     testBtn.textContent = "Testar modelo escolhido";
@@ -57,6 +59,13 @@ function renderSecretsList() {
       testBtn.textContent = "Testar modelo escolhido";
     };
     actions.appendChild(testBtn);
+    if (gatewayCredential) {
+      modelSelect.hidden = true;
+      modelSelect.previousElementSibling.hidden = true;
+      row.querySelector(".persistent-hint").textContent = "Chave do gateway: descubra e teste os aliases na seção Gateway LiteLLM abaixo. Os testes de providers diretos usam outras credenciais.";
+      testBtn.textContent = "Ir para Gateway LiteLLM";
+      testBtn.onclick = () => $("#litellm-gateway")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     if (provider) {
       const discoverBtn = document.createElement("button");

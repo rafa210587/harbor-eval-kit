@@ -138,7 +138,7 @@ function withPythonUtf8(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
-// ---------- LiteLLM gateway (integration point -- OFF by default, never yet exercised) ----------
+// ---------- LiteLLM gateway (OFF by default; real proxy validation still pending) ----------
 //
 
 export function buildHarborEnv(

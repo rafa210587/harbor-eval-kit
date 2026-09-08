@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getStateDir } from "./paths.ts";
+import { loadSecretsEnv } from "./secrets.ts";
 
 export interface LitellmGatewayConfig {
   enabled: boolean;
@@ -45,7 +46,7 @@ function endpoint(value: string | null, label: string): string | null {
   if (value === null) return null;
   let parsed: URL;
   try { parsed = new URL(value); } catch { throw new Error(`configuração LiteLLM inválida: ${label} não é uma URL`); }
-  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.hash) throw new Error(`configuração LiteLLM inválida: ${label} deve ser uma URL HTTP(S) sem credenciais`);
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.hash || parsed.search) throw new Error(`configuração LiteLLM inválida: ${label} deve ser uma URL HTTP(S) sem credenciais, query ou fragmento`);
   return value;
 }
 
@@ -133,7 +134,12 @@ export function buildLitellmRuntimeEnv(
   cfg: LitellmGatewayConfig = getLitellmGatewayConfig(),
 ): Record<string, string> {
   if (!cfg.enabled) return { ...providerEnv };
-  const secrets = { ...process.env, ...providerEnv } as Record<string, string | undefined>;
+  // GUI saves credentials to disk, not process.env. Even metadata commands such
+  // as `harbor --version` must resolve that saved inference key when gateway is ON.
+  const saved = loadSecretsEnv();
+  const stored = cfg.inferenceKeyEnv && Object.hasOwn(saved, cfg.inferenceKeyEnv)
+    ? { [cfg.inferenceKeyEnv]: saved[cfg.inferenceKeyEnv] } : {};
+  const secrets = { ...process.env, ...stored, ...providerEnv } as Record<string, string | undefined>;
   const resolvedSecrets: Record<string, string> = {};
   for (const [name, value] of Object.entries(secrets)) if (typeof value === "string") resolvedSecrets[name] = value;
   const gateway = litellmGatewayEnv(cfg, resolvedSecrets);

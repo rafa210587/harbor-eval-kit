@@ -10,6 +10,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readJsonBody } from "./lib/http-body.ts";
 import { discoverProviderModels } from "./lib/provider-probe.ts";
+import { discoverLitellmModels, testLitellmModel, litellmProbeStatus } from "./lib/litellm-probe.ts";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -138,6 +139,16 @@ addRoute("GET", "/api/judge-models", (_req, res) => {
 });
 
 // ---------- secrets ----------
+
+addRoute("GET", "/api/litellm/status", (_req, res) => {
+  sendJson(res, 200, litellmProbeStatus(getLitellmGatewayConfig(), loadSecretsEnv()));
+});
+addRoute("GET", "/api/litellm/models", async (_req, res) => {
+  sendJson(res, 200, await discoverLitellmModels(getLitellmGatewayConfig(), loadSecretsEnv()));
+});
+addRoute("POST", "/api/litellm/test", async (_req, res, _params, body) => {
+  sendJson(res, 200, await testLitellmModel(body.model, getLitellmGatewayConfig(), loadSecretsEnv()));
+});
 
 addRoute("GET", "/api/secrets", (_req, res) => {
   sendJson(res, 200, listSecretNames());

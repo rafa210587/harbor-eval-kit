@@ -30,7 +30,8 @@ function renderModelsList() {
 }
 function updateModelKeyPreview() {
   const v = modelsForm.value.value;
-  const key = guessProviderKey(v);
+  const key = v.startsWith("openai/") && state.gateway?.enabled
+    ? state.gateway.inferenceKeyEnv : guessProviderKey(v);
   $("#model-key-preview").innerHTML = key
     ? `Vai esperar a key <code>${escapeHtml(key)}</code> — ${keyStatusBadge(v)}`
     : "";

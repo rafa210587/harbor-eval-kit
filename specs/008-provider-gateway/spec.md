@@ -19,6 +19,9 @@ do gateway. A simples menção a LiteLLM não determina esses contratos.
   falha com diagnóstico e jamais degrada silenciosamente para OFF.
 - **US5 (P1):** chave administrativa do proxy não entra no ambiente adicional de
   agentes; gateway vence somente variáveis mapeadas e não altera infraestrutura.
+- **US6 (P1):** cartão separado em Credenciais salva chave virtual, descobre aliases
+  do proxy, registra `openai/<alias>` e testa somente alias escolhido explicitamente.
+  Controles de providers continuam diretos; aliases não ampliam a lista de juízes.
 
 ## Requisitos
 
@@ -29,12 +32,16 @@ do gateway. A simples menção a LiteLLM não determina esses contratos.
   respostas, export ou logs. Contrato completo de export está em 002.
 - **FR-008-03:** descoberta e teste são modos separados, sem modelo pago default.
   Timeout externo 30s; completion limitada a 8 tokens e timeout SDK 20s.
-- **FR-008-04:** gateway é preparação de ambiente; não instala, inicia, autentica
-  nem verifica disponibilidade de serviço proxy. Nenhuma implantação AWS.
-- **FR-008-05:** endpoint HTTP(S) não admite user/password/hash; templates e nomes
+- **FR-008-04:** gateway prepara ambiente e oferece consultas explícitas ao proxy;
+  não instala nem inicia serviço proxy. Nenhuma implantação AWS.
+- **FR-008-05:** endpoint HTTP(S) não admite user/password/query/hash; templates e nomes
   de ambiente são validados antes de execução; segredo vem de referência privada.
 - **FR-008-06:** UI bloqueia ação pendente, mostra erros reais e distingue descoberta
   de acesso confirmado ao modelo. Registro de lote é sequencial e não transacional.
+- **FR-008-07:** OFF, host ausente e chave ausente impedem rede no cartão. Descoberta
+  faz somente GET models; probe POST chat/completions exige alias válido, limite de
+  8 tokens, timeout 15s, redirects recusados e resposta limitada a 1 MiB. Não devolver
+  metadados, chaves ou erros brutos upstream. Chave administrativa fica no proxy.
 
 ## Fora de escopo e limites
 
@@ -47,6 +54,6 @@ também deve respeitar separação de segredos e sua própria política de ambie
 
 ## Sucesso
 
-Reconstrução deve demonstrar US1–US5 com fixtures sem credenciais reais e gate
+Reconstrução deve demonstrar US1–US6 com fixtures sem credenciais reais e gate
 offline, depois validar provider/proxy real somente em execução autorizada. Esta
 auditoria não fez chamada paga, não ligou proxy e não certifica todos providers.

@@ -262,43 +262,37 @@ A lib LiteLLM (que o Harbor usa por baixo pra falar com os providers) tem um fla
 leia esse flag e dispare um envio — parece resquício sem uso ativo nesta versão. A integração
 com PostHog que existe ali é opt-in (só ativa se você mesmo configurar sua própria conta).
 
-### 5.1-b Gateway LiteLLM — **encaixe preparado, desligado**
+### 5.1-b Gateway LiteLLM — opcional, desligado por padrão
 
-O kit usa LiteLLM em dois contextos distintos. O teste de credencial usa o **SDK**, dentro do
-processo de probe, e a integração preparada abaixo usa um **proxy** separado. SDK e proxy não
-são o mesmo caminho de tráfego.
+A aba **Credenciais** continua útil com proxy: guarde nela a chave virtual de inferência
+indicada por `inferenceKeyEnv`. Chaves dos providers e chave administrativa ficam no proxy.
+Os controles de cada provider usam SDK direto; o cartão separado **Gateway LiteLLM** consulta
+os aliases do proxy e permite registrá-los e testar um alias escolhido explicitamente.
+Descoberta não chama completion; o teste pago é limitado a 8 tokens e preserva o alias exato.
+O registro OpenAI compatível usa `openai/<alias>`, inclusive quando o alias contém barras.
 
-O que ficou **preparado e desligado** é a outra integração que se chama "LiteLLM": rodar um
-**proxy** LiteLLM e apontar os agents pra ele. Ganha-se um lugar só pra chaves, teto de gasto,
-cache, fallback e log de requisição entre todos os providers — e, em tese, um adapter preso a um
-fornecedor (`claude-code`, `codex`) passaria a alcançar model de outro provider, exatamente a
-limitação da seção 10.5.
+**Como ligar**: configure `~/.harbor-eval-kit/litellm-gateway.json` a partir do exemplo do repo,
+preencha host/container e mapeamentos do adapter, salve a chave de inferência e defina
+`enabled: true`. Ausente/OFF não injeta ambiente nem consulta o proxy. ON inválido falha com
+diagnóstico. O kit não instala nem inicia LiteLLM. Endpoints não aceitam credenciais, query
+string ou fragmento. A UI precisa de `hostBaseUrl`, mesmo se o agent usa `containerBaseUrl`.
 
-**Onde encaixa**: apontar um agent pra um proxy significa uma coisa só — setar variáveis
-`*_BASE_URL`/chave no processo filho `harbor`. `buildHarborEnv()` é o ponto único por onde todo
-filho recebe ambiente, então o encaixe inteiro é mais um decorador ali, ao lado de
-`withTelemetryDisabled` e `withPythonUtf8`.
+`GET /api/litellm/status` informa configuração e presença de chave, nunca valores. `configured`
+significa ON com endpoint de host presente, não tráfego confirmado. Os endpoints de descoberta
+e teste usam Bearer, recusam redirects e limitam timeout a 15s e respostas a 1 MiB. Não devolvem
+metadados ou erros brutos do proxy. O status geral `litellmGateway.enabled` também indica
+configuração, não prova que todos os adapters estejam usando o proxy.
 
-**Como ligar**: copie `config/litellm-gateway.example.json` para
-`~/.harbor-eval-kit/litellm-gateway.json` e ponha `enabled: true`. Ausente ou `enabled: false`
-é no-op. Uma configuração `enabled: true` ausente, ilegível ou inválida falha com diagnóstico
-explícito; nunca redireciona tráfego em silêncio. O arquivo de configuração não pode conter
-credenciais nem variáveis de infraestrutura. Sem gateway ativo, `buildHarborEnv()` mantém o
-ambiente normal — há teste fixando isso.
-`GET /api/status` reporta `litellmGateway.enabled`, pra responder "meu tráfego está passando por
-proxy agora?" sem abrir arquivo.
+**O mapeamento é declarado**: cada adapter precisa reconhecer as variáveis de `env`; o gateway
+não intercepta universalmente todo tráfego. A inferência usa extras da run, depois chave salva,
+depois ambiente do processo. Somente a referência de inferência é buscada no arquivo para esse
+lookup. Os mapeamentos vencem extras homônimos e a master key é removida do filho Harbor.
+Aliases descobertos não ampliam automaticamente a lista permitida de modelos de juiz.
 
-**O mapeamento de variáveis é declarado, não adivinhado**: a configuração estrita declara
-`hostBaseUrl`, `containerBaseUrl`, `inferenceKeyEnv`, `masterKeyEnv` e os nomes de ambiente do
-proxy. URLs usam placeholders de host/container quando forem diferentes. A credencial de
-inferência é resolvida pela combinação do ambiente do processo e dos extras do provider; a
-master key autentica o proxy e é excluída do ambiente do executor filho. O helper do gateway
-aplica seus nomes mapeados depois dos extras do provider, preserva extras não mapeados e não
-absorve variáveis arbitrárias do processo.
-
-**Honestidade**: nada disso foi executado contra um proxy LiteLLM real. É encaixe preparado, não
-recurso suportado — por isso vem desligado e com o mapeamento sob responsabilidade de quem
-ligar.
+**Validação**: testes com HTTP local simulado cobrem descoberta, inferência explícita e
+segurança; a UI também foi exercitada com dois aliases sintéticos, registro, bloqueio sem
+seleção e gateway OFF. Isso não certifica um proxy real nem a rede host/container de cada SO.
+O gateway real permanece desligado. Veja [guia de uso e limites](docs/LITELLM.md).
 
 ### 5.2 Comando `docker` do sistema — nunca usado
 

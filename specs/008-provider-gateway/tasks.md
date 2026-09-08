@@ -24,3 +24,10 @@ Checklist para reconstrução; validações reais continuam separadas da impleme
   validar descoberta, teste explícito e proxy em cada plataforma, registrando limitações.
 - [ ] T008-11 Resolver deliberadamente aliases como google/gemini e eventual rollback
   de cadastro parcial; escrever novos testes antes de declarar essas melhorias prontas.
+- [ ] T008-12 (US6/FR-008-07) Implementar cartão gateway e três endpoints do plano;
+  chave virtual salva, descoberta GET sem completion, alias bruto preservado no teste,
+  registro `openai/<alias>`, locks, aviso pago e OFF sem rede. Manter providers diretos.
+- [ ] T008-13 Testar auth, seleção ausente, 401/403/500, schemas, corpo excessivo,
+  timeout, redirects e não vazamento com HTTP local; validar lookup seletivo da chave
+  salva, prioridade extras > arquivo > processo e master excluída. Exercitar UI com
+  aliases sintéticos antes de qualquer integração real. Não certificar proxy com mocks.

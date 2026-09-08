@@ -11,6 +11,9 @@
 | POST `/api/secrets/test` | `{name,model}`; nome não mapeado ou não salvo: 400; resultado 200 ou 502 |
 | GET `/api/providers/:provider/models?envKey=...` | envKey opcional precisa corresponder ao catálogo; provider precisa envKey; resultado 200 ou 502 |
 | GET `/api/status` | `litellmGateway:{enabled,baseUrl,configPath}`; baseUrl nula OFF, host preferido a container ON |
+| GET `/api/litellm/status` | `{enabled,configured,inferenceKeyEnv,hasCredential}`, sem valores; configured = ON + host presente |
+| GET `/api/litellm/models` | `{models:string[]}`, aliases brutos do proxy, sem completion |
+| POST `/api/litellm/test` | `{model:alias}` explícito; sucesso `{ok:true,testedModel:alias}` |
 
 Resultado probe: `{ok:boolean,testedModel:string|null,discoveredModels:string[],
 error:string|null}`. Validações que lançam exceção usam handler HTTP geral. Não há
@@ -84,7 +87,7 @@ resulta OFF e env vazio. JSON malformado ou raiz não-objeto falha. OFF ignora d
 campos; ON exige `enabled:true` e aceita somente `_comment`, `enabled`, `hostBaseUrl`,
 `containerBaseUrl`, `inferenceKeyEnv`, `masterKeyEnv`, `env`. `_comment` é string[].
 Textos opcionais são trimmed não vazios ou null. URLs HTTP(S), sem credenciais ou
-fragmento; pelo menos host ou container obrigatório. `inferenceKeyEnv` obrigatório;
+query string ou fragmento; pelo menos host ou container obrigatório. `inferenceKeyEnv` obrigatório;
 `masterKeyEnv` opcional e diferente; nomes seguem `^[A-Za-z_][A-Za-z0-9_]*$`.
 
 Env é objeto não vazio de strings não vazias; bloquear nomes `DOCKER_HOST`, `PATH`,
@@ -96,7 +99,8 @@ caracteres `[A-Za-z0-9_-]` consecutivos é rejeitado como possível credencial. 
 pode mapear o nome de masterKeyEnv. Esses filtros são regras exatas, não detector
 universal de segredos.
 
-Construir lookup de segredos com process.env seguido de providerEnv (provider vence).
+Construir lookup com process.env, somente a inferência de secrets.env e providerEnv
+(prioridade extras > arquivo > processo; não copiar outros segredos salvos).
 Exigir valor não vazio da referência inferenceKeyEnv; expandir placeholders; remover
 masterKeyEnv de extras e aplicar gateway depois dos extras. Não copiar variáveis
 process.env não relacionadas ao objeto retornado. OFF devolve cópia de providerEnv.
@@ -108,6 +112,18 @@ Não transformar host URL em container URL automaticamente: ambos são configura
 explícita e a acessibilidade Podman requer smoke separado por SO.
 
 ## Testes, fontes e riscos
+
+Delta 2026-09-08: `litellm-probe.ts` implementa HTTP host com chave salva de inferência,
+hostBaseUrl obrigatório e `/v1` acrescentado somente se ausente. GET models aceita
+`data:[{id}]`, IDs `^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,199}$`, deduplica sem normalizar
+barras e descarta metadados. POST chat/completions usa alias bruto, 8 tokens e exige
+conteúdo de mensagem não vazio. Chave em Bearer, timeout 15s, redirects recusados,
+corpo até 1 MiB; nenhuma mensagem bruta upstream ou alias contendo segredo conhecido
+pode retornar. O cartão registra `openai/<alias>` para adapters compatíveis e mantém
+probe SDK direto separado. Não há aprovação automática de aliases para juízes.
+`litellm-probe.test.ts` valida 14 casos com HTTP loopback/fixtures, sem proxy real;
+teste de domínio cobre alias com barras e teste runtime cobre leitura seletiva da
+chave salva e precedência. Configuração e conectividade são estados distintos.
 
 `provider-probe.test.ts` cobre exigência de modelo explícito; `provider-domain.test.ts`
 cobre normalização/registro/erro/locks; `litellm.test.ts` cobre OFF, ON inválido,

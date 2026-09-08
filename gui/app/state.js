@@ -41,6 +41,10 @@ export function guessProviderKey(modelValue) {
   return prefix ? `${prefix.toUpperCase()}_API_KEY` : null;
 }
 export function keyStatusBadge(modelValue) {
+  if (String(modelValue || "").startsWith("openai/") && state.gateway?.enabled) {
+    const has = state.gateway.hasCredential;
+    return `<span class="badge" style="color:var(--${has ? "ok" : "warn"});">${has ? "✓" : "⚠ falta"} gateway: ${escapeHtml(state.gateway.inferenceKeyEnv || "credencial de inferência")}</span>`;
+  }
   const known = findProviderByModelValue(modelValue);
   if (known && known.envKey === null) return `<span class="badge">${escapeHtml(known.label)}</span>`;
   const key = guessProviderKey(modelValue);
@@ -53,7 +57,7 @@ export function keyStatusBadge(modelValue) {
 
 
 // ---------- shared registry state ----------
-export const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [], harborAgents: [], freeAgents: [] };
+export const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [], harborAgents: [], freeAgents: [], gateway: null, gatewayError: "" };
 
 // The --agent values the installed Harbor accepts, offered as autocomplete on both the Agents
 // and Judges forms. Kept as a <datalist> rather than a <select> on purpose: harbor also takes
@@ -89,6 +93,13 @@ export async function refreshAll() {
   state.rubrics = await api("GET", "/api/rubrics");
   state.judges = await api("GET", "/api/judges");
   state.secretNames = await api("GET", "/api/secrets");
+  try {
+    state.gateway = await api("GET", "/api/litellm/status");
+    state.gatewayError = "";
+  } catch (error) {
+    state.gateway = null;
+    state.gatewayError = error.message;
+  }
   if (state.judgeModels.length === 0) state.judgeModels = await api("GET", "/api/judge-models");
   if (PROVIDERS.length === 0) PROVIDERS = await api("GET", "/api/providers");
   if (state.harborAgents.length === 0) {
