@@ -6,21 +6,34 @@ feito, só lendo este arquivo + `docs/ENGENHARIA.md` (padrões e o porquê de ca
 `AGENTS.md` (regras sempre-válidas).
 
 **Antes de implementar qualquer item**: rode `bash scripts/test.sh` (ou `.ps1`) pra confirmar
-a baseline, siga a skill `ship-change` (`.claude/skills/ship-change/SKILL.md` — vale como
+a baseline Node, siga a skill `ship-change` (`.claude/skills/ship-change/SKILL.md` — vale como
 checklist mesmo fora do Claude Code) e documente a mudança no mesmo commit, no arquivo que ela
-afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
+afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14). O contrato Python é separado e exige um
+ambiente com `harbor==0.22.0`; o comando está em `docs/ENGENHARIA.md`.
+
+Os nomes atuais da GUI são **Começar**, **Novo experimento**, **Credenciais**, **Modelos**,
+**Agentes**, **Critérios**, **Rubrics**, **Juízes**, **Tasks**, **Configuração**, **Datasets**,
+**Logs**, **Trajetórias** e **Análise avulsa**. Referências antigas a abas numeradas ou aos
+nomes ingleses de navegação devem ser tratadas como histórico e corrigidas quando revisitadas.
+
+Snapshots e hashes de arquivos são preparados automaticamente por
+`scripts/lib/experiment-store.ts` para cada experimento. Commit Git, digest de dataset/imagem,
+pins operacionais e outras garantias externas precisam ser registrados manualmente pelo
+operador quando forem necessários; não há captura automática desses metadados.
 
 ---
 
 ## ✅ Já implementado (não reabrir sem motivo novo)
 
 - **Guarda de gasto** (estimativa + teto + confirmação) — `scripts/lib/cost.ts`.
-- **CI** (GitHub Actions, 3 SOs) — `.github/workflows/ci.yml`.
+- **CI** (matriz Node nos três SOs + contrato Python em Ubuntu) — `.github/workflows/ci.yml`.
+- **Contrato de runtime** — Harbor `0.22.0` é a versão pinada e validada pelo instalador e
+  pelo bootstrap Python; mudança de versão exige repetir o gate e os testes de contrato.
 - **Cancelar run em andamento** (best-effort, mata processo + tenta parar containers) —
   `POST /api/compare/cancel`, `scripts/lib/exec.ts` (`stopContainersForJob`).
 - **Export/import de config** (bundle idempotente por id, nunca inclui secret) —
-  `scripts/lib/bundle.ts`, aba "Config" na GUI.
-- **Filtro em listas de checkbox grandes** (Judge Rubrics, Skill Sets, etc.) —
+  `scripts/lib/bundle.ts`, área **Configuração** na GUI.
+- **Filtro em listas de checkbox grandes** (Rubrics, Conjuntos de skills etc.) —
   `checkboxGroup()` em `gui/app/core.js`, aparece acima de 8 itens.
 - **Layout de duas colunas no Compare** — `.compare-layout` em `gui/styles.css`, config à
   esquerda (420px), resultado à direita; colapsa pra uma coluna abaixo de 1100px de viewport.
@@ -29,11 +42,11 @@ afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
   esconde `.hint` exceto os marcados `.status-line` (que carregam estado, não texto didático).
 - **Navegação agrupada** — Jornada, Catálogo e Ambiente e ajuda; Começar orienta o primeiro uso
   e Novo experimento separa objetivo, candidatos, task/volume e execução.
-- **Acessibilidade** — 60 pares `<label for>`/`id` associados (dos ~67 campos reais; o resto
-  são labels de **grupo** — "Rubrics", "Skills incluídas" etc. — que descrevem um
+- **Acessibilidade** — os campos individuais têm pares `<label for>`/`id`; labels de **grupo**
+  ("Rubrics", "Skills incluídas" etc.) descrevem um
   `checkbox-group` inteiro, não um único campo, então `for` apontaria pra um membro arbitrário
-  do grupo de forma enganosa; ficaram como texto descritivo mesmo, decisão deliberada, não
-  esquecimento). `aria-live="polite"` em `#compare-output`, `#config-bundle-status`,
+  do grupo de forma enganosa; ficaram como texto descritivo por decisão deliberada.
+  `aria-live="polite"` em `#compare-output`, `#config-bundle-status`,
   `#logs-status`. Verificado clicando no texto do label de verdade e confirmando que o foco vai
   pro campo certo (não só contando atributos).
 - **Tema claro** — `@media (prefers-color-scheme: light)` em `gui/styles.css`, sem toggle (seguia
@@ -52,9 +65,10 @@ afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
 - Retomada explícita de experimento interrompido, com validação de inputs e ownership.
   A persistência permite consulta; não equivale a reiniciar processos automaticamente.
 
-O escopo mais recente está em [Plano da plataforma](PLANO_PLATAFORMA_2026-09-07.md), com
-[prompt de continuidade](PROMPT_CLAUDE_PLATAFORMA.md). A auditoria anterior em
-`PLANO_CORRECOES_2026-09-07.md` está concluída.
+Os planos `PLANO_PLATAFORMA_2026-09-07.md` e `PLANO_CORRECOES_2026-09-07.md` são registros
+históricos datados, não a especificação atual. Para lacunas de entrega, consulte a
+[Auditoria de entrega](AUDITORIA_ENTREGA_2026-09-07.md); para o fluxo atual, consulte o
+`README.md` e `DOCUMENTACAO.md`.
 
 O runtime gerenciado atual aceita tasks Linux de serviço único e rede pública. Suporte a
 Compose customizado/multisserviço e políticas de rede restrita precisa preservar ownership e
@@ -70,12 +84,10 @@ trabalho, mas é uma decisão de negócio, não algo pra um agente decidir sozin
 ## 🔲 Busca em listas simples (fora do checkboxGroup) — deliberadamente não implementado
 
 O filtro de `checkboxGroup()` (já feito) cobre as listas de **seleção múltipla**. As listas
-**simples** de cadastro (Models, Agents, Judges, etc. — renderizadas por `makeRow()` em
-`gui/app/core.js`) não têm busca. **Decisão consciente de não fazer isso agora**: hoje há 9
-models e 4 agents cadastrados nesta máquina — construir busca pra esse volume seria otimizar
-pra um problema que não existe ainda, o que `AGENTS.md` pede pra evitar explicitamente
-("no hypothetical future requirements"). Reabrir quando um time de verdade tiver 40-50+ items
-cadastrados e sentir falta — não antes.
+**simples** de cadastro (Modelos, Agentes, Juízes etc., renderizadas por `makeRow()` em
+`gui/app/core.js`) ainda não têm busca. É uma decisão consciente: a necessidade deve ser
+reavaliada quando o volume real de cadastros justificar a interação, sem fixar uma contagem
+de referência ou prometer uma otimização para um cenário hipotético.
 
 ## Como verificar (se algo aqui for revisitado)
 

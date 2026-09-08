@@ -80,11 +80,19 @@ Return READY only if:
 
 Both install wrappers require Node.js 24+ and write/preserve the same dependency snapshot
 before installation. They record Harbor only after successful installation and executable
-discovery. Bash also records uv if it installs it; PowerShell requires uv to be provisioned.
+discovery. After `uv tool install`, both add `uv tool dir --bin` only to the current process PATH
+and prove Harbor 0.22.0 comes from the corresponding uv environment. A preexisting unsupported
+Harbor is preserved and produces a clear gate failure. Bash also records uv if it installs it;
+PowerShell requires uv to be provisioned.
 The primitive smoke uses unique names, labels, manifest reservations and audited cleanup.
 It requires an existing `docker.io/library/alpine:3.20` base image and uses `--pull=never` so
-it cannot silently create an unowned upstream image. It also proves synthetic env injection
-and host/container bind-mount writes. Provision the base prerequisite explicitly.
+it cannot silently create an unowned upstream image. Its build also uses `--layers=false`,
+`--force-rm` and the managed label. It proves synthetic env injection and host/container
+bind-mount writes. Provision the base prerequisite explicitly.
+
+Node and Python writers serialize manifest changes with the same `.runtime-lock`, reload after
+acquiring it and replace the file atomically. A lock still present after 30 seconds blocks the
+operation; inspect the owning process before treating it as abandoned.
 
 The wrappers do not automatically execute an end-to-end Harbor task or declare READY.
 Kit-installed uv is recorded but preserved by uninstall because its full upstream installer

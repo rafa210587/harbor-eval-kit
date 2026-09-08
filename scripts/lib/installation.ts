@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, delimiter, join } from 'node:path';
 import { platform, arch } from 'node:os';
@@ -13,10 +13,34 @@ export function loadInstallationManifest(path: string): any {
   for (const kind of ['containers', 'images', 'volumes', 'networks']) if (!Array.isArray(value.managed_resources[kind])) throw new Error(`Invalid manifest resource list: ${kind}`);
   return value;
 }
-export function saveInstallationManifest(path: string, value: any): void {
+function writeInstallationManifest(path: string, value: any): void {
   const temp = `${path}.${randomUUID()}.tmp`;
   writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { flag: 'wx' });
   renameSync(temp, path);
+}
+
+/** Shares the Python runtime lock and always reloads after acquiring it. */
+export function updateInstallationManifest(path: string, update: (value: any) => void): any {
+  const lock = `${path}.runtime-lock`;
+  const deadline = Date.now() + 30_000;
+  while (true) {
+    try {
+      const descriptor = openSync(lock, 'wx', 0o600);
+      closeSync(descriptor);
+      break;
+    } catch (error: any) {
+      if (error?.code !== 'EEXIST' || Date.now() >= deadline) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+  try {
+    const value = loadInstallationManifest(path);
+    update(value);
+    writeInstallationManifest(path, value);
+    return value;
+  } finally {
+    unlinkSync(lock);
+  }
 }
 /** The original snapshot is immutable across repeated installations. */
 export function snapshotInstallation(path: string, locate = findExecutable): void {
@@ -31,10 +55,10 @@ export function snapshotInstallation(path: string, locate = findExecutable): voi
 }
 export function markInstalledDependency(path: string, tool: string, locate = findExecutable): void {
   if (!['harbor', 'uv'].includes(tool)) throw new Error('Unsupported installed dependency');
-  const value = loadInstallationManifest(path);
-  if (value.preexisting[tool]?.present !== false) throw new Error(`Cannot claim preexisting or unsnapshotted dependency: ${tool}`);
   const executable = locate(tool);
   if (!executable) throw new Error(`Installed dependency not found: ${tool}`);
-  value.installed_by_kit[tool] = { installed: true, path: executable, recorded_at: new Date().toISOString() };
-  saveInstallationManifest(path, value);
+  updateInstallationManifest(path, value => {
+    if (value.preexisting[tool]?.present !== false) throw new Error(`Cannot claim preexisting or unsnapshotted dependency: ${tool}`);
+    value.installed_by_kit[tool] = { installed: true, path: executable, recorded_at: new Date().toISOString() };
+  });
 }

@@ -27,7 +27,10 @@ export function setupExperimentHistory(onOpen) {
     button.disabled = true;
     try {
       const record = await api("GET", `/api/experiments/${encodeURIComponent(id)}?jobsDir=${encodeURIComponent(jobsInput.value || "jobs")}`);
-      onOpen(record);
+      if (onOpen(record) === false) {
+        status.textContent = "Aguarde a execução ou análise atual terminar antes de abrir outro experimento.";
+        return;
+      }
       rememberExperiment(jobsInput.value, id);
       status.textContent = record.executionUncertain
         ? "Servidor reiniciado: execução sem confirmação de atividade. Os resultados vêm do disco; confira os logs antes de agir."

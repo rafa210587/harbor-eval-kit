@@ -4,11 +4,11 @@ import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { discoverCleanupResources, executeCleanup, planCleanup } from './cleanup.ts';
 import type { CleanupExecutor } from './cleanup.ts';
-import { loadInstallationManifest, saveInstallationManifest } from './installation.ts';
+import { loadInstallationManifest, updateInstallationManifest } from './installation.ts';
 
 /** Primitive smoke only: does not declare Harbor/Docker compatibility or READY. */
 export function smokePodman(manifestPath: string, run: CleanupExecutor): void {
-  const manifest = loadInstallationManifest(manifestPath);
+  let manifest = loadInstallationManifest(manifestPath);
   run('podman', ['info']);
   const prefix = `harbor-eval-kit-doctor-${randomUUID()}`;
   const names = { containers: `${prefix}-container`, images: `${prefix}-image`, volumes: `${prefix}-volume`, networks: `${prefix}-network` };
@@ -16,15 +16,16 @@ export function smokePodman(manifestPath: string, run: CleanupExecutor): void {
   if (!existing.some(resource => resource.kind === 'images' && resource.names.includes('docker.io/library/alpine:3.20'))) throw new Error('Smoke requires a preexisting docker.io/library/alpine:3.20 image; provision the base image explicitly before doctor. The kit will not pull an unowned image.');
   if (existing.some(resource => resource.names.some(name => Object.values(names).includes(name.replace(/^localhost\//, '').replace(/:latest$/, ''))))) throw new Error('Smoke resource name collision');
   // Record intent before creation: interrupted/failed smoke resources remain identifiable.
-  for (const [kind, name] of Object.entries(names)) manifest.managed_resources[kind].push(name);
-  saveInstallationManifest(manifestPath, manifest);
+  updateInstallationManifest(manifestPath, current => {
+    for (const [kind, name] of Object.entries(names)) current.managed_resources[kind].push(name);
+  });
   const temp = mkdtempSync(join(tmpdir(), 'harbor-eval-kit-doctor-'));
   try {
     const bind = join(temp, 'bind');
     mkdirSync(bind);
     writeFileSync(join(bind, 'host-seed'), 'host-ok\n');
     writeFileSync(join(temp, 'Containerfile'), 'FROM docker.io/library/alpine:3.20\nRUN echo ok >/image-ok\nCMD ["sh","-lc","sleep 60"]\nLABEL io.harbor-eval-kit.managed="true"\n');
-    run('podman', ['build', '--pull=never', '-t', names.images, temp]);
+    run('podman', ['build', '--pull=never', '--layers=false', '--force-rm', '--label', 'io.harbor-eval-kit.managed=true', '-t', names.images, temp]);
     const label = 'io.harbor-eval-kit.managed=true';
     run('podman', ['volume', 'create', '--label', label, names.volumes]);
     run('podman', ['network', 'create', '--label', label, names.networks]);
@@ -41,8 +42,9 @@ export function smokePodman(manifestPath: string, run: CleanupExecutor): void {
     const owned = discoverCleanupResources(run).filter(resource => resource.names.some(name => name.includes(prefix)));
     if (owned.length !== 4) throw new Error('Smoke resources not fully observable; leaving them for audited cleanup');
     // Image inspection returns localhost/name:latest; record that exact alias before planning.
-    for (const resource of owned) manifest.managed_resources[resource.kind].push(resource.id);
-    saveInstallationManifest(manifestPath, manifest);
+    manifest = updateInstallationManifest(manifestPath, current => {
+      for (const resource of owned) current.managed_resources[resource.kind].push(resource.id);
+    });
     const resourceManifest = { ...manifest, installed_by_kit: {} };
     const plan = planCleanup(resourceManifest, owned);
     executeCleanup(manifestPath, plan, (command, args) => {

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PREFIX="${HARBOR_EVAL_PREFIX:-harbor-eval-kit-}"
-LABEL="${HARBOR_EVAL_LABEL:-io.harbor-eval-kit.managed=true}"
 STATE_DIR="${HARBOR_EVAL_STATE_DIR:-$HOME/.harbor-eval-kit}"
 MANIFEST="${HARBOR_EVAL_MANIFEST:-$STATE_DIR/installation-manifest.json}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,6 +54,31 @@ install_uv() {
   mark_installed uv
 }
 
+add_uv_tool_bin() {
+  local bin
+  bin="$(uv tool dir --bin)"
+  [ -n "$bin" ] || { say "BLOCKED: uv did not report its tool bin directory"; return 2; }
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*)
+      have cygpath || { say "BLOCKED: Git Bash requires cygpath to use the uv tool bin directory"; return 2; }
+      bin="$(cygpath -u "$bin")"
+      ;;
+  esac
+  export PATH="$bin:$PATH"
+}
+
+verify_harbor_runtime() {
+  local actual tools python
+  actual="$(harbor --version 2>&1 | head -n1)"
+  [ "$actual" = "0.22.0" ] || { say "BLOCKED: Harbor 0.22.0 is required; found $actual. Preexisting Harbor is preserved."; return 2; }
+  tools="$(uv tool dir)"
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) have cygpath && tools="$(cygpath -u "$tools")"; python="$tools/harbor/Scripts/python.exe" ;;
+    *) python="$tools/harbor/bin/python" ;;
+  esac
+  [ -f "$python" ] || { say "BLOCKED: Analyze requires Harbor 0.22.0 managed by uv; the preexisting Harbor installation was preserved."; return 2; }
+}
+
 mark_installed() {
   node "$ROOT/scripts/installation.ts" mark "$MANIFEST" "$1"
 }
@@ -64,6 +87,7 @@ install() {
   ensure_state
   doctor_podman
   install_uv
+  add_uv_tool_bin
   if ! have harbor; then
     # Pinned, not "latest": this kit parses `harbor analyze` stdout, mirrors `harbor run --help`'s
     # adapter list, and reads result.json field names -- all of which are one release's behaviour
@@ -73,6 +97,7 @@ install() {
     export PATH="$HOME/.local/bin:$PATH"
     mark_installed harbor
   fi
+  verify_harbor_runtime
   harbor --help >/dev/null
   say "Harbor installed."
   say "NEXT GATE: run a minimal Harbor task to validate the installed Harbor version against Podman compatibility."
@@ -114,5 +139,6 @@ case "$cmd" in
     cat <<EOF
 Usage: $0 {doctor|install|status|init-evals|eval|uninstall [--dry-run]}
 EOF
+    exit 2
     ;;
 esac

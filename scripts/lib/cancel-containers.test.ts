@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { stopContainersForJob } from './exec.ts';
+import { processDescendants, stopContainersForJob, terminateProcessTree } from './exec.ts';
 
 test('cancel stops only exact manifest-owned labeled containers and verifies the effect', () => {
   const dir = mkdtempSync(join(tmpdir(), 'harbor-cancel-test-'));
@@ -61,4 +61,21 @@ test('cancel resolves a managed runtime namespace by its recorded job path', () 
     assert.deepEqual(stopped, [name]);
     assert.equal(active, false);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('process-tree cancellation derives descendants from the owned child and uses native Windows tree kill', () => {
+  assert.deepEqual(processDescendants(10, '11 10\n12 11\n99 1\n'), [12, 11]);
+  const calls: unknown[] = [];
+  const child = { pid: 10, exitCode: null, signalCode: null, kill: () => { calls.push('direct'); return true; } } as any;
+  assert.deepEqual(terminateProcessTree(child, {
+    platform: 'win32',
+    run: (command, args) => { calls.push([command, args]); return ''; },
+  }), [10]);
+  assert.deepEqual(calls, [['taskkill', ['/PID', '10', '/T', '/F']]]);
+  const killed: Array<[number, string]> = [];
+  const unixChild = { pid: 10, exitCode: null, signalCode: null, kill: (signal: string) => { calls.push(signal); return true; } } as any;
+  terminateProcessTree(unixChild, { platform: 'linux', run: () => '11 10\n12 11\n', killPid: (pid, signal) => killed.push([pid, signal]) });
+  assert.deepEqual(killed, [[12, 'SIGKILL'], [11, 'SIGKILL']]);
+  assert.equal(calls.at(-1), 'SIGKILL');
+  assert.deepEqual(terminateProcessTree({ ...unixChild, signalCode: 'SIGKILL' } as any), []);
 });

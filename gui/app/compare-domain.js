@@ -23,6 +23,11 @@ export function freezeAnalysisConfig({ judgeId, rubricIds, validationMode }) {
   });
 }
 
+export function withAnalysisSession(config, session) {
+  if (!session?.id) throw new Error("O servidor não retornou a sessão congelada de análise.");
+  return Object.freeze({ ...config, analysisSessionId: session.id });
+}
+
 export function createPollingGuard() {
   let generation = 0;
   return {
@@ -44,6 +49,23 @@ export function resultState(row, dryRun = false) {
   if (row.errorKind === "agent" || Number(row.nErrors) > 0) return "Falha do agente";
   if (row.error) return "Falhou";
   return "Pendente";
+}
+
+export function judgeEvaluation(row) {
+  if (typeof row?.passRate === "number" && Number.isFinite(row.passRate)) return `${(row.passRate * 100).toFixed(0)}% PASS`;
+  const analyses = Array.isArray(row?.analyses) ? row.analyses : [];
+  if (!analyses.length) return "Não analisado";
+  const latest = analyses.at(-1);
+  const batch = latest?.analysisBatchId ? analyses.filter((item) => item.analysisBatchId === latest.analysisBatchId) : [latest];
+  if (batch.some((item) => item?.validationMode)) return "Validação — sem nota";
+  if (batch.some((item) => item?.ok === false || !item?.analysis)) return "Falhou — sem nota";
+  const aggregates = batch.map((item) => item.analysis?.aggregate);
+  const incomplete = aggregates.reduce((total, aggregate) => total + (Number(aggregate?.incompleteTrials) || 0), 0);
+  if (incomplete > 0) return `Incompleta (${incomplete} trial${incomplete === 1 ? "" : "s"})`;
+  const unknown = aggregates.reduce((total, aggregate) => total + (Number(aggregate?.unknown) || 0), 0);
+  if (unknown > 0) return `Inconclusiva (${unknown} check${unknown === 1 ? "" : "s"})`;
+  if (aggregates.every(Boolean) && aggregates.reduce((total, aggregate) => total + (Number(aggregate.applicable) || 0), 0) === 0) return "Sem checks aplicáveis";
+  return "Sem nota reportada";
 }
 
 export function candidateDifferences(candidate, baseline) {

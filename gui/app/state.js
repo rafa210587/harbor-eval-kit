@@ -53,7 +53,7 @@ export function keyStatusBadge(modelValue) {
 
 
 // ---------- shared registry state ----------
-export const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [], harborAgents: [] };
+export const state = { agents: [], models: [], skills: [], skillsets: [], criteria: [], rubrics: [], judges: [], secretNames: [], judgeModels: [], harborAgents: [], freeAgents: [] };
 
 // The --agent values the installed Harbor accepts, offered as autocomplete on both the Agents
 // and Judges forms. Kept as a <datalist> rather than a <select> on purpose: harbor also takes
@@ -65,7 +65,7 @@ export function renderHarborAgentsDatalist() {
     .map((a) => {
       const tags = [];
       if (a.modelAgnostic) tags.push("model-agnostic");
-      if (a.value === "oracle" || a.value === "nop") tags.push("sem custo de API");
+      if (state.freeAgents.includes(a.value)) tags.push("sem custo de API");
       return `<option value="${escapeHtml(a.value)}"${tags.length ? ` label="${escapeHtml(tags.join(" · "))}"` : ""}></option>`;
     })
     .join("");
@@ -94,6 +94,7 @@ export async function refreshAll() {
   if (state.harborAgents.length === 0) {
     const ha = await api("GET", "/api/harbor-agents");
     state.harborAgents = ha.agents || [];
+    state.freeAgents = ha.freeAgents || [];
     renderHarborAgentsDatalist();
   }
 

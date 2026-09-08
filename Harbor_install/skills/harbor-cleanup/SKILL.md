@@ -27,6 +27,11 @@ Node.js 24+ is required. No Python or shell-specific deletion logic is used.
    each removed resource/executable is absent. Keep the manifest and its `uninstall_audit`,
    including the plan, completed actions and final status. Never persist command output.
 
+Every manifest mutation, including cleanup audit progress, must acquire the shared
+`<manifest>.runtime-lock`, reload after acquiring it and replace the manifest atomically. This
+preserves resource reservations written concurrently by the managed Python runtime. If the lock
+remains for 30 seconds, abort and inspect the owning process before treating it as abandoned.
+
 Never use global prune, wildcard deletion or global package removal. Custom ownership marker
 values are rejected. Do not remove the manifest unless the user separately requests it.
 

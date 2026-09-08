@@ -15,8 +15,8 @@
 6. [Onde tudo fica guardado](#6-onde-tudo-fica-guardado-no-disco)
 7. [Segurança das secrets](#7-segurança-das-secrets--o-que-é-garantido-e-o-que-não-é)
 8. [Glossário — os conceitos e como se conectam](#8-glossário--os-conceitos-e-como-se-conectam)
-9. [Ordem cognitiva das abas](#9-ordem-cognitiva-das-abas-1→10)
-10. [Cada aba em detalhe](#10-cada-aba-em-detalhe)
+9. [Ordem cognitiva das áreas](#9-ordem-cognitiva-das-áreas)
+10. [Cada área em detalhe](#10-cada-área-em-detalhe)
 11. [Reward vs. Juiz](#11-o-mecanismo-de-avaliação--reward-vs-juiz)
 12. [CLI vs. GUI](#12-compare-matrixts-cli-vs-gui--quando-usar-cada-um)
 13. [Limitações conhecidas](#13-limitações-conhecidas-decisões-conscientes-não-esquecimento)
@@ -34,7 +34,7 @@ local** por cima, pra não precisar decorar flags de CLI nem editar JSON à mão
 Peças que compõem o kit:
 
 1. **`Harbor_install/`** — skills e agents do **Claude Code** pra instalar/diagnosticar/operar
-   o Harbor em si (não confundir com as abas "Skills"/"Agents" da GUI — são conceitos
+   o Harbor em si (não confundir com as áreas "Skills"/"Agentes" da GUI — são conceitos
    diferentes, ver seção 8).
 2. **`scripts/harbor-eval.sh` / `.ps1`** — os mesmos passos de bootstrap/doctor em forma de
    script direto, sem precisar do Claude Code.
@@ -96,8 +96,9 @@ e registro no manifest antes da criação. O teste não declara compatibilidade 
 ```powershell
 .\scripts\harbor-eval.ps1 install
 ```
-Por baixo, isso roda `uv tool install harbor` — instala como CLI Python isolada (`uv`
-gerencia seu próprio Python, não mexe no Python do sistema, que pode nem existir). Ou peça
+Por baixo, isso roda `uv tool install harbor==0.22.0` — instala como CLI Python isolada (`uv`
+gerencia seu próprio Python, não mexe no Python do sistema, que pode nem existir). O kit verifica
+essa versão pinada antes de executar e recusa outra versão. Ou peça
 pro Claude Code carregar `Harbor_install/skills/harbor-bootstrap/SKILL.md`, que segue a mesma
 sequência com validação em cada passo.
 
@@ -147,31 +148,33 @@ Roda só em `127.0.0.1` — nunca acessível pela rede, nunca um servidor públi
 
 ### 2.7 Primeiro uso — caminho mínimo
 
-Comece em **Começar** e siga **Credenciais → Modelos → Agentes → Novo experimento**, escolhendo a task executável
-`evals/python/soma-fracoes`. Para variar modelos entre providers, use um adapter compatível,
-como `mini-swe-agent`. Skills e a configuração do juiz são opcionais. As abas numeradas
-abaixo são o mapa completo de recursos; não são dez pré-requisitos obrigatórios:
+Comece em **Começar**. O checklist só libera **Criar novo experimento** depois que uma task
+foi escolhida e existe um perfil de agente. Para um agente gratuito informado pelo catálogo
+do servidor (por exemplo, `oracle`/`nop`), modelo e credencial são dispensados; para agentes
+pagos, o checklist também aponta **Modelos** e **Credenciais**. Para variar modelos entre
+providers, use um adapter compatível, como `mini-swe-agent`. Skills e a configuração do juiz
+são opcionais. As áreas abaixo são o mapa funcional da GUI, não uma lista de pré-requisitos
+obrigatórios:
 
-1. **Credenciais** — cadastre a key de cada provider que for usar (o dropdown lista providers
-   curados). Sem isso, só dá pra testar com os agents `oracle`/`nop` (gratuitos, sem LLM).
-2. **Modelos** — cadastre `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O badge avisa
-   se a key esperada já está em Credenciais.
-3. **Skills** — escreva ou aponte pra instruções que um agent deve seguir (opcional).
-4. **Skill Sets** — agrupe Skills num pacote nomeado (opcional, só se for usar Skills).
-5. **Agentes** — monte um "perfil de uso": `agentValue` do Harbor + model padrão +
-   instructions + default skill sets.
-6. **Criteria** — critérios de avaliação qualitativa, reutilizáveis (opcional, só necessário
-   se for usar o Analyze/juiz).
-7. **Judge Rubrics** — agrupe Criteria num rubric nomeado (opcional).
-8. **Judges** — monte o "perfil de uso" do avaliador: `agentValue` + judge model (só os da
-   lista curada, cadastrado antes em Modelos) + instruções custom (opcional) + Judge Rubrics
-   padrão (opcional, só necessário se for usar o Analyze/juiz).
-9. **Tasks** — crie uma task real (`harbor init --task`) e preencha os 4 arquivos direto no
-   editor da própria aba. **Os `evals/*/seed-task` de exemplo são stubs vazios** — não dá pra
-   comparar contra eles sem preencher primeiro.
-10. **Novo experimento** — escolha um Agent, clique "Adicionar" (repita pra cada combinação que quiser),
-    aponte pra uma Task, e rode. Reward, custo e tokens aparecem na hora; "Analisar"/"Ver
-    trajetórias" ficam disponíveis depois do resultado.
+- **Credenciais** — cadastre a key de cada provider que for usar. Sem isso, só dá pra testar
+  com os agents `oracle`/`nop` (gratuitos, sem LLM).
+- **Modelos** — cadastre `provider/modelo` exato; o badge avisa se a key esperada já está em
+  Credenciais.
+- **Skills** e **Skill Sets** — escreva instruções ou agrupe Skills (opcionais).
+- **Agentes** — monte um perfil com `agentValue` do Harbor, modelo padrão, instructions e
+  skill sets padrão.
+- **Critérios**, **Rubrics** e **Juízes** — configure avaliação qualitativa (opcional).
+- **Tasks** — crie uma task real (`harbor init --task`) e preencha os arquivos no editor.
+  Os `evals/*/seed-task` são stubs de template e precisam ser preenchidos antes de comparar.
+- **Novo experimento** — escolha agentes, task e volume, revise a prévia e execute. Reward,
+  custo e tokens aparecem no resultado; **Analisar** e **Ver trajetórias** ficam disponíveis
+  depois da execução.
+
+Cada campo visível tem uma ajuda acessível com finalidade, exemplo, padrão e quando é opcional,
+inclusive filtros e arquivos extras criados dinamicamente. No modo compacto, avisos, custo,
+validação, erros e estado de operações continuam visíveis. Se um carregamento inicial falhar,
+a área **Começar** identifica qual parte ficou indisponível em vez de deixar listas vazias sem
+explicação.
 
 ### 2.8 Reforçar a segurança das secrets (opcional, recomendado)
 
@@ -238,7 +241,7 @@ testou, quanto custou, quanto acertou) saem da máquina por padrão, o que já �
 suficiente pra desligar.
 
 **Como desligamos**: `HARBOR_TELEMETRY=disabled` é injetado incondicionalmente em todo
-processo `harbor` que o kit dispara (`withTelemetryDisabled()` em `scripts/lib/harbor.ts`,
+processo `harbor` que o kit dispara (`withTelemetryDisabled()` em `scripts/lib/exec.ts`,
 aplicado tanto em `buildHarborEnv()` quanto em `execCommand()` — de propósito, isso **não**
 depende do fix de `DOCKER_HOST`, porque são preocupações diferentes: uma é sobre onde o
 Podman escuta, a outra é sobre nada vazar). Verificado rodando `buildHarborEnv()` e
@@ -305,7 +308,7 @@ buttons. Foi removido porque a lógica não fazia sentido: a avaliação (reward
 ### 5.4 `PYTHONIOENCODING=utf-8` — injetado incondicionalmente (bug real, não uma remoção)
 
 Diferente dos itens acima, isto não foi "desligado por escolha" — é a correção de um bug real
-encontrado testando o Judges/`/api/analyze`: `harbor analyze` imprime um emoji
+encontrado testando os Juízes/`/api/analyze`: `harbor analyze` imprime um emoji
 (`\U0001f50d`, antes de "Analyzing trial(s)...") logo na primeira linha do comando, via
 `rich`. Rodado como processo filho no Windows, o Python herda o code page do console
 (`cp1252`) em vez de UTF-8 pra `stdout`, e aquele emoji não existe em `cp1252` —
@@ -315,7 +318,7 @@ argumentos corretos**. Reproduzido e confirmado neste kit; não é específico d
 `harbor analyze` no Windows.
 
 **Correção**: `PYTHONIOENCODING=utf-8` injetado incondicionalmente em todo processo `harbor`
-que o kit dispara (`withPythonUtf8()` em `scripts/lib/harbor.ts`, mesmo padrão de
+que o kit dispara (`withPythonUtf8()` em `scripts/lib/exec.ts`, mesmo padrão de
 `withTelemetryDisabled()` — aplicado tanto em `buildHarborEnv()` quanto na chamada de
 `execCommand()` sem `dockerHostFix`, pra não depender do fix do `DOCKER_HOST`). Verificado
 rodando `/api/analyze` antes (crash) e depois (chega até a validação real de path) da mudança.
@@ -337,13 +340,9 @@ rodando `/api/analyze` antes (crash) e depois (chega até a validação real de 
 │   ├── rubrics.json
 │   └── judges.json
 ├── task-rubric-defaults.json              rubrics/Judge pinados por task (chave = path da task)
-├── skills/                                SKILL.md materializados (Skills + instructions de Agent)
-│   ├── skill-<id>/SKILL.md
-│   └── agent-<id>/SKILL.md
-├── rubrics/
-│   └── <rubricId>/rubric.toml             materializado sob demanda antes de cada Analyze
-└── judges/
-    └── <judgeId>/prompt.txt               instruções custom do Judge, só se tiver alguma (senão usa o padrão do Harbor)
+├── analysis-sessions/                     sessão congelada de cada lote de Analyze
+│   └── <sessionId>/session.json           modelo, adapter, prompt e todos os Rubrics escolhidos
+└── ...                                    outros artefatos gerenciados, quando necessários
 
 <raiz do projeto>/
 ├── Harbor_install/                        skills/agents do Claude Code p/ instalar o Harbor
@@ -359,7 +358,7 @@ Por que `~/.harbor-eval-kit/` e não dentro do projeto: secrets/registries são 
 `evals/`/`datasets/` já são conteúdo do projeto (tasks reais), por isso ficam dentro do repo.
 
 **Por que `Harbor_install/` existe**: `skills/` e `agents/` originalmente ficavam na raiz do
-projeto, mas isso colide de nome com as abas "Skills" e "Agents" da GUI (que são um conceito
+projeto, mas isso colide de nome com as áreas "Skills" e "Agentes" da GUI (que são um conceito
 totalmente diferente — ver seção 8). Movidos pra dentro de `Harbor_install/` especificamente
 pra tirar essa ambiguidade: tudo que é sobre **instalar/operar o Harbor via Claude Code**
 mora ali; tudo que é sobre **as evals em si** mora na GUI + `~/.harbor-eval-kit/`.
@@ -432,13 +431,13 @@ inicial em favor de simplicidade/zero-dependência, mas dá pra reconsiderar.
 O kit repete um padrão "unidade reutilizável → pacote que agrupa" em vários lugares. Isso
 ajuda a não confundir os nomes parecidos:
 
-| Conceito | O que é | Referenciado por | Materializado em |
+| Conceito | O que é | Referenciado por | Persistência |
 |---|---|---|---|
-| **Skill** | Um `SKILL.md` — instruções que um agent pode receber | Skillset (`skillIds`), Agent (`instructions` é uma skill implícita) | `~/.harbor-eval-kit/skills/<id>/SKILL.md` |
+| **Skill** | Instruções que um agent pode receber | Conjunto de skills e Agent | registry; snapshot da execução |
 | **Skill Set** | Pacote nomeado de 1+ Skills | Agent (`defaultSkillsetIds`), linha do Compare | — (é só uma lista de ids) |
 | **Criterion** | Um critério de avaliação: `name`+`description`+`guidance` | Rubric (`criterionIds`) | vira um bloco `[[criteria]]` no `.toml` do rubric |
-| **Judge Rubric** | Pacote nomeado de 1+ Criteria | Analyze / botão "Analisar" do Compare | `~/.harbor-eval-kit/rubrics/<id>/rubric.toml` |
-| **Judge** | "Perfil de uso" do avaliador: `agentValue` do Harbor + judge model (high-tier) + instruções custom (opcional) + Judge Rubrics padrão | Compare (painel Analisar), Analyze, Task↔Rubric default | `~/.harbor-eval-kit/judges/<id>/prompt.txt` (só se tiver instruções custom) |
+| **Rubric do juiz** | Pacote nomeado de 1+ Critérios | Analyze / botão "Analisar" do Compare | definição no registry; conteúdo serializado para a chamada |
+| **Juiz** | Perfil de uso do avaliador: `agentValue`, modelo, instruções custom (opcional) e Rubrics padrão | Compare, Analyze, Task↔Rubric default | registry; sessão de Analyze congelada |
 | **Model** | Atalho de label → `provider/modelo` | Agent (`modelId`), linha do Compare (override) | passado direto como `--model` pro Harbor |
 | **Agent** | "Perfil de uso": `agentValue` do Harbor + model padrão + instructions + default skill sets | linha do Compare | passado como `--agent`/`--model`/`--skill` pro Harbor |
 | **Task** | O problema em si: `task.toml` + `instruction.md` + `Dockerfile` + `solve.sh` + `test.sh` | Compare (`path`) | `evals/<lang>/<nome>/` ou `datasets/<nome>/<nome>/` |
@@ -449,40 +448,39 @@ ajuda a não confundir os nomes parecidos:
 | **Task↔Rubric default** | 0+ Judge Rubrics + 1 Judge "pinados" numa Task, pra pré-marcar sozinhos no painel Analisar do Compare | Task (editor, seção "Judge padrão desta task") | `~/.harbor-eval-kit/task-rubric-defaults.json`, chaveado pelo path da task |
 
 **Agent (Harbor_install) ≠ Agent (GUI)**: `Harbor_install/agents/*.md` são papéis pro Claude
-Code operar o kit (`environment-doctor`, `harbor-installer`, ...). A aba "Agents" da GUI é
+Code operar o kit (`environment-doctor`, `harbor-installer`, ...). A área "Agentes" da GUI é
 outra coisa — perfis de agente **pra rodar dentro das evals** (`claude-code`, `codex`,
 `oracle`, `nop`, ...). Mesma lógica pra `Skills`: `Harbor_install/skills/*` são skills do
-Claude Code pra instalar/diagnosticar; a aba "Skills" da GUI é sobre o que os agentes
+Claude Code pra instalar/diagnosticar; a área "Skills" da GUI é sobre o que os agentes
 **sob teste** recebem de instrução.
 
 ---
 
-## 9. Ordem cognitiva das abas (1→10)
+## 9. Ordem cognitiva das áreas
 
 A GUI é organizada pra guiar um uso de primeira vez, mas cada aba funciona isolada depois:
 
-| # | Aba | Depende de |
-|---|-----|-----------|
-| 1 | Credenciais | — |
-| 2 | Modelos | Credenciais (badge de key) |
-| 3 | Skills | — |
-| 4 | Skill Sets | Skills |
-| 5 | Agentes | Modelos, Skill Sets |
-| 6 | Criteria | — |
-| 7 | Judge Rubrics | Criteria |
-| 8 | Judges | Models (model do juiz), Judge Rubrics (defaults) |
-| 9 | Tasks | — |
-| 10 | Novo experimento | Agentes, Tasks, Judges (opcional, pro painel Analisar) |
+| Área da UI | Depende de |
+|---|---|
+| **Começar** | — |
+| **Credenciais** | — |
+| **Modelos** | Credenciais (badge de key) |
+| **Skills** e **Conjuntos de skills** | —; conjuntos usam Skills |
+| **Agentes** | Modelos, Conjuntos de skills |
+| **Critérios**, **Rubrics** e **Juízes** | —; Rubrics usam Critérios e Juízes usam Modelos/Rubrics |
+| **Tasks** | — |
+| **Novo experimento** | Agentes e Tasks; Juiz opcional para Analisar |
+| **Configuração**, **Datasets**, **Logs**, **Trajetórias** e **Análise avulsa** | áreas de apoio |
 
-`Datasets`, `Trajectories` e **Análise avulsa** são áreas de apoio usadas quando preciso; não
+`Datasets`, `Trajetórias` e **Análise avulsa** são áreas de apoio usadas quando preciso; não
 fazem parte do fluxo linear de **Novo experimento**.
 
 ---
 
-## 10. Cada aba em detalhe
+## 10. Cada área em detalhe
 
 ### 10.1 Credenciais
-Cadastra chaves de provider. Dropdown com 15 providers curados (Anthropic, OpenAI, Azure,
+Cadastra chaves de provider. O dropdown lista providers curados (Anthropic, OpenAI, Azure,
 DeepSeek, Gemini, Vertex AI, OpenRouter, Groq, Mistral, Cohere, xAI, Together AI, Fireworks,
 Ollama, Bedrock) — escolher um preenche o `Name` certo automaticamente. A lista canônica
 (`PROVIDERS`) mora no servidor (`scripts/lib/catalog.ts`) e é buscada via `GET /api/providers`
@@ -517,8 +515,11 @@ mostra um badge dizendo se a key esperada já está em Credenciais (`guessProvid
 key ele vai esperar antes mesmo de salvar.
 
 ### 10.3 Skills
-Uma skill é um `SKILL.md`. Duas origens: **escrever instruções** (materializado sob demanda
-em `~/.harbor-eval-kit/skills/skill-<id>/SKILL.md`) ou **apontar pra uma pasta existente**.
+Uma Skill é uma definição de instruções. Duas origens: **escrever instruções** ou
+**apontar pra uma pasta existente**. A definição fica no registry; quando um experimento é
+preparado, `scripts/lib/experiment-store.ts` copia a pasta ou o conteúdo autorizado para o
+snapshot daquela execução e calcula os hashes dos arquivos. Alterar o cadastro depois não
+muda uma execução já preparada.
 Vem com um template elaborado (Propósito / Quando aplicar / Princípios / Regras concretas /
 Exemplo bom-ruim / Casos-limite) — não fica em branco, você edita em cima.
 
@@ -530,22 +531,22 @@ pro ambiente do agent, não só o `SKILL.md` — a mesma convenção de "progres
 que Anthropic e OpenAI recomendam pra skills/tools (o arquivo de entrada referencia material
 de apoio por caminho relativo, o agente lê sob demanda em vez de tudo vir empurrado de uma vez
 no prompt). No modo "pasta existente" isso já funcionava naturalmente (é uma pasta real no
-disco, bota o que quiser nela); o modo "escrever instruções" só não tinha como anexar mais de
-um arquivo até agora. Materializado por `materializeSkillMd()` em `scripts/lib/harbor.ts`, com
-uma checagem de path-traversal (`safeJoinUnderDir`) pra um nome de arquivo tipo `../../etc/x`
-nunca escrever fora da pasta da própria skill — testado com um caso desses de propósito.
+disco, bota o que quiser nela). Arquivos extras autorizados acompanham o snapshot da
+execução; nomes relativos passam por `safeJoinUnderDir`, então um nome como `../../etc/x` é
+recusado antes de escrever fora da entrada da Skill.
 
-### 10.4 Skill Sets
+### 10.4 Conjuntos de skills
 Agrupa uma ou mais Skills por checkbox — mesma referência por `id`, sem duplicar texto (se
 você editar uma Skill, todo Skillset que a usa já reflete a mudança).
 
 ### 10.5 Agentes
 Um agent aqui é um **perfil de uso**, não só o nome cru do Harbor: junta
-`agentValue` (`claude-code`, `codex`, `oracle`, `nop`, ...) + um **model padrão** + umas
-**instructions** próprias (viram uma skill implícita, sempre anexada — `resolveAgentInstructionsPath`)
-+ **default skill sets**. Isso é o que **Novo experimento** usa pra pré-preencher cada linha.
+`agentValue` (`claude-code`, `codex`, `oracle`, `nop`, ...) + um **model padrão** + instruções
+próprias + **default skill sets**. Isso é o que **Novo experimento** usa pra pré-preencher
+cada linha. As instruções e Skills resolvidas entram no snapshot pelo
+`scripts/lib/experiment-store.ts`; não há uma Skill implícita compartilhada entre execuções.
 
-**Valores de `agentValue` aceitos** pelo Harbor instalado: **42**, com autocomplete no próprio
+**Valores de `agentValue` aceitos** pelo Harbor instalado aparecem no autocomplete do próprio
 campo (`<datalist>` alimentado por `GET /api/harbor-agents`, cuja fonte é a constante
 `HARBOR_AGENTS` em `scripts/lib/catalog.ts` — espelho mantido à mão de `harbor run --help`,
 porque `harbor agent list` não existe neste Harbor). O campo continua **livre**: o Harbor
@@ -565,17 +566,19 @@ A distinção que mais importa na hora de comparar models está marcada na lista
 Validado em 2026-09-06: `mini-swe-agent` + `deepseek/deepseek-chat` rodou uma task real
 (`evals/python/soma-fracoes`) com reward 1.0, custo $0,0017, 63,5s.
 
-### 10.6 Criteria
+### 10.6 Critérios
 Um critério reutilizável que um juiz LLM usa pra avaliar uma run: `name` (identificador),
 `description` (pergunta objetiva), `guidance` (instrução detalhada, incluindo o que conta
 como PASS/FAIL/N-A). O template segue o formato real que o próprio Harbor usa internamente
 (achado em `harbor/analyze/prompts/analyze-rubric.toml` do pacote instalado).
 
-### 10.7 Judge Rubrics
-Agrupa Criteria por checkbox — mesma relação Skill→Skillset. Materializado sob demanda como
-`.toml` (`serializeRubricToml`) no schema exato que `harbor analyze --rubric` espera.
+### 10.7 Rubrics do juiz
+Agrupa Critérios por checkbox — mesma relação Skill→Conjunto de skills. O conteúdo é
+serializado temporariamente por `serializeRubricToml` no schema exato que
+`harbor analyze --rubric` espera; o cadastro e os inputs de uma execução permanecem no
+registry e no snapshot do experimento, respectivamente.
 
-### 10.8 Judges
+### 10.8 Juízes
 
 **Modo validação (escape hatch explícito do gate de model).** O dropdown de model do Judge só
 mostra a lista curada por política operacional; isso não prova a qualidade de um veredito.
@@ -608,8 +611,8 @@ anexar um SKILL.md tool-acessível ao juiz hoje, isso é uma limitação do pró
 desta GUI. A alavanca real que o Harbor expõe é `--prompt <arquivo>`, que **substitui por
 completo** o texto padrão do juiz (`harbor/analyze/prompts/analyze.txt`) — é isso que o campo
 "Instruções do juiz" do Judge materializa e passa (`resolveJudgePromptPath` em
-`scripts/lib/harbor.ts`, mesma técnica de materialização sob demanda que Skills e Judge
-Rubrics já usam). O textarea já vem preenchido com o texto padrão real do Harbor como template
+`scripts/lib/materialize.ts`). O prompt é um insumo da chamada Analyze e o registro do
+experimento preserva a definição usada. O textarea já vem preenchido com o texto padrão real do Harbor como template
 editável — troque o que quiser, mas mantenha os marcadores `{trial_path}`, `{task_section}` e
 `{criteria_guidance}` em algum lugar, porque é ali que o Harbor injeta o caminho do trial e a
 orientação de cada critério; sem eles o juiz fica sem saber o que examinar.
@@ -623,8 +626,14 @@ estar na instrução, nunca copiar `tests/`/`solution/` pra dentro da imagem, de
 teste vai no `test.sh` (não no Dockerfile), a solução de referência precisa **demonstrar o
 processo**, não só ecoar a resposta final ("hardcoded solution").
 
-**Como usar**: preencha nome/org/output dir, clique "Create task" — o editor abre sozinho
-logo em seguida com os 4 arquivos prontos pra editar. "Save files" grava direto no disco.
+**Como usar**: preencha nome/org/output dir, clique **Criar task** — o editor abre sozinho
+logo em seguida com os 4 arquivos prontos pra editar. **Salvar arquivos** grava direto no disco.
+Uma linha da lista informa apenas se `task.toml` foi detectado; ela não chama a task de
+"pronta", porque esse sinal não valida instrução, imagem ou teste. Se a task foi criada com
+`--no-solution`, abrir e salvar o editor sem escrever uma solução preserva a ausência de
+`solution/solve.sh`; digitar conteúdo passa a criá-lo. Trocar rapidamente de task invalida a
+resposta atrasada da anterior, e **Salvar** só é habilitado quando o path e os padrões da task
+visível terminaram de carregar.
 
 O campo "Steps" do formulário de criação decide entre task de **um passo só** (0, o normal —
 1 `instruction.md` + 1 `test.sh`) e task de **N passos sequenciais** (gera
@@ -633,7 +642,7 @@ ordem; se um passo falhar, os seguintes são pulados). Use N>0 só quando a task
 de várias etapas dependentes entre si.
 
 **Rubrics/Judge padrão da task**: o editor também tem "Judge padrão desta task" (dropdown de
-Judges) e "Judge rubrics padrão desta task" (checkbox, pode marcar **N rubrics**, não
+Juízes) e "Rubrics padrão desta task" (checkbox, pode marcar **vários Rubrics**, não
 só um; escolher um Judge pré-marca os rubrics padrão dele aqui, ainda editável). Isso não roda
 nada sozinho — é só um "lembrete pinado": quando essa task é usada numa run do Compare, o
 painel Analisar já abre com esse Judge e esses rubrics pré-selecionados, prontos pra clicar em
@@ -651,6 +660,9 @@ agent" e "comparar N agents" convivem sem confusão).
 Cada linha vira uma `harbor run` própria. O reward que sai do `test.sh` **já é a comparação
 real** — determinística, sem LLM nenhuma julgando por trás (ver seção 11).
 
+**Concorrência** controla quantos processos Harbor de candidatos o kit inicia ao mesmo tempo.
+Não é uma contagem direta de trials: cada processo Harbor pode paralelizar tasks internamente.
+
 A tabela de resultado também traz `durationSec`, `custo agent (USD)` e `tokens in/out` lidos
 direto de `stats.cost_usd`/`n_input_tokens`/`n_output_tokens` no `result.json` que o próprio
 Harbor grava — ver seção 11 pra detalhes de onde vem cada número.
@@ -658,7 +670,12 @@ Harbor grava — ver seção 11 pra detalhes de onde vem cada número.
 Depois do resultado: botão **Ver trajetórias** (abre `harbor view` já no jobs-dir certo) e um
 painel opcional **Analisar** por linha (ou "Analisar todas") usando um **Judge** +
 **um ou mais Judge Rubrics** (checkbox — cada um marcado dispara uma chamada de análise
-separada, os resultados aparecem empilhados, cada um com o custo daquela análise). Se a task
+separada, os resultados aparecem empilhados, cada um com o custo daquela análise). Antes do
+lote, a GUI cria uma sessão de análise (`POST /api/analysis-sessions`) que congela o adaptador,
+modelo, prompt e todos os Rubrics escolhidos. Cada chamada do lote leva esse ID, então edições
+posteriores no cadastro não alteram a análise em andamento; o ID também fica persistido junto
+ao resultado. **Análise avulsa** continua sendo uma chamada independente por solicitação.
+Se a task
 rodada tiver Judge/rubrics pinados (seção 10.9), o painel já abre com eles pré-selecionados —
 pode ajustar antes de clicar.
 
@@ -722,7 +739,7 @@ porque o footprint completo do instalador não foi inventariado. A auditoria fic
 
 ### 10.10-d Config Bundle — compartilhar configuração entre máquinas
 
-Aba **Configuração**. Agentes, Modelos, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em
+Aba **Configuração**. Agentes, Modelos, Skills, Conjuntos de skills, Critérios, Rubrics do juiz e Juízes vivem em
 `~/.harbor-eval-kit/`, por máquina — sem isso um time não versiona essa configuração em git nem
 revisa em PR. **Exportar** baixa um `.json` com todas as registries (`GET /api/config/export`);
 **Importar** aplica um bundle (`POST /api/config/import`, `scripts/lib/bundle.ts`).
@@ -754,9 +771,22 @@ após reiniciar o servidor: a tela distingue resultado em disco de atividade nã
 
 `<jobsDir>/.experiments/<id>/` guarda plano efetivo, snapshots e hashes de inputs locais,
 resultados e análises vinculadas. A GUI permite reabrir esses registros após refresh.
-As skills usadas na execução ficam isoladas das edições posteriores nos cadastros.
-Isso preserva os inputs locais, mas não congela o comportamento do provider nem o conteúdo
-de imagens remotas sem digest. Reiniciar o servidor não retoma automaticamente processos.
+Ao reabrir, a tabela restaura a avaliação do juiz (incluindo 100% ou 0% PASS) e cada análise
+volta em formato legível por trial/check; o JSON completo fica recolhido em detalhes técnicos.
+Resultados de validação, checks desconhecidos e trials incompletos aparecem como sem nota e não
+entram num ranking como se fossem avaliações completas.
+`scripts/lib/experiment-store.ts` é o único responsável por preparar os snapshots: copia tasks,
+Skills e instruções autorizadas para a execução e calcula automaticamente o SHA-256 de cada
+arquivo. Alterações posteriores nos cadastros não mudam esse registro.
+
+Commit Git e digest de dataset/imagem **não são metadados capturados automaticamente** pelo kit;
+quando forem necessários, o operador deve registrar ou fixar esses valores no próprio fluxo.
+Isso preserva os inputs locais, mas não congela o comportamento do provider nem o conteúdo de
+imagens remotas sem digest. Reiniciar o servidor não retoma automaticamente processos.
+
+Os relatórios podem ser baixados em JSON ou CSV pela área **Novo experimento**. O exportador
+CSV neutraliza células que começariam com `=`, `+`, `-` ou `@`, para que abrir o arquivo numa
+planilha não interprete texto de resultado como fórmula.
 
 ### 10.11 Datasets
 **O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
@@ -786,11 +816,16 @@ resposta). Polling de 2s, e só enquanto a aba está visível. Os dois segmentos
 (`job` e `file`) passam por `safeJoinUnderDir`, então um valor forjado não sai do jobs dir —
 testado com `../../../../secrets.env`, que retorna 404.
 
-**Diferença pra Trajectories**: lá é a trajetória estruturada do agent (turnos, ferramentas,
+Cada leitura fica vinculada à combinação exata de pasta, job e arquivo que a iniciou. Há no
+máximo um tail em voo; se o usuário trocar a seleção enquanto a resposta anterior demora, ela
+é descartada e uma nova leitura usa offset zero. Assim, jobs com o mesmo nome em pastas
+diferentes não misturam seus logs.
+
+**Diferença pra Trajetórias**: lá é a trajetória estruturada do agent (turnos, ferramentas,
 edições) no viewer do Harbor; aqui é o log cru de execução, incluindo build da imagem e
 instalação do agent — que é onde falha de container/rede/dependência aparece.
 
-### 10.12 Trajectories
+### 10.12 Trajetórias
 **O que é**: um segundo servidor web, do próprio Harbor (`harbor view`, não desta GUI), que
 mostra passo a passo tudo que o agent fez dentro do container numa run — comandos, arquivos
 tocados, saída de cada ferramenta, resposta do modelo a cada turno. É a evidência bruta atrás
@@ -808,6 +843,12 @@ continuam de pé, só a lista que esquece deles — pare manualmente se precisar
 Uso ad-hoc do `harbor analyze` num path específico, escolhendo um Judge já cadastrado. No
 fluxo normal, use o botão **Analisar** direto na tabela de resultados de **Novo experimento**
 (seção 10.10); esta área existe quando você já tem um path exato em mente.
+
+A resposta é mostrada como resumo de checks e custo reportado, seguida dos trials com badges
+PASS/FAIL/N-A/desconhecido e explicações; o JSON bruto fica em **Detalhes técnicos**. Modo
+validação recebe badge explícito e não vale como avaliação. Um trial sem checks completos gera
+aviso persistente e nenhuma nota é calculada. A operação trava o botão, mostra o tempo decorrido
+e não dispara uma chamada automática depois de salvar credenciais.
 
 O bootstrap é process-local: `execHarbor` detecta `analyze` e executa o Python do Harbor com
 `-m harbor_eval_kit.cli`. O módulo verifica o gate do Harbor **0.22.0**, valida a entrada
@@ -852,20 +893,26 @@ calculado no lado do kit (pass/total de critérios aplicáveis) entre resultados
 — o Harbor avalia uma trajetória por vez, não várias numa chamada só; quem rankeia é a
 própria GUI (`analyzeRow`/`compare-sort-btn` em `gui/app/compare.js`).
 
-**Um resultado pode ser analisado por N rubrics ao mesmo tempo.** O checkbox-picker do painel
-Analisar (seção 10.10) aceita marcar mais de um Judge Rubric; `analyzeRow` faz **uma chamada
-`/api/analyze` por rubric marcado** (sequencial, não em paralelo), cada uma gerando seu
-próprio `analysis.json`/veredito, exibidos empilhados sob o nome do rubric. O `passRate`
+**Um resultado pode ser analisado por vários Rubrics ao mesmo tempo.** O checkbox-picker do painel
+Analisar (seção 10.10) aceita marcar mais de um Rubric; antes do lote, a sessão congela modelo,
+adapter, prompt e todos os Rubrics. `analyzeRow` faz **uma chamada `POST /api/analyze` por
+Rubric** (sequencial, não em paralelo), cada uma gerando seu próprio `analysis.json`/veredito,
+exibidos empilhados sob o nome do Rubric. O `passRate`
 usado pra ordenar soma pass/aplicável de **todos** os rubrics analisados naquele resultado —
 então rodar 2 rubrics (ex.: "Python Quality" + "Reward Hacking Check") sobre o mesmo job conta
 os critérios dos dois juntos, não substitui um pelo outro. Se nenhum rubric for marcado, cai
 no rubric padrão do próprio Harbor (`reward_hacking` + `task_specification`).
 
-O parser mantém **todos os trials** retornados pelo Harbor. Cada critério de cada trial
-conta separadamente: `passRate = pass / (pass + fail)`; N/A e outcomes desconhecidos são
-contabilizados à parte. Ausência de checks não vira zero nem aprovação. Reanalisar mantém
-o histórico, mas o indicador exibido representa o lote de rubrics daquela análise.
-`validationMode` e o modelo do juiz acompanham os registros persistidos.
+O parser mantém **todos os trials** retornados pelo Harbor e só aceita um resultado concluído
+(`finished_at`) com contagens consistentes. Cada critério de cada trial conta separadamente:
+`passRate = pass / (pass + fail)`; N/A e outcomes desconhecidos são contabilizados à parte.
+Trial sem checks completos impede o ranking do lote — não vira zero nem aprovação. Reanalisar
+mantém o histórico, e `validationMode`, modelo, adapter e `analysisSessionId` acompanham os
+registros persistidos.
+
+O servidor recusa análises sobrepostas para o mesmo job/trial enquanto já existe uma análise
+ativa naquele processo (`scripts/lib/analysis-lock.ts`). Esse bloqueio é local ao servidor e
+não coordena processos em máquinas ou instâncias diferentes.
 
 Pra não ter que marcar isso toda vez: uma Task pode ter um Judge + rubrics **pinados**
 (seção 10.9) — o painel Analisar detecta que a run atual usou aquela task e já vem com esse
@@ -945,11 +992,12 @@ Harbor por baixo e compartilham planejamento, normalização e guarda. Ambas car
 Harbor_install/skills/        skills do Claude Code p/ instalar/diagnosticar/limpar o Harbor
 Harbor_install/agents/        papéis/sub-agentes usados junto com as skills acima
 scripts/lib/*.ts              lógica compartilhada modular (ver docs/ENGENHARIA.md §3), incluindo
-                               podman, managed-runtime, gui-lifecycle e harbor-cli
-                               types, catalog, paths, naming, exec, secrets, materialize,
-                               joblogs, tasks, litellm, cost, bundle + harbor.ts (superfície
-                               pública) -- materialização de skills/rubrics, DOCKER_HOST fix,
-                               telemetria, guarda de gasto, export/import de config
+                               podman, managed-runtime, gui-lifecycle, harbor-cli, experiment-plan,
+                               experiment-store, results, types, catalog, paths, naming, exec,
+                               secrets, materialize, joblogs, tasks, litellm, cost, bundle e
+                               harbor.ts (superfície pública). O experiment-store prepara os
+                               snapshots e hashes; materialize atende somente os arquivos
+                               temporários necessários a rubrics/prompts do Analyze.
 scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
 scripts/harbor-cli.ts         status read-only e eval pelo executor comum
@@ -961,12 +1009,13 @@ gui/app/*.js                  módulos ES nativos, sem build; a lista acompanha 
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
 scripts/stop-gui.sh/.ps1      para só o processo Node deste projeto e verifica o efeito
-scripts/test.sh/.ps1          roda a suíte inteira: node --test + scan de credenciais
+scripts/test.sh/.ps1          roda a suíte Node, checker de imports e scan de credenciais
 scripts/scan-secrets.sh       detector de credencial (modo --staged usado pelo pre-commit)
 scripts/setup-hooks.sh/.ps1   ativa .githooks/ neste clone (core.hooksPath)
 scripts/check-imports.mjs     checa builtins/nomes usados sem import e ciclos (backend + GUI)
 scripts/lib/*.test.ts         testes unitários (node:test, sem framework), incluindo catálogo,
                                probe, gateway, custo, bundle e templates
+scripts/python/test_*.py      contrato Python offline; exige ambiente com harbor==0.22.0
 docs/PENDENCIAS.md            próximos passos, escrito pra qualquer agente pegar (não só Claude)
 docs/INSTALACAO_MANUAL.md     instalação/operação por Windows, Git Bash, macOS e Linux rootless
 .githooks/pre-commit          bloqueia commit que contenha credencial

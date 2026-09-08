@@ -79,6 +79,15 @@ test("API proof rejects a Docker-compatible endpoint that is not Podman", () => 
   }), /did not identify itself as Podman/);
 });
 
+test("machine prefixes cannot hijack the selected connection and root alias collisions fail closed", () => {
+  const connection = (name: string) => [{ name, uri: "ssh://fixture", isDefault: true }];
+  const machines = (names: string[]) => names.map(name => ({ name, running: true }));
+  assert.equal(selectEffectiveMachine(connection("work-dev"), machines(["work", "work-dev"])).machine.name, "work-dev");
+  assert.equal(selectEffectiveMachine(connection("work-root"), machines(["work"])).machine.name, "work");
+  assert.throws(() => selectEffectiveMachine(connection("work-root"), machines(["work", "work-root"])), /ambiguous/);
+  assert.throws(() => selectEffectiveMachine(connection("work-custom"), machines(["work"])), /ambiguous/);
+});
+
 test("interface gate targets the selected Podman connection and scopes DOCKER_HOST to compose", async () => {
   const calls: string[] = [];
   const resolved = {

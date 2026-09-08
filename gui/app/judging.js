@@ -20,7 +20,7 @@ function renderCriteriaList() {
   const list = $("#criteria-list");
   list.innerHTML = state.criteria.length ? "" : '<p class="muted">Nothing registered yet.</p>';
   for (const item of state.criteria) {
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.name,
       sub: item.description || "",
       onEdit: () => criteriaEdit.startEdit(item.id, () => {
@@ -51,13 +51,14 @@ function renderRubricCriterionPicker(checkedIds = []) {
     { name: "criterionIds", checkedIds }
   );
 }
+rubricsForm.addEventListener("reset-extra", () => renderRubricCriterionPicker());
 
 function renderRubricsList() {
   const list = $("#rubrics-list");
   list.innerHTML = state.rubrics.length ? "" : '<p class="muted">Nothing registered yet.</p>';
   for (const item of state.rubrics) {
     const names = (item.criterionIds || []).map((id) => state.criteria.find((c) => c.id === id)?.name || "?").join(", ");
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.label,
       sub: names || "(sem critérios)",
       onEdit: () => rubricsEdit.startEdit(item.id, () => {
@@ -105,6 +106,11 @@ function renderJudgeModelSelect(selectedId = "") {
 function renderJudgeDefaultRubricPicker(checkedIds = []) {
   checkboxGroup($("#judge-default-rubrics"), state.rubrics, { name: "defaultRubricIds", checkedIds });
 }
+judgesForm.addEventListener("reset-extra", () => {
+  $("#judge-validation-mode").checked = false;
+  renderJudgeModelSelect();
+  renderJudgeDefaultRubricPicker();
+});
 
 $("#judge-validation-mode").addEventListener("change", () => {
   renderJudgeModelSelect($("#judge-model-select").value);
@@ -120,7 +126,7 @@ function renderJudgesList() {
     if (item.promptTemplate && item.promptTemplate.trim()) bits.push("+instruções custom");
     if (item.defaultRubricIds && item.defaultRubricIds.length) bits.push(`+${item.defaultRubricIds.length} rubric(s)`);
     if (item.notes) bits.push(item.notes);
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.label,
       sub: bits.join(" · "),
       onEdit: () => judgesEdit.startEdit(item.id, () => {

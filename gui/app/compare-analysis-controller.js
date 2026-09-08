@@ -1,5 +1,5 @@
-import { $, $$ } from "./core.js";
-import { freezeAnalysisConfig } from "./compare-domain.js";
+import { $, $$, api } from "./core.js";
+import { freezeAnalysisConfig, withAnalysisSession } from "./compare-domain.js";
 import { analyzeCompareRow } from "./compare-analysis.js";
 
 export function setupCompareAnalysis({ getRows, getJobsDir, getExperimentId, renderTable }) {
@@ -23,12 +23,23 @@ export function setupCompareAnalysis({ getRows, getJobsDir, getExperimentId, ren
     const show = () => { progress.textContent = `Analisando 1/1 · ${Math.round((Date.now() - startedAt) / 1000)}s. Os detalhes serão adicionados abaixo.`; };
     show();
     const timer = setInterval(show, 1000);
-    try { await analyzeCompareRow(getRows()[index], getJobsDir(), getExperimentId(), renderTable, config); }
+    let completed = false;
+    try {
+      const session = await api("POST", "/api/analysis-sessions", config);
+      config = withAnalysisSession(config, session);
+      const result = await analyzeCompareRow(getRows()[index], getJobsDir(), getExperimentId(), renderTable, config);
+      completed = true;
+      progress.textContent = result.failures
+        ? `Análise concluída com ${result.failures} erro(s). Abra os detalhes abaixo.`
+        : "Análise 1/1 concluída. Abra os detalhes abaixo para ver checks e erros.";
+    } catch (err) {
+      progress.textContent = "Não foi possível iniciar a análise congelada: " + err.message;
+    }
     finally {
       clearInterval(timer);
       analyzing = false;
       lock(false);
-      progress.textContent = "Análise 1/1 concluída. Abra os detalhes abaixo para ver checks e erros.";
+      if (!completed && !progress.textContent.startsWith("Não foi possível")) progress.textContent = "A análise não foi concluída.";
     }
   };
   $("#compare-analyze-all-btn").addEventListener("click", async () => {
@@ -43,18 +54,28 @@ export function setupCompareAnalysis({ getRows, getJobsDir, getExperimentId, ren
     const show = () => { progress.textContent = `Analisando ${position}/${eligible.length} · ${Math.round((Date.now() - startedAt) / 1000)}s. Juiz e rubrics estão congelados; detalhes aparecem abaixo.`; };
     show();
     const timer = setInterval(show, 1000);
+    let completed = false;
     try {
+      const session = await api("POST", "/api/analysis-sessions", config);
+      config = withAnalysisSession(config, session);
+      let failures = 0;
       for (const [batchIndex, rowIndex] of eligible.entries()) {
         position = batchIndex + 1;
         show();
-        await analyzeCompareRow(getRows()[rowIndex], getJobsDir(), getExperimentId(), renderTable, config);
+        failures += (await analyzeCompareRow(getRows()[rowIndex], getJobsDir(), getExperimentId(), renderTable, config)).failures;
         lock(true); // renderTable replaces row buttons; keep the batch visibly locked.
       }
+      completed = true;
+      progress.textContent = failures
+        ? `Lote concluído com ${failures} erro(s): ${eligible.length}/${eligible.length} resultados processados com os mesmos inputs.`
+        : `Lote concluído: ${eligible.length}/${eligible.length} resultados analisados com os mesmos inputs. Abra os detalhes abaixo.`;
+    } catch (err) {
+      progress.textContent = "Não foi possível iniciar a análise congelada: " + err.message;
     } finally {
       clearInterval(timer);
       analyzing = false;
       lock(false);
-      progress.textContent = `Lote concluído: ${eligible.length}/${eligible.length} resultados analisados com os mesmos inputs. Abra os detalhes abaixo.`;
+      if (!completed && !progress.textContent.startsWith("Não foi possível")) progress.textContent = "O lote não foi concluído.";
     }
   });
   return { analyzeRow, isRunning: () => analyzing };

@@ -2,6 +2,7 @@
 // reuses. No domain knowledge lives here -- if something knows what a "judge" is, it
 // belongs in a feature module, not in core.
 import { mergeHelpIds } from "./field-help.js";
+import { runDeleteAction } from "./ui-actions.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -19,7 +20,15 @@ export async function api(method, path, body) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  if (!res.ok) {
+    const error = new Error((data && data.error) || res.statusText);
+    error.status = res.status;
+    if (data && typeof data === "object") {
+      error.needsAcknowledge = data.needsAcknowledge === true;
+      error.estimate = data.estimate;
+    }
+    throw error;
+  }
   return data;
 }
 
@@ -80,7 +89,7 @@ $$('input[type=file][data-attach-target]').forEach((input) => {
 // was escaped. Escaping at the sink is the only version of this that cannot rot: a new caller
 // gets it right by default instead of having to remember. Matters beyond self-XSS because a
 // config bundle is meant to be shared and imported, and this page can reach the whole local API.
-export function makeRow(item, { title, sub, onEdit, onDelete }) {
+export function makeRow({ title, sub, onEdit, onDelete }) {
   const row = document.createElement("div");
   row.className = "row";
   row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(title)}</div>${sub ? `<div class="row-sub">${escapeHtml(sub)}</div>` : ""}</div><div class="row-actions"></div>`;
@@ -92,8 +101,16 @@ export function makeRow(item, { title, sub, onEdit, onDelete }) {
   const delBtn = document.createElement("button");
   delBtn.textContent = "Remover";
   delBtn.className = "danger";
-  delBtn.onclick = onDelete;
+  const status = document.createElement("p");
+  status.className = "row-action-status status-line";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  delBtn.onclick = () => runDeleteAction(onDelete, {
+    setLocked: (locked) => { editBtn.disabled = locked; delBtn.disabled = locked; },
+    setError: (message) => { status.textContent = message; },
+  });
   actions.appendChild(delBtn);
+  row.querySelector(".row-main").appendChild(status);
   return row;
 }
 
@@ -129,6 +146,12 @@ export function checkboxGroup(container, items, { name, checkedIds = [] }) {
     filter.type = "search";
     filter.className = "checkbox-group-filter";
     filter.placeholder = `Filtrar entre ${items.length}…`;
+    filter.setAttribute("aria-label", "Filtrar opções deste grupo");
+    const help = document.createElement("p");
+    help.id = `filter-help-${crypto.randomUUID()}`;
+    help.className = "hint field-help";
+    help.textContent = `Finalidade: filtrar visualmente as ${items.length} opções deste grupo sem alterar as marcadas. Exemplo: digite parte do nome. Padrão: vazio; opcional.`;
+    filter.setAttribute("aria-describedby", mergeHelpIds(container.getAttribute("aria-describedby"), help.id));
     // Hiding rather than removing keeps a checked-but-filtered-out item checked underneath --
     // clearing the filter brings it back exactly as it was, selection intact.
     filter.addEventListener("input", () => {
@@ -136,6 +159,7 @@ export function checkboxGroup(container, items, { name, checkedIds = [] }) {
       for (const label of labels) label.hidden = q !== "" && !label.dataset.searchText.includes(q);
     });
     container.appendChild(filter);
+    container.appendChild(help);
   }
   for (const label of labels) container.appendChild(label);
 }

@@ -11,6 +11,6 @@ export async function runHarborEval(
 ): Promise<number> {
   const execute = options.execute ?? execHarbor;
   const secrets = (options.loadSecrets ?? loadSecretsEnv)();
-  const result = await execute(["run", ...args], { extraEnv: secrets, echo: true });
+  const result = await execute(["run", ...args], { extraEnv: secrets, redactValues: Object.values(secrets), echo: true });
   return result.code;
 }

@@ -27,6 +27,10 @@ function renderAgentModelSelect(selectedId = "") {
 function renderAgentDefaultSkillsetPicker(checkedIds = []) {
   checkboxGroup($("#agent-default-skillsets"), state.skillsets, { name: "defaultSkillsetIds", checkedIds });
 }
+agentsForm.addEventListener("reset-extra", () => {
+  renderAgentModelSelect();
+  renderAgentDefaultSkillsetPicker();
+});
 
 function renderAgentsList() {
   const list = $("#agents-list");
@@ -38,7 +42,7 @@ function renderAgentsList() {
     if (item.instructions && item.instructions.trim()) bits.push("+instructions");
     if (item.defaultSkillsetIds && item.defaultSkillsetIds.length) bits.push(`+${item.defaultSkillsetIds.length} skill set(s)`);
     if (item.notes) bits.push(item.notes);
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.label,
       sub: bits.join(" · "),
       onEdit: () => agentsEdit.startEdit(item.id, () => {

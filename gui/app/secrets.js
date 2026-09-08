@@ -3,6 +3,7 @@ import { $, $$, api, escapeHtml } from "./core.js";
 import { state, onRefresh, refreshAll, PROVIDERS, guessProviderKey, findProviderByModelValue } from "./state.js";
 import { tabRefreshers } from "./core.js";
 import { describeField } from "./field-help.js";
+import { runDeleteAction } from "./ui-actions.js";
 
 // ================= SECRETS =================
 function renderSecretsList() {
@@ -43,7 +44,7 @@ function renderSecretsList() {
         const res = await api("POST", "/api/secrets/test", { name: n, model });
         renderSecretTestResult(resultEl, n, res);
       } catch (err) {
-        resultEl.innerHTML = `<p class="hint" style="color:var(--err);">Erro: ${escapeHtml(err.message)}</p>`;
+        resultEl.innerHTML = `<p class="hint status-line" style="color:var(--err);">Erro: ${escapeHtml(err.message)}</p>`;
       }
       testBtn.disabled = false;
       testBtn.textContent = "Testar modelo escolhido";
@@ -68,7 +69,17 @@ function renderSecretsList() {
     const del = document.createElement("button");
     del.textContent = "Remover";
     del.className = "danger";
-    del.onclick = async () => { await api("DELETE", `/api/secrets/${n}`); await refreshAll(); };
+    del.onclick = () => runDeleteAction(async () => {
+      await api("DELETE", `/api/secrets/${n}`);
+      await refreshAll();
+    }, {
+      setLocked: (locked) => { $$('button', actions).forEach((button) => { button.disabled = locked; }); },
+      setError: (message) => {
+        resultEl.textContent = message;
+        resultEl.className = "secret-test-result status-line";
+        resultEl.style.color = message ? "var(--err)" : "";
+      },
+    });
     actions.appendChild(del);
     list.appendChild(row);
   }
@@ -91,16 +102,17 @@ function renderDiscoveredModels(resultEl, envKey, provider, discoveredModels) {
   if (discovered.length) {
     const existingValues = new Set(state.models.map((m) => m.value));
     const pickerId = `discovered-${envKey}-${Date.now()}`;
+    const helpId = `${pickerId}-help`;
     const items = discovered.map((m) => {
       const value = m.includes("/") ? m : (provider ? `${provider.id}/${m}` : m);
       const already = existingValues.has(value);
-      return `<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" value="${escapeHtml(value)}" ${already ? "disabled checked" : ""}> ${escapeHtml(value)}${already ? " (já cadastrado)" : ""}</label>`;
+      return `<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" value="${escapeHtml(value)}" aria-describedby="${helpId}" ${already ? "disabled checked" : ""}> ${escapeHtml(value)}${already ? " (já cadastrado)" : ""}</label>`;
     }).join("");
     const box = document.createElement("div");
     box.className = "panel";
     box.style.marginTop = "8px";
-    box.innerHTML = `<p class="hint">Modelos descobertos no catálogo do provider — marque quais cadastrar em Modelos:</p>
-      <div id="${pickerId}" style="display:flex;flex-direction:column;gap:4px;">${items}</div>
+    box.innerHTML = `<p id="${helpId}" class="hint">Finalidade: escolher quais modelos descobertos cadastrar. Exemplo: marque somente os que pretende avaliar. Padrão: nenhum; opcional.</p>
+      <div id="${pickerId}" role="group" aria-describedby="${helpId}" style="display:flex;flex-direction:column;gap:4px;">${items}</div>
       <button class="secondary" type="button" style="margin-top:8px;">Cadastrar marcados</button>`;
     box.querySelector("button").addEventListener("click", async () => {
       const toAdd = $$(`#${pickerId} input:checked:not(:disabled)`);

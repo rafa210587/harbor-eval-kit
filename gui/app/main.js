@@ -2,10 +2,12 @@
 // forms, event listeners, tab refreshers and render callbacks at import time, so adding a
 // feature means adding one import here and nothing else.
 
+import { $ } from "./core.js";
 import { refreshAll, loadStatus } from "./state.js";
 import { refreshTaskList } from "./tasks.js";
 import { refreshViewList } from "./misc.js";
 import { installFieldHelp } from "./field-help.js";
+import { initializationFailureMessage } from "./ui-actions.js";
 
 import "./models-skills.js";
 import "./agents.js";
@@ -19,7 +21,15 @@ import "./start.js";
 
 // ---------- init ----------
 loadStatus();
-Promise.allSettled([refreshAll(), refreshTaskList(), refreshViewList()]).finally(() => installFieldHelp());
+const initialLoads = [
+  ["catálogo", refreshAll()],
+  ["tasks", refreshTaskList()],
+  ["visualizadores", refreshViewList()],
+];
+Promise.allSettled(initialLoads.map(([, operation]) => operation)).then((results) => {
+  const labelled = results.map((result, index) => ({ label: initialLoads[index][0], result }));
+  $("#initialization-status").textContent = initializationFailureMessage(labelled);
+}).finally(() => installFieldHelp());
 // The status bar reflects live podman/harbor state, so it keeps checking rather than showing
 // whatever was true when the page happened to load.
 setInterval(loadStatus, 15000);

@@ -84,6 +84,23 @@ def prove(path, kind, name, item):
     return identity
 
 
+def reconcile_reserved(path, kind, name, item):
+    """Attach an observed ID only when reservation, exact name and label all agree."""
+    labels = item.get("Config", {}).get("Labels") or item.get("Labels") or item.get("labels") or {}
+    identity = item.get("Id") or item.get("ID") or item.get("id") or item.get("Name")
+    names = item.get("RepoTags", []) if kind == "images" else [item.get("Name", item.get("name", ""))]
+    normalized = [n.removeprefix("/").removeprefix("localhost/").removesuffix(":latest") for n in names]
+    if not identity or labels.get(LABEL) != "true" or not normalized or any(n != name for n in normalized):
+        raise ValueError("Propriedade ambígua; recurso preservado")
+    with transaction(path) as data:
+        entries = data["managed_resources"][kind]
+        matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("name") == name]
+        if len(matches) != 1 or matches[0].get("id") not in (None, identity):
+            raise ValueError("Reserva não conciliável; recurso preservado")
+        matches[0]["id"] = identity
+    return identity
+
+
 def base_images(dockerfile):
     """No implicit pulls or external COPY images. Ambiguous dynamic builds are refused."""
     stages, images = set(), []

@@ -1,5 +1,8 @@
 # Continuidade com Claude — plataforma de avaliações
 
+O pedido posterior de auditoria, commit e push está no
+[relatório de entrega](AUDITORIA_ENTREGA_2026-09-07.md), que deve ser lido primeiro.
+
 Cole o texto abaixo numa sessão aberta na raiz do clone. O relatório e o Git são a fonte do
 estado atual; este prompt não depende do histórico da conversa.
 
@@ -8,9 +11,11 @@ Continue o Harbor Eval Kit a partir do estado existente, sem reiniciar a impleme
 
 Leia AGENTS.md, docs/ENGENHARIA.md, .claude/skills/ship-change/SKILL.md,
 docs/PLANO_PLATAFORMA_2026-09-07.md e docs/VALIDACAO_PLATAFORMA_2026-09-07.md.
-Inspecione git status, log e diff. Preserve alterações existentes e não faça push.
+Inspecione git status, log e diff. Preserve alterações existentes. O usuário posteriormente
+autorizou commit e push completos; confira o relatório de auditoria antes de publicar ou repetir trabalho.
 O plano foi documentado antes das mudanças no commit 7b9a886; o usuário autorizou executar
-as correções e fazer commit local. Não peça novamente confirmação rotineira para isso.
+as correções e fazer commit local, depois ampliou a autorização para push. Não peça novamente
+confirmação rotineira para isso.
 
 Objetivo: plataforma local simples de pilotar pela UI para comparar models, agents e skills
 sobre Harbor. Já foram implementados Começar, modos de experimento, baseline/duplicação,

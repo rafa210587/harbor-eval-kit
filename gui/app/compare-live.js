@@ -4,10 +4,18 @@ import { createPollingGuard } from "./compare-domain.js";
 const liveGuard = createPollingGuard();
 let activeTrackerStop = null;
 
+export function stopCompareLiveLog({ clear = false } = {}) {
+  activeTrackerStop?.();
+  if (clear) {
+    $("#compare-live").hidden = true;
+    $("#compare-live-log").textContent = "";
+  }
+}
+
 // Polls disk-backed experiment state and one current log. A generation token prevents a slow
 // response from an older experiment from overwriting the newly opened one.
 export function startCompareLiveLog(jobsDir, experimentId, { reconnect = false, canCancel = false, onRecord, onTerminal } = {}) {
-  if (activeTrackerStop) activeTrackerStop();
+  stopCompareLiveLog();
   const token = liveGuard.next();
   const box = $("#compare-live"), pre = $("#compare-live-log");
   const cancelBtn = $("#compare-cancel-btn"), submitBtn = $("#compare-submit-btn");

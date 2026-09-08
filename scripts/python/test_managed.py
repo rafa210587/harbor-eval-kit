@@ -109,10 +109,26 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.environment._reserved = True
         self.environment._inspect = AsyncMock(return_value={"Id": "owned-id"})
         self.environment._podman = AsyncMock()
-        with patch("harbor_eval_kit.managed.prove", side_effect=["owned-id", ValueError("foreign")]):
+        with patch("harbor_eval_kit.managed.reconcile_reserved", side_effect=["owned-id", ValueError("foreign")]), \
+             patch("harbor_eval_kit.managed.prove", return_value="owned-id"):
             with self.assertRaisesRegex(ValueError, "foreign"):
                 await self.environment._remove_owned(include_image=True)
         self.environment._podman.assert_not_awaited()
+
+    async def test_partial_start_resource_is_reconciled_before_stop(self):
+        Path(self.environment._manifest).write_text(json.dumps({"schema_version": 1, "preexisting": {},
+            "installed_by_kit": {}, "managed_resources": {kind: [] for kind in ("containers", "images", "networks", "volumes")}}))
+        name = self.environment._names["containers"]
+        reserve(self.environment._manifest, {"containers": name}, self.root)
+        self.environment._reserved = True
+        item = {"Id": "created-before-up-failed", "Name": name,
+                "Config": {"Labels": {LABEL: "true"}}, "State": {"Running": True}}
+        self.environment._inspect = AsyncMock(side_effect=[item, None])
+        self.environment._podman = AsyncMock(return_value=ExecResult(return_code=0))
+        await self.environment._remove_owned(stop_only=True)
+        recorded = read_manifest(self.environment._manifest)["managed_resources"]["containers"]
+        self.assertEqual(recorded[0]["id"], "created-before-up-failed")
+        self.environment._podman.assert_awaited_once_with(["stop", "-t", "2", "created-before-up-failed"])
 
     async def test_inherited_anonymous_volumes_are_refused(self):
         self.environment._inspect = AsyncMock(return_value={"Os": "linux", "Config": {"Volumes": {"/data": {}}}})

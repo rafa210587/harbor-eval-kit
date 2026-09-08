@@ -39,6 +39,10 @@ identifies itself as Podman, and checks the configured `podman compose` provider
 `alias docker=podman`. A preexisting Docker Compose CLI plugin is permitted as Podman's
 provider; `podman-compose` versions without the required flags are blocked.
 
+The connection name must exactly match the running machine or `<machine>-root`. If a custom
+connection has no such match, configure a default connection with a matching name. Refuse
+collisions instead of choosing one by prefix or list order.
+
 Verify the exact operations Harbor performs by running a minimal Harbor task.
 
 This gate is **OS-dependent** — the failure mode and the fix differ per platform, so report
@@ -77,7 +81,8 @@ Both wrappers call `scripts/installation.ts gate` and then `smoke` after the imm
 installation snapshot.
 Node.js 24+ and an already provisioned `docker.io/library/alpine:3.20` image are prerequisites;
 the smoke refuses an implicit base pull. Each run uses unique prefixed names and the managed
-label, records intended names before creation, and verifies cleanup. A failed smoke leaves
+label; its build sets `--pull=never --layers=false --force-rm`. It records intended names before
+creation and verifies cleanup. A failed smoke leaves
 its manifest reservations for inspection and cleanup. It does not remove other managed runs.
 This covers Podman primitives including env and bind I/O, not the final Harbor task gate.
 The resolver/API/Compose gate was exercised on Windows with Podman 6.0.2 on 2026-09-07;

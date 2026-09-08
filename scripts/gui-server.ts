@@ -8,6 +8,7 @@
 // Run: node scripts/gui-server.ts [--port 4173]
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { readJsonBody } from "./lib/http-body.ts";
 import { discoverProviderModels } from "./lib/provider-probe.ts";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
@@ -19,6 +20,8 @@ import { createRegistryEntry, updateRegistryEntry, deleteRegistryEntry, Registry
 import { appendExperimentAnalysis, readExperiment } from "./lib/experiment-store.ts";
 import { redactOutput } from "./lib/experiment-runner.ts";
 import { freezeAnalysisInputs } from "./lib/analysis-inputs.ts";
+import { createAnalysisSession, readAnalysisSession, sessionAnalysisInput } from "./lib/analysis-session.ts";
+import { withAnalysisTarget } from "./lib/analysis-lock.ts";
 import {
   type CriterionEntry,
   type JudgeEntry,
@@ -102,30 +105,6 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
     "Content-Length": Buffer.byteLength(body),
   });
   res.end(body);
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolvePromise, reject) => {
-    let data = "";
-    let bytes = 0;
-    req.on("data", (chunk) => {
-      bytes += chunk.length;
-      if (bytes > 10_000_000) { reject(new Error("request body excede 10 MB")); req.resume(); return; }
-      data += chunk;
-    });
-    req.on("end", () => resolvePromise(data));
-    req.on("error", reject);
-  });
-}
-
-async function readJsonBody(req: IncomingMessage): Promise<any> {
-  const raw = await readBody(req);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("Invalid JSON body");
-  }
 }
 
 // ---------- registries (agents/models/skillsets) ----------
@@ -213,7 +192,7 @@ addRoute("GET", "/api/logs/tail", (req, res) => {
   const file = url.searchParams.get("file");
   const offset = Number(url.searchParams.get("offset") ?? "0") || 0;
   if (!job || !file) return sendJson(res, 400, { ok: false, error: "job and file query params are required" });
-  const tail = tailJobLog(jobsDir, job, file, offset);
+  const tail = tailJobLog(jobsDir, job, file, offset, loadSecretsEnv());
   if (!tail) return sendJson(res, 404, { ok: false, error: "log file not found (or outside the jobs dir)" });
   sendJson(res, 200, tail);
 });
@@ -447,6 +426,11 @@ addRoute("POST", "/api/view/:id/stop", (_req, res, params) => {
 
 // ---------- analyze ----------
 
+addRoute("POST", "/api/analysis-sessions", (_req, res, _params, body) => {
+  const session = createAnalysisSession(body);
+  sendJson(res, 201, { id: session.id, judgeModel: session.judgeModel, validationMode: session.validationMode, rubricIds: session.rubrics.map(r => r.id) });
+});
+
 addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   let { path: trialPath } = body;
   const { rubricId, judgeId, judgeModel, agent } = body;
@@ -463,10 +447,14 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   // Preferred path: a registered Judge bundles agent + model + optional custom prompt.
   // Kept judgeModel/agent as a fallback for ad-hoc use (standalone Analyze tab without a
   // registered Judge) -- same relationship Compare's entries have with bare Agent defaults.
-  let resolvedModel = judgeModel ? String(judgeModel) : undefined;
-  let resolvedAgent = agent ? String(agent) : undefined;
+  const session = body.analysisSessionId ? readAnalysisSession(body.analysisSessionId) : null;
+  if (session && (judgeId && judgeId !== session.judgeId || body.validationMode !== undefined && body.validationMode !== session.validationMode)) throw new Error("inputs não correspondem à sessão de análise congelada");
+  const frozen = session ? sessionAnalysisInput(session, rubricId) : null;
+  let resolvedModel = session?.judgeModel ?? (judgeModel ? String(judgeModel) : undefined);
+  let resolvedAgent = session?.agent ?? (agent ? String(agent) : undefined);
   let promptPath: string | undefined;
-  if (judgeId) {
+  if (session) promptPath = frozen?.promptPath;
+  else if (judgeId) {
     const judges = readRegistry<JudgeEntry>("judges");
     const judge = judges.find((j) => j.id === judgeId);
     if (!judge) return sendJson(res, 400, { ok: false, error: "unknown judgeId" });
@@ -484,7 +472,7 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   // never silently relaxes the gate: the caller has to ask for it, and every response and
   // report from such a call is stamped validationMode:true so its verdict can't be mistaken
   // for a real evaluation.
-  const validationMode = body.validationMode === true;
+  const validationMode = session?.validationMode ?? body.validationMode === true;
   if (!resolvedModel) {
     return sendJson(res, 400, {
       ok: false,
@@ -499,7 +487,8 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   }
 
   const args = ["analyze", String(trialPath), "--model", resolvedModel];
-  if (rubricId && rubricId !== "__default__") {
+  if (session) { if (frozen?.rubricPath) args.push("--rubric", frozen.rubricPath); }
+  else if (rubricId && rubricId !== "__default__") {
     const rubrics = readRegistry<RubricEntry>("rubrics");
     const rubric = rubrics.find((r) => r.id === rubricId);
     if (!rubric) return sendJson(res, 400, { ok: false, error: "unknown rubricId" });
@@ -513,24 +502,26 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   if (resolvedAgent) args.push("--agent", resolvedAgent);
   if (promptPath) args.push("--prompt", promptPath);
 
-  const secretsEnv = loadSecretsEnv();
-  const inputs = freezeAnalysisInputs(args);
-  const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
-  const response = {
-    ok: result.code === 0,
-    stdout: redactOutput(result.stdout, secretsEnv),
-    stderr: redactOutput(result.stderr, secretsEnv),
-    judgeModel: resolvedModel,
-    validationMode,
-    analysis: result.code === 0 ? resolveAnalysisJson(String(trialPath), result.stdout) : null,
-  };
-  if (body.experimentId) appendExperimentAnalysis(analysisJobsDir, String(body.experimentId), body.jobName, {
-    ...JSON.parse(redactOutput(JSON.stringify(response), secretsEnv)), createdAt: new Date().toISOString(), judgeId, rubricId, analysisBatchId: body.analysisBatchId, analysisBatchSize: body.analysisBatchSize, analysisBatchIndex: body.analysisBatchIndex,
-    // Exact prompt/rubric used at invocation, not mutable registry references alone.
-    rubric: inputs.rubric,
-    prompt: inputs.prompt,
+  await withAnalysisTarget(String(trialPath), async () => {
+    const secretsEnv = loadSecretsEnv();
+    const inputs = freezeAnalysisInputs(args);
+    const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
+    const response = {
+      ok: result.code === 0,
+      stdout: redactOutput(result.stdout, secretsEnv),
+      stderr: redactOutput(result.stderr, secretsEnv),
+      judgeModel: resolvedModel,
+      validationMode,
+      analysis: result.code === 0 ? resolveAnalysisJson(String(trialPath), result.stdout) : null,
+    };
+    if (body.experimentId) appendExperimentAnalysis(analysisJobsDir, String(body.experimentId), body.jobName, {
+      ...JSON.parse(redactOutput(JSON.stringify(response), secretsEnv)), createdAt: new Date().toISOString(), judgeId, rubricId, analysisSessionId: session?.id, analysisBatchId: body.analysisBatchId, analysisBatchSize: body.analysisBatchSize, analysisBatchIndex: body.analysisBatchIndex,
+      // Exact prompt/rubric used at invocation, not mutable registry references alone.
+      rubric: inputs.rubric,
+      prompt: inputs.prompt,
+    });
+    sendJson(res, result.code === 0 ? 200 : 500, response);
   });
-  sendJson(res, result.code === 0 ? 200 : 500, response);
 });
 
 // ---------- static + dispatch ----------

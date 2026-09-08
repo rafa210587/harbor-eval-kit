@@ -5,7 +5,7 @@ import { readRegistry } from "./lib/paths.ts";
 import { createExperimentPlan, resolveRegisteredCandidates, estimateExperiment } from "./lib/experiment-plan.ts";
 import { runExperiment, type RunControl } from "./lib/experiment-runner.ts";
 import { listExperiments, readExperiment } from "./lib/experiment-store.ts";
-import { stopContainersForJob } from "./lib/exec.ts";
+import { stopContainersForJob, terminateProcessTree } from "./lib/exec.ts";
 import { reportCsv } from "./lib/results.ts";
 import { loadSecretsEnv } from "./lib/secrets.ts";
 import { redactOutput } from "./lib/experiment-runner.ts";
@@ -38,7 +38,7 @@ export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson)
     const control = activeRuns.get(String(body.runId ?? ""));
     if (!control) return sendJson(res, 404, { error: "execução não pertence a este processo do servidor; consulte os logs e recursos do job" });
     control.cancelled = true;
-    for (const child of control.children) child.kill();
+    for (const child of control.children) terminateProcessTree(child);
     const stopped = [...control.jobNames].flatMap(name => stopContainersForJob(control.jobsDir, name));
     sendJson(res, 200, { ok: true, stoppedContainers: stopped, note: "cancelamento solicitado; a parada de containers é de melhor esforço e só alcança propriedade comprovada" });
   });

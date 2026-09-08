@@ -1,12 +1,10 @@
-# Runs the same suite `bash scripts/test.sh` runs locally: unit tests, the cross-module import
-# checker, and the credential scanner over the whole diff/repo. All three are deterministic and
-# offline (no podman, no harbor, no network) -- see scripts/lib/harbor.test.ts's own header for
-# why that scope was chosen deliberately.
+# The Node matrix runs the same suite `bash scripts/test.sh` runs locally: unit tests, the
+# cross-module import checker, and the credential scanner over the whole diff/repo. Those checks
+# are deterministic and do not start Podman, Harbor or providers. The separate Python contract
+# job installs the pinned Harbor package, then runs only offline tests against its imports.
 #
 # Matrix across the three OSes this kit claims to support (see docs/ENGENHARIA.md §2): the
-# `node --test` and `check-imports.mjs` steps are pure Node and portable, but `scan-secrets.sh`
-# is bash with an OS-dependent fallback chain (lsof/fuser/netstat), and that fallback path is
-# exactly the kind of thing that only breaks on the platform nobody tested it on.
+# `node --test`, `check-imports.mjs` and `scan-secrets.sh` are the portable checks in this matrix.
 name: CI
 
 on:
@@ -41,3 +39,20 @@ jobs:
       - name: Credential scan
         shell: bash
         run: bash scripts/scan-secrets.sh
+
+  python-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned Harbor contract
+        run: pip install harbor==0.22.0
+
+      - name: Python contract tests (offline)
+        env:
+          PYTHONPATH: scripts/python
+        run: python -m unittest discover -s scripts/python -p 'test_*.py'

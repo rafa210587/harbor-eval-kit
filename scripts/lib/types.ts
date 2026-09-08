@@ -33,27 +33,14 @@ export interface ResultRow {
   error?: string;
 }
 
-interface HarborResultJson {
-  stats?: {
-    n_completed_trials?: number;
-    n_errored_trials?: number;
-    evals?: Record<
-      string,
-      { n_trials?: number; n_errors?: number; metrics?: { mean?: number }[] }
-    >;
-    n_input_tokens?: number;
-    n_cache_tokens?: number;
-    n_output_tokens?: number;
-    cost_usd?: number;
-  };
-}
-
 export interface ExecOptions {
   /** Mirror stdout/stderr to this process's own streams as they arrive. */
   echo?: boolean;
   /** Inject the Podman-forwarded DOCKER_HOST for this child only (default: true on win32). */
   dockerHostFix?: boolean;
   extraEnv?: Record<string, string>;
+  /** Values that must be removed from captured and streamed child output. */
+  redactValues?: string[];
   cwd?: string;
   /** Kill the child if it hasn't exited after this many ms (default: no timeout). */
   timeoutMs?: number;

@@ -51,7 +51,10 @@ pwsh -NoProfile -File scripts/harbor-eval.ps1 doctor
 ```
 
 O resolver lê `podman system connection list`, seleciona a máquina associada à conexão efetiva
-e valida `npipe:////./pipe/docker_engine`. O valor entra apenas no processo filho.
+e valida `npipe:////./pipe/docker_engine`. O valor entra apenas no processo filho. O nome da
+conexão deve ser exatamente o nome da machine ou `<machine>-root`; uma conexão customizada sem
+essa correspondência deve ser substituída por uma conexão padrão com um desses nomes. Colisões
+entre nomes possíveis são recusadas como ambíguas.
 
 ## Windows Git Bash
 
@@ -107,8 +110,8 @@ Linux.
 1. conexão Podman selecionada por nome;
 2. GET `/version` no pipe/socket, recusando endpoint que não se identifique como Podman;
 3. `podman compose version` e `podman compose up --help` com `DOCKER_HOST` escopado ao filho;
-4. build sem pull, run, exec, variável sintética, bind mount nos dois sentidos, volume, rede,
-labels e remoção confirmada.
+4. build com `--pull=never --layers=false --force-rm` e label gerenciada, seguido de run, exec,
+variável sintética, bind mount nos dois sentidos, volume, rede, labels e remoção confirmada.
 
 O provider pode ser um plugin Docker Compose CLI já existente, usado por `podman compose`, sem
 Docker Engine. Não instale Docker para satisfazer o gate. Versões de `podman-compose` que não
@@ -172,7 +175,17 @@ bash scripts/harbor-eval.sh eval --path evals/python/soma-fracoes --agent nop --
 ```
 
 Os wrappers convertem `--env docker` para o adapter gerenciado, carregam secrets pelo executor
-comum e devolvem o código de saída real do Harbor.
+comum e devolvem o código de saída real do Harbor. Quando o wrapper instala Harbor com `uv`, ele
+adiciona o diretório de binários de `uv tool` somente ao `PATH` daquele processo e confirma a
+versão 0.22.0 e o Python isolado correspondente. Uma instalação preexistente de outra versão ou
+fora desse ambiente é preservada e bloqueia a conclusão de `install` e do gate READY até ser
+corrigida pelo responsável.
+
+O executor decodifica stdout/stderr como UTF-8 antes de mascarar valores secretos, inclusive
+quando um caractere ou segredo atravessa limites de chunks. Em timeout ou cancelamento, encerra
+somente a árvore derivada do processo que ele próprio iniciou: `taskkill /T /F` no Windows e um
+snapshot PPID com `SIGKILL` nos descendentes no macOS/Linux. A limpeza posterior continua
+dependendo das provas de propriedade do manifest.
 
 ## Atualização, reparo e backup
 
@@ -205,3 +218,9 @@ bash scripts/harbor-eval.sh uninstall --dry-run
 Revise o manifest, prefixos, labels e identidades. Só então retire `-DryRun` no PowerShell ou
 `--dry-run` no Bash. A limpeza
 preserva dependências e imagens preexistentes e aborta quando a propriedade é ambígua.
+
+Reservas, IDs de recursos e auditoria de remoção são atualizados por transação. Os escritores
+Node e Python usam o mesmo arquivo `<manifest>.runtime-lock`, relêem o manifest depois de obter o
+lock e fazem substituição atômica, preservando registros concorrentes. Se o lock continuar ocupado
+por 30 segundos, a operação aborta; confirme primeiro se ainda existe um processo ativo antes de
+tratar o arquivo como lock abandonado.

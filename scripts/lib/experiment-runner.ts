@@ -24,11 +24,15 @@ export async function runExperiment(plan: ExperimentPlan, options: {
   executor?: (args: string[], opts?: ExecOptions) => Promise<ExecResult>;
   secrets?: Record<string, string>; dockerHostFix?: boolean;
 } = {}) {
+  const secrets = options.secrets ?? loadSecretsEnv();
+  const serialized = JSON.stringify(plan);
+  if (redactOutput(serialized, secrets) !== serialized) {
+    throw new Error("credencial encontrada nos inputs do experimento; use apenas o ambiente de Credenciais");
+  }
   const verdict = guardExperiment(plan, options.costCapUsd, options.acknowledgeCost);
   if (!verdict.allowed) throw Object.assign(new Error(verdict.reason!), { statusCode: 409, estimate: verdict.estimate, needsAcknowledge: true });
   if (existsSync(experimentDirectory(plan.jobsDir, plan.id))) throw Object.assign(new Error("runId já existe; reabra o experimento ou gere um novo ID"), { statusCode: 409 });
   const record = prepareExperiment(plan);
-  const secrets = options.secrets ?? loadSecretsEnv();
   const execute = options.executor ?? execHarbor;
   const control = options.control;
   record.status = "running";

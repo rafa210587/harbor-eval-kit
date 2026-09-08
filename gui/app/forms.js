@@ -27,13 +27,16 @@ export function wireEditableForm(formEl, { onSubmit, addLabel = "Adicionar" }) {
 
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const data = onSubmit(formEl);
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
     try {
+      const data = onSubmit(formEl);
       if (editingId) await api("PUT", `${formEl.dataset.apiPath}/${editingId}`, data);
       else await api("POST", formEl.dataset.apiPath, data);
       cancelEdit();
       await refreshAll();
     } catch (err) { alert(err.message); }
+    finally { submitBtn.disabled = false; }
   });
 
   return { startEdit, cancelEdit };

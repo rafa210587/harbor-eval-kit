@@ -46,7 +46,7 @@
 <!-- Shared by the Agents and Judges forms: the --agent values the installed Harbor accepts,
      fetched once from /api/harbor-agents (server-side list, mirrors `harbor run --help`). -->
 <datalist id="harbor-agents-list"></datalist>
-<p class="hint" style="text-align:center;padding:6px 16px 0;">Primeira comparação: Credenciais → Modelos → Agentes → Novo experimento, usando a task soma-fracoes. Skills, critérios, rubrics e juiz são opcionais; configure quando fizerem parte do experimento.</p>
+<p class="hint" style="text-align:center;padding:6px 16px 0;">Primeira comparação: escolha uma task e um agente em Começar. <code>oracle</code>/<code>nop</code> permitem validar o fluxo sem modelo nem credencial; agentes pagos exigem Credenciais e Modelos. Skills, critérios, rubrics e juiz são opcionais.</p>
 
 <main>
 
@@ -57,6 +57,7 @@
       <p>Escolha uma task, configure os candidatos, revise a prévia efetiva e só então execute. Skills e juiz entram quando forem uma variável do experimento.</p>
       <ul id="start-checklist" class="checklist" aria-live="polite"></ul>
       <button class="primary" type="button" id="start-next">Continuar configuração</button>
+      <p id="initialization-status" class="status-line" role="status" aria-live="polite"></p>
     </div>
     <div class="journey-grid">
       <article class="panel"><h3>Comparar modelos</h3><p>Mesmo agente e mesmas skills; duplique o candidato e altere apenas o modelo.</p><button class="secondary" type="button" data-go-tab="compare" data-mode="models">Começar</button></article>
@@ -219,7 +220,7 @@
           <div><label for="f-label-apelido">Nome do perfil</label><input id="f-label-apelido" type="text" name="label" placeholder="Claude Code — padrão" required></div>
           <div><label for="f-harbor-agent-value">Adaptador do Harbor</label><input id="f-harbor-agent-value" type="text" name="agentValue" placeholder="claude-code" list="harbor-agents-list" required></div>
         </div>
-        <p class="hint">Comece a digitar para ver os <strong id="harbor-agents-count">…</strong> adapters que o Harbor instalado aceita (o campo continua livre — dá pra passar um import path customizado). <strong>Model-agnostic</strong> (marcados na lista, ex.: <code>mini-swe-agent</code>, <code>terminus</code>, <code>aider</code>) rodam qualquer <code>provider/modelo</code> — são os que você usa pra comparar DeepSeek vs Claude no mesmo agent. Os demais (<code>claude-code</code>, <code>codex</code>, <code>gemini-cli</code>…) são CLIs de um fornecedor específico e falam a API dele; combinar com um model de outro provider é problema do adapter, não algo que este kit garanta. <code>oracle</code> e <code>nop</code> não gastam API — bons pra testar o kit.</p>
+        <p class="hint">Comece a digitar para ver os <strong id="harbor-agents-count">…</strong> adapters que o Harbor instalado aceita (o campo continua livre — dá pra passar um import path customizado). <strong>Model-agnostic</strong> (marcados na lista, ex.: <code>mini-swe-agent</code>, <code>terminus</code>, <code>aider</code>) aceitam o formato genérico <code>provider/modelo</code>; a compatibilidade concreta ainda depende do adapter e do provider. Os demais (<code>claude-code</code>, <code>codex</code>, <code>gemini-cli</code>…) são CLIs de um fornecedor específico e falam a API dele. <code>oracle</code> e <code>nop</code> não gastam API — bons pra testar o kit.</p>
 
         <label for="agent-model-select">Modelo padrão (opcional)</label>
         <select name="modelId" id="agent-model-select"><option value="">— nenhum (usa o padrão do Harbor) —</option></select>
@@ -250,7 +251,7 @@ Você é [especialização, ex.: "engenheiro backend Python sênior"] responsáv
         <input id="agent-instructions-file" type="file" accept=".md,text/markdown,text/plain" data-attach-target="agents-form">
 
         <label id="agent-default-skillsets-label">Conjuntos de skills padrão</label>
-        <p id="agent-default-skillsets-help" class="hint">Finalidade: anexar sempre estes conjuntos às execuções do perfil, além do que for escolhido em Novo experimento. Padrão: nenhum; opcional.</p>
+        <p id="agent-default-skillsets-help" class="hint">Finalidade: preencher inicialmente os conjuntos de skills de um novo candidato deste perfil; em Novo experimento, você pode remover ou trocar essa seleção por candidato. As instruções do perfil continuam anexadas. Padrão: nenhum; opcional.</p>
         <div class="checkbox-group" id="agent-default-skillsets" role="group" aria-labelledby="agent-default-skillsets-label" aria-describedby="agent-default-skillsets-help"><span class="muted">nenhum skill set cadastrado ainda</span></div>
 
         <label for="f-notes-opcional">Notas (opcional)</label>
@@ -380,7 +381,7 @@ Guidance:
           <div><label for="f-label">Nome</label><input id="f-label" type="text" name="label" placeholder="Claude Sonnet 5" required></div>
           <div><label for="f-provider-model">provider/model</label><input id="f-provider-model" type="text" name="value" placeholder="anthropic/claude-sonnet-5" required></div>
         </div>
-        <p class="hint" id="model-key-preview"></p>
+        <p class="hint status-line" id="model-key-preview"></p>
         <button class="primary" type="submit">Adicionar modelo</button>
         <button class="secondary cancel-edit" type="button" hidden>Cancelar edição</button>
       </form>
@@ -567,7 +568,7 @@ Por que é ruim: explique a consequência concreta.
 
       <button class="primary" type="button" id="task-editor-save">Salvar arquivos</button>
       <button class="secondary" type="button" id="task-editor-close">Close</button>
-      <p class="hint" id="task-editor-status"></p>
+      <p class="hint status-line" id="task-editor-status" aria-live="polite"></p>
     </div>
   </section>
 
@@ -639,7 +640,7 @@ Por que é ruim: explique a consequência concreta.
         <input id="f-jobs-dir-8" type="text" name="jobsDir" value="jobs" required>
         <button class="primary" type="submit">Iniciar visualizador</button>
       </form>
-      <div id="view-output" class="hint" style="margin-top:8px;"></div>
+      <div id="view-output" class="hint status-line" aria-live="polite" style="margin-top:8px;"></div>
       <h2 style="margin-top:18px;">Running viewers</h2>
       <p class="hint">Cada linha aqui é um `harbor view` ainda rodando — clique "Stop" quando terminar de olhar (senão fica consumindo uma porta indefinidamente). Esta lista só existe em memória: um restart do `gui-server` esquece os viewers que estavam rodando (eles continuam de pé como processo, só a lista que some — pare manualmente pelo gerenciador de tarefas se precisar).</p>
       <div id="view-list"></div>

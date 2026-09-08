@@ -88,12 +88,13 @@ export function selectConfiguredMachine(
   if (defaults.length > 1) throw new Error("Podman reports more than one default connection");
 
   const pairs = machines.flatMap(machine => connections
-    .filter(connection => connection.name === machine.name || connection.name.startsWith(`${machine.name}-`))
+    .filter(connection => connection.name === machine.name || connection.name === `${machine.name}-root`)
     .map(connection => ({ machine, connection })));
-  const defaultPair = defaults.length
-    ? pairs.find(pair => pair.connection.name === defaults[0].name)
-    : undefined;
-  if (defaultPair) return defaultPair;
+  const defaultPairs = defaults.length
+    ? pairs.filter(pair => pair.connection.name === defaults[0].name)
+    : [];
+  if (defaultPairs.length === 1) return defaultPairs[0];
+  if (defaultPairs.length > 1) throw new Error("Podman machines are ambiguous; a connection name matches multiple machines");
   if (pairs.length === 1) return pairs[0];
   throw new Error("Podman machines are ambiguous; select one Podman system connection explicitly");
 }

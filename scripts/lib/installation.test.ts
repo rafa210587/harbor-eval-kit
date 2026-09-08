@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { snapshotInstallation, markInstalledDependency, loadInstallationManifest } from './installation.ts';
+import { snapshotInstallation, markInstalledDependency, loadInstallationManifest, updateInstallationManifest } from './installation.ts';
 import { smokePodman } from './podman-smoke.ts';
 
 test('snapshot survives reruns, only newly installed dependencies can be claimed', () => {
@@ -15,9 +15,11 @@ test('snapshot survives reruns, only newly installed dependencies can be claimed
     snapshotInstallation(path, () => '/now/present');
     assert.equal(readFileSync(path, 'utf8'), first);
     assert.throws(() => markInstalledDependency(path, 'harbor', () => undefined), /not found/);
+    updateInstallationManifest(path, value => value.managed_resources.networks.push('harbor-eval-kit-concurrent'));
     markInstalledDependency(path, 'harbor', () => '/kit/harbor');
     assert.equal(loadInstallationManifest(path).installed_by_kit.harbor.path, '/kit/harbor');
     assert.equal(loadInstallationManifest(path).preexisting.harbor.present, false);
+    assert.deepEqual(loadInstallationManifest(path).managed_resources.networks, ['harbor-eval-kit-concurrent']);
     writeFileSync(path, '{}');
     assert.throws(() => snapshotInstallation(path), /Invalid/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -54,6 +56,10 @@ test('smoke creates uniquely named labeled resources, records before mutation an
             ? args[args.indexOf('--name') + 1]
             : args.at(-1)!;
         assert.ok(name.startsWith('harbor-eval-kit-doctor-'));
+        if (args[0] === 'build') {
+          for (const flag of ['--pull=never', '--layers=false', '--force-rm']) assert.ok(args.includes(flag));
+          assert.ok(args.includes('io.harbor-eval-kit.managed=true'));
+        }
         assert.ok(loadInstallationManifest(path).managed_resources[`${kind}s`].includes(name));
         if (kind !== 'image') assert.ok(args.includes('io.harbor-eval-kit.managed=true'));
         if (args[0] === 'run') {

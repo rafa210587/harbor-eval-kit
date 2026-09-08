@@ -65,13 +65,16 @@ That is the general rule whenever the mechanism is OS-dependent.
 Branch explicitly on `win32` / `darwin` / `linux`, in exactly one function, and surface the
 resolved value so it can be audited. The canonical example is `DOCKER_HOST` resolution:
 
-- `resolvePodmanDockerHost()` — `scripts/lib/harbor.ts`
-- `Resolve-PodmanDockerHost` — `scripts/harbor-eval.ps1`
-- `resolve_podman_docker_host` — `scripts/harbor-eval.sh`
+- `resolvePodmanConnection()` — `scripts/lib/podman.ts` is the source of truth.
+- `resolvePodmanDockerHost()` — `scripts/lib/exec.ts` delegates to that resolver.
+- Both shell wrappers delegate host decisions to the shared Node helpers.
 
-Windows uses Podman's fixed Docker-compat pipe; macOS resolves a machine-name-dependent socket;
-Linux rootless usually needs nothing. `GET /api/status` reports whatever was resolved, and the
-status bar warns when nothing was.
+Windows uses Podman's Docker-compatible pipe after selecting a running machine; macOS reads
+that machine's inspected socket; Linux rootless reads the socket from Podman info. Machine
+matching accepts its exact name or the standard `-root` alias and refuses collisions. Custom
+connection aliases without a provable machine match require explicit configuration.
+`GET /api/status` reports discovery; only the doctor smoke establishes readiness. Never equate
+a version string or a discovered socket with a passing CLI/API/Compose/container smoke.
 
 ## Line endings
 

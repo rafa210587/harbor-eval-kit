@@ -17,7 +17,7 @@ from uuid import uuid4
 from harbor.environments.base import ExecResult
 from harbor.environments.capabilities import EnvironmentCapabilities
 from harbor.environments.docker.docker import DockerEnvironment
-from .ownership import LABEL, PREFIX, base_images, prove, read_manifest, remember, reserve
+from .ownership import LABEL, PREFIX, base_images, prove, read_manifest, reconcile_reserved, remember, reserve
 
 
 def redact(text, env=None):
@@ -192,7 +192,8 @@ class ManagedPodmanEnvironment(DockerEnvironment):
             name = self._names[kind]
             item = await self._inspect(kind, name)
             if item:
-                identity = prove(self._manifest, kind, name, item)
+                identity = reconcile_reserved(self._manifest, kind, name, item)
+                prove(self._manifest, kind, name, item)
                 inspected.append((kind, name, identity))
         for kind, name, identity in inspected:
             args = ["stop", "-t", "2", identity] if stop_only else {

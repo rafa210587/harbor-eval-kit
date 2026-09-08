@@ -21,7 +21,7 @@ const FIELD_HELP = {
   "f-env": "Backend interno do Harbor conectado ao Podman. Padrão: docker. Avançado; não altere nesta instalação.",
   "f-job-prefix": "Prefixo legível dos jobs. Ex.: deepseek-ab. Padrão: cmp; opcional.",
   "f-jobs-dir": "Pasta que recebe resultados. Ex.: jobs. Padrão: jobs; altere para separar estudos.",
-  "f-concurrency": "Trials simultâneos. Ex.: 2. Padrão: 1; aumente só quando custo e limite do provider permitirem.",
+  "f-concurrency": "Processos Harbor de candidatos simultâneos. Ex.: 2. Padrão: 1; cada processo pode paralelizar tasks internamente, então aumente só quando máquina, custo e provider permitirem.",
   "f-n-attempts": "Repetições de cada candidato por task. Ex.: 3. Padrão: 1; aumente para medir variação.",
   "f-teto-de-gasto-desta-run-usd": "Guarda pré-voo em USD. Ex.: 1.00. Padrão: 1.00; use 0 para desativar.",
   "f-extra-harbor-run-args-opcional-avancado": "Passa apenas kwargs permitidos. Ex.: --timeout-multiplier 1.5. Padrão: vazio; opcional avançado.",
@@ -108,7 +108,9 @@ export function describeField(field, override) {
     help = document.createElement("p");
     help.id = helpId;
     help.className = "hint field-help";
-    const anchor = field.type === "checkbox" ? (field.closest("label") || field) : field;
+    const anchor = field.type === "checkbox"
+      ? (field.closest(".checkbox-inline") || field.closest("label") || field)
+      : field;
     anchor.insertAdjacentElement("afterend", help);
   }
   const fallback = fieldContract({ label: labelText(field), placeholder: field.placeholder, value: field.defaultValue || field.value, required: field.required, type: field.type, checked: field.defaultChecked });

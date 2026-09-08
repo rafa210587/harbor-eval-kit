@@ -7,8 +7,9 @@ import { rememberExperiment, setupExperimentHistory } from "./compare-history.js
 import { baselineIndex, cloneCandidate, createPollingGuard, experimentDownloadUrl } from "./compare-domain.js";
 import { describeField } from "./field-help.js";
 import { renderEffectivePlan, renderResultsTable } from "./compare-render.js";
-import { startCompareLiveLog } from "./compare-live.js";
+import { startCompareLiveLog, stopCompareLiveLog } from "./compare-live.js";
 import { setupCompareAnalysis } from "./compare-analysis-controller.js";
+import { renderStandaloneAnalysis } from "./analysis-render.js";
 
 // ================= COMPARE =================
 const MODE_HELP = {
@@ -296,7 +297,7 @@ $("#compare-form").addEventListener("submit", async (e) => {
     try {
       result = await api("POST", "/api/compare", body);
     } catch (err) {
-      if (!/teto de \$|às cegas/.test(err.message)) throw err;
+      if (err.needsAcknowledge !== true) throw err;
       if (!confirm(`Guarda de gasto:\n\n${err.message}\n\nRodar assim mesmo?`)) {
         out.textContent = "Cancelado pela guarda de gasto — nada foi executado.";
         return;
@@ -344,10 +345,11 @@ $("#compare-form").addEventListener("submit", async (e) => {
 onRefresh(() => { renderCompareAgentPicker(); });
 
 setupExperimentHistory(record => {
-  if ($("#compare-submit-btn").disabled || compareAnalysis.isRunning()) return;
+  if ($("#compare-submit-btn").disabled || compareAnalysis.isRunning()) return false;
+  stopCompareLiveLog({ clear: true });
   lastExperimentId = record.plan.id;
   lastCompareJobsDir = record.plan.jobsDir;
-  lastCompareRows = record.rows;
+  lastCompareRows = record.rows.map((row) => ({ ...row, analyses: record.analyses?.[row.jobName] || [] }));
   lastComparePlan = record.plan;
   allowAnalysis = !record.plan.dryRun && record.status !== "running";
   renderCompareTable();
@@ -355,12 +357,12 @@ setupExperimentHistory(record => {
   updateDownloadLinks();
   $("#compare-post-actions").hidden = record.plan.dryRun || !record.rows.length;
   $("#compare-analyze-panel").hidden = record.plan.dryRun || record.status === "running" || !record.rows.some(r => r.ok);
-  $("#compare-output").textContent = `Experimento ${record.plan.id} · ${record.status} · ${record.rows.length}/${record.plan.candidates.length} candidatos com resultado`;
+  $("#compare-output").textContent = `Experimento ${record.plan.id} · ${record.status} · ${record.rows.length}/${record.plan.candidates.length} candidatos com resultado${record.error ? ` · erro real: ${record.error}` : ""}`;
   if (record.status === "running") startCompareLiveLog(record.plan.jobsDir, record.plan.id, {
     reconnect: true,
     canCancel: record.canCancel === true,
     onRecord: (current) => {
-      lastCompareRows = current.rows;
+      lastCompareRows = current.rows.map((row) => ({ ...row, analyses: current.analyses?.[row.jobName] || [] }));
       lastComparePlan = current.plan;
       renderCompareTable();
       renderEffectivePreview(current.plan);
@@ -374,10 +376,24 @@ setupExperimentHistory(record => {
   const target = $("#compare-analysis-results");
   target.textContent = "";
   for (const [job, analyses] of Object.entries(record.analyses || {})) {
-    const details = document.createElement("details");
-    const summary = document.createElement("summary");
-    summary.textContent = `${job} — ${analyses.length} análise(s) preservada(s)`;
-    const pre = document.createElement("pre"); pre.className = "output"; pre.textContent = JSON.stringify(analyses, null, 2);
-    details.append(summary, pre); target.append(details);
+    const group = document.createElement("section");
+    group.className = "panel";
+    const heading = document.createElement("h3");
+    heading.textContent = `${job} — ${analyses.length} análise(s) preservada(s)`;
+    group.appendChild(heading);
+    for (const [index, analysis] of analyses.entries()) {
+      const item = document.createElement("div");
+      item.className = "analysis-history-item";
+      const rubric = document.createElement("p");
+      rubric.className = "row-sub";
+      rubric.textContent = `Análise ${index + 1} · rubric: ${analysis.rubricId === "__default__" || !analysis.rubricId ? "padrão do Harbor" : analysis.rubricLabel || analysis.rubricId}`;
+      item.appendChild(rubric);
+      const rendered = document.createElement("div");
+      renderStandaloneAnalysis(rendered, analysis);
+      item.appendChild(rendered);
+      group.appendChild(item);
+    }
+    target.appendChild(group);
   }
+  return true;
 });

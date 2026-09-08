@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeAnalysis, parseResult, resolveAnalysisJson, summarizeAnalysisRecords } from "./results.ts";
+import { csvEscape, normalizeAnalysis, parseResult, resolveAnalysisJson, summarizeAnalysisRecords } from "./results.ts";
 
 function fixture(fn: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "hek-results-"));
@@ -34,7 +34,7 @@ test("result missing/malformed/invalid stats reports an error", () => fixture(di
 }));
 
 test("result aggregates rewards by trial count and preserves unknown billing", () => fixture(dir => {
-  writeFileSync(join(dir, "result.json"), JSON.stringify({ stats: {
+  writeFileSync(join(dir, "result.json"), JSON.stringify({ finished_at: "2026-09-07T00:00:00", n_total_trials: 4, stats: {
     n_completed_trials: 4, n_errored_trials: 0,
     evals: { a: { n_trials: 1, metrics: [{ mean: 0 }] }, b: { n_trials: 3, metrics: [{ mean: 1 }] } },
   } }));
@@ -43,7 +43,36 @@ test("result aggregates rewards by trial count and preserves unknown billing", (
   assert.equal(r.nTrials, 4);
   assert.equal(r.costUsd, undefined);
   assert.equal(r.nInputTokens, undefined);
+  assert.equal(r.error, undefined);
 }));
+
+test("result refuses missing completion and inconsistent Harbor trial counts", () => fixture(dir => {
+  const stats = { n_completed_trials: 1, n_errored_trials: 0 };
+  for (const data of [{ stats }, { stats, finished_at: "" }, { stats, finished_at: "done", n_total_trials: 2 },
+    { stats: { ...stats, n_errored_trials: 2 }, finished_at: "done" },
+    { stats: { ...stats, n_pending_trials: "0" }, finished_at: "done" }]) {
+    writeFileSync(join(dir, "result.json"), JSON.stringify(data));
+    assert.ok(parseResult(dir).error);
+  }
+}));
+
+test("a passing trial cannot hide another trial with absent checks or an error", () => {
+  for (const missing of [{}, { checks: {} }, { checks: { x: { outcome: "pass" } }, error: "judge failed" }]) {
+    const analysis = normalizeAnalysis({ results: [{ checks: { x: { outcome: "pass" } } }, missing] })!;
+    assert.equal(analysis.aggregate.incompleteTrials, 1);
+    assert.equal(analysis.aggregate.passRate, undefined);
+    assert.equal(summarizeAnalysisRecords([{ ok: true, analysis }]).passRate, undefined);
+  }
+});
+
+test("CSV exports untrusted formulas as text and keeps numeric and quoted data intact", () => {
+  for (const text of ["=1+1", "+1+1", "-1+1", "@SUM(A1)", "  =1", "\tvalue", "\rvalue"]) {
+    assert.ok(csvEscape(text).replace(/^"/, "").startsWith("'"));
+  }
+  assert.equal(csvEscape(-1), "-1");
+  assert.equal(csvEscape('a,"b"'), '"a,""b"""');
+  assert.equal(csvEscape("a\rb"), '"a\rb"');
+});
 
 test("Analyze preserves all trials and aggregates recognized checks and complete costs", () => {
   const trials = [

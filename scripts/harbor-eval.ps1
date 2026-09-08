@@ -8,8 +8,6 @@ $Rest = if ($RawArgs.Count -gt 1) { @($RawArgs[1..($RawArgs.Count - 1)]) } else 
 # A conventional `--` is optional. With no param() binder, Harbor flags remain opaque here.
 if ($Rest.Count -and $Rest[0] -eq "--") { $Rest = @($Rest | Select-Object -Skip 1) }
 $DryRun = ($Rest -contains "-DryRun") -or ($Rest -contains "--dry-run")
-$Prefix = if ($env:HARBOR_EVAL_PREFIX) { $env:HARBOR_EVAL_PREFIX } else { "harbor-eval-kit-" }
-$Label = if ($env:HARBOR_EVAL_LABEL) { $env:HARBOR_EVAL_LABEL } else { "io.harbor-eval-kit.managed=true" }
 $StateDir = if ($env:HARBOR_EVAL_STATE_DIR) { $env:HARBOR_EVAL_STATE_DIR } else { Join-Path $HOME ".harbor-eval-kit" }
 $Manifest = if ($env:HARBOR_EVAL_MANIFEST) { $env:HARBOR_EVAL_MANIFEST } else { Join-Path $StateDir "installation-manifest.json" }
 function Has($name) { return $null -ne (Get-Command $name -ErrorAction SilentlyContinue) }
@@ -46,6 +44,9 @@ function Install {
   if (-not (Has "uv")) {
     throw "uv missing. Install uv user-level in WSL/Linux or Windows, then rerun. This PowerShell wrapper refuses to silently install system-wide runtimes."
   }
+  $uvBin = (& uv tool dir --bin).Trim()
+  if ($LASTEXITCODE -ne 0 -or -not $uvBin) { throw "uv did not report its tool bin directory" }
+  $env:PATH = "$uvBin$([IO.Path]::PathSeparator)$env:PATH"
   if (-not (Has "harbor")) {
     # Pinned, not "latest" -- same reasoning as harbor-eval.sh: this kit encodes one Harbor
     # release's CLI/output behaviour. Keep in lockstep with TESTED_HARBOR_VERSION in
@@ -54,6 +55,11 @@ function Install {
     if ($LASTEXITCODE -ne 0) { throw "Harbor installation failed" }
     Installation-State "mark" "harbor"
   }
+  $harborVersion = (& harbor --version 2>&1 | Select-Object -First 1).ToString().Trim()
+  if ($harborVersion -ne "0.22.0") { throw "Harbor 0.22.0 is required; found $harborVersion. Preexisting Harbor is preserved." }
+  $uvTools = (& uv tool dir).Trim()
+  $harborPython = Join-Path $uvTools "harbor\Scripts\python.exe"
+  if (-not (Test-Path -LiteralPath $harborPython -PathType Leaf)) { throw "Analyze requires Harbor 0.22.0 managed by uv; the preexisting Harbor installation was preserved." }
   harbor --help | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Harbor CLI smoke test failed" }
   Write-Host "Harbor CLI: PASS"

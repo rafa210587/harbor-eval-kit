@@ -63,6 +63,10 @@ pulls are refused. Containers, images and networks created by the extension must
 manifest ownership, the `harbor-eval-kit-` prefix and `io.harbor-eval-kit.managed=true`.
 Compose/multiservice tasks and restricted network policies are rejected before resource creation.
 
+Manifest reservations and discovered IDs are serialized with the same `.runtime-lock` used by
+Node cleanup. A partially created resource may be reconciled only when its single reservation,
+exact normalized name and managed label all agree; otherwise preserve it for inspection.
+
 ## Watching a run in progress
 
 `harbor run` writes its logs into the jobs dir as it goes. To follow one without blocking on
@@ -71,6 +75,11 @@ or use the GUI's read-only routes: `GET /api/logs/jobs` (job dirs, with a `runni
 from each `result.json`'s `finished_at`), `GET /api/logs/files`, `GET /api/logs/tail`
 (incremental by byte offset). A job's completion is `finished_at != null` in its `result.json`
 — poll that rather than guessing from elapsed time.
+
+The common executor decodes stdout/stderr as UTF-8 before masking secret values across chunk
+boundaries. Timeout and user cancellation stop only the tree rooted at the spawned Harbor process:
+native `taskkill /T /F` on Windows, or a PPID snapshot followed by `SIGKILL` child-first on
+macOS/Linux. Resource cleanup still requires the manifest, exact name and managed label.
 
 ## Comparisons
 

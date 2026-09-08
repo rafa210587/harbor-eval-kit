@@ -27,6 +27,7 @@ export function renderStandaloneAnalysis(out, response) {
     appendText(out, "p", countsKnown
       ? `Checks: ${c.pass} PASS · ${c.fail} FAIL · ${c.notApplicable} N/A · ${c.unknown} desconhecido(s).`
       : "Resumo de checks não reportado.", "analysis-summary");
+    if (c.incompleteTrials > 0) appendText(out, "p", `⚠ ${c.incompleteTrials} trial(s) não produziram checks completos; nenhuma nota foi calculada.`, "hint persistent-hint analysis-warning");
     if (view.costUsd !== undefined) {
       appendText(out, "p", `Custo reportado pelo juiz: $${view.costUsd.toFixed(6)}`, "hint status-line");
     } else if (view.partialCostUsd !== undefined) {

@@ -16,6 +16,13 @@ export interface JobLogListing {
   running: boolean;
 }
 
+// Harbor's useful textual artifacts have stable names. Keep arbitrary configuration and
+// credential files out of the read surface even when a caller supplies a custom jobs dir.
+const KNOWN_TEXT_LOG = /^(?:agent-)?(?:stdout|stderr|test-stdout|reward)(?:\.txt)?$/i;
+function isLogFileName(name: string): boolean {
+  return name.toLowerCase().endsWith(".log") || KNOWN_TEXT_LOG.test(name);
+}
+
 /**
  * Lists job directories under `jobsDir`, newest first. `running` is read from the job's own
  * result.json (`finished_at: null` while harbor is still working) rather than from any state
@@ -29,7 +36,10 @@ export function listJobLogs(jobsDir: string): JobLogListing[] {
     const dir = join(jobsDir, entry.name);
     let mtimeMs = 0;
     try {
-      mtimeMs = statSync(dir).mtimeMs;
+      const files = listJobLogFiles(jobsDir, entry.name);
+      for (const file of files) {
+        try { mtimeMs = Math.max(mtimeMs, statSync(join(dir, file)).mtimeMs); } catch { /* rotated */ }
+      }
     } catch {
       continue;
     }
@@ -58,10 +68,11 @@ export function listJobLogFiles(jobsDir: string, job: string): string[] {
   const walk = (dir: string, prefix: string, depth: number): void => {
     if (depth > 3) return;
     for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isSymbolicLink()) continue;
       const abs = join(dir, e.name);
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
       if (e.isDirectory()) walk(abs, rel, depth + 1);
-      else if (e.name.endsWith(".log") || e.name.endsWith(".txt")) {
+      else if (e.isFile() && isLogFileName(e.name)) {
         try {
           out.push({ rel, mtimeMs: statSync(abs).mtimeMs });
         } catch { /* file vanished mid-scan (harbor rotating artifacts) -- skip it */ }
@@ -86,14 +97,24 @@ export interface LogTail {
  * shrank since the last poll (harbor rewrote it) resets the offset to 0 instead of returning
  * garbage.
  */
-export function tailJobLog(jobsDir: string, job: string, file: string, offset: number): LogTail | null {
+export function tailJobLog(jobsDir: string, job: string, file: string, offset: number, secrets: Record<string, string> = {}): LogTail | null {
   const jobDir = safeJoinUnderDir(jobsDir, job);
   if (!jobDir) return null;
+  const fileName = file.split(/[\\/]/).at(-1) ?? "";
+  if (!isLogFileName(fileName)) return null;
   const target = safeJoinUnderDir(jobDir, file);
   if (!target || !existsSync(target)) return null;
-  const size = statSync(target).size;
+  let info;
+  try {
+    info = statSync(target);
+  } catch {
+    return null;
+  }
+  if (!info.isFile()) return null;
+  const size = info.size;
   const MAX_BYTES = 200_000;
-  let start = offset > size ? 0 : Math.max(0, offset);
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("offset do log deve ser inteiro não negativo");
+  let start = offset > size ? 0 : offset;
   let truncated = false;
   if (size - start > MAX_BYTES) {
     start = size - MAX_BYTES;
@@ -101,11 +122,28 @@ export function tailJobLog(jobsDir: string, job: string, file: string, offset: n
   }
   const fd = openSync(target, "r");
   try {
-    const length = size - start;
+    const values = [...new Set(Object.values(secrets).filter(Boolean).flatMap(value => [value, JSON.stringify(value).slice(1, -1)]))].map(value => Buffer.from(value));
+    const overlap = Math.max(0, ...values.map(value => value.length - 1));
+    const contextStart = Math.max(0, start - overlap);
+    const length = size - contextStart;
     if (length <= 0) return { content: "", nextOffset: size, size, truncated: false };
     const buf = Buffer.alloc(length);
-    readSync(fd, buf, 0, length, start);
-    return { content: buf.toString("utf-8"), nextOffset: size, size, truncated };
+    const read = readSync(fd, buf, 0, length, contextStart);
+    const source = buf.subarray(0, read), safe = Buffer.from(source);
+    let end = read;
+    for (const value of values) {
+      // Mask in bytes so raw Harbor offsets remain valid after replacement. Reading context
+      // before the offset catches keys split by the 200 KB window or a previous poll.
+      let match = source.indexOf(value);
+      while (match !== -1) { safe.fill(42, match, match + value.length); match = source.indexOf(value, match + 1); }
+      // An append may have written only a prefix of a key. Hold it until the next poll.
+      for (let n = Math.min(value.length - 1, read); n > 0; n--) {
+        if (source.subarray(read - n).equals(value.subarray(0, n))) { end = Math.min(end, read - n); break; }
+      }
+    }
+    const contentStart = start - contextStart;
+    end = Math.max(contentStart, end);
+    return { content: safe.subarray(contentStart, end).toString("utf-8"), nextOffset: contextStart + end, size, truncated };
   } finally {
     closeSync(fd);
   }

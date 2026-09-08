@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { planCleanup, executeCleanup, discoverCleanupResources } from './cleanup.ts';
+import { updateInstallationManifest } from './installation.ts';
 const manifest = () => ({ schema_version: 1, preexisting: {}, installed_by_kit: {}, managed_resources: { containers: ['abc'], images: [], volumes: [], networks: [] } });
 const resource = () => ({ kind: 'containers' as const, id: 'abc', names: ['harbor-eval-kit-test'], labels: { 'io.harbor-eval-kit.managed': 'true' } });
 
@@ -63,6 +64,19 @@ test('cleanup failures stop subsequent deletion and retain partial audit without
     assert.equal(count, 1);
     assert.equal(JSON.parse(readFileSync(path, 'utf8')).uninstall_audit[0].status, 'failed');
     assert.ok(!readFileSync(path, 'utf8').includes('external-private-output'));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('cleanup audit updates preserve a concurrent runtime reservation', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harbor-cleanup-test-'));
+  try {
+    const path = join(dir, 'manifest.json');
+    writeFileSync(path, JSON.stringify(manifest()));
+    executeCleanup(path, { actions: [{ command: 'podman', args: ['rm', 'abc'] }], preserved: [] }, () => {
+      updateInstallationManifest(path, value => value.managed_resources.networks.push('harbor-eval-kit-late'));
+      return '';
+    });
+    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).managed_resources.networks, ['harbor-eval-kit-late']);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

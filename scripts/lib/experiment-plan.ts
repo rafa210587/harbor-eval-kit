@@ -50,6 +50,16 @@ export function discoverExperimentTasks(input: string): string[] {
   return tasks;
 }
 
+function rejectEmbeddedCredentials(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  for (const [key, nested] of Object.entries(value)) {
+    if (/(?:api.?key|secret|password|credential|authorization|access.?token|auth.?token|bearer)/i.test(key)) {
+      throw new Error("credencial em configuração estruturada; use Credenciais, nunca argumentos extras");
+    }
+    rejectEmbeddedCredentials(nested);
+  }
+}
+
 /** Deliberately narrow extension surface: other flags can override task/model/attempts or
  * introduce retries/config files behind the guard. Quoted values support spaces/Windows paths. */
 export function parseExperimentExtra(raw: unknown): string[] {
@@ -75,6 +85,12 @@ export function parseExperimentExtra(raw: unknown): string[] {
       const key = value.split("=")[0];
       if (!value.includes("=") || (key !== "max_tokens" && /(?:api.?key|secret|token|password|credential)/i.test(key))) throw new Error("kwarg inválido ou reservado a credenciais; use Secrets");
       if (key === "max_tokens") positiveInteger(value.slice(key.length + 1), "max_tokens");
+      const nested = value.slice(key.length + 1).trim();
+      if (/^[{\[]/.test(nested)) {
+        let parsed: unknown;
+        try { parsed = JSON.parse(nested); } catch { throw new Error("configuração estruturada nos kwargs deve ser JSON válido"); }
+        rejectEmbeddedCredentials(parsed);
+      }
     }
   }
   return tokens;

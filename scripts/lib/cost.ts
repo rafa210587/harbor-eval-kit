@@ -18,6 +18,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sanitize } from "./naming.ts";
+import { FREE_AGENTS } from "./catalog.ts";
 
 export interface CostSample {
   agent: string;
@@ -84,7 +85,7 @@ export function readCostHistory(jobsDir: string): CostSample[] {
 }
 
 /** Agents that never call an LLM, so they are free no matter how many attempts are queued. */
-const FREE_OF_CHARGE = new Set(["oracle", "nop"]);
+const FREE_OF_CHARGE = new Set(FREE_AGENTS);
 
 /**
  * Estimates what a Compare is about to cost, from this machine's history.

@@ -1,6 +1,5 @@
 // Trajectories (harbor view) and the standalone Analyze tab.
 import { $, $$, api, escapeHtml, tabRefreshers } from "./core.js";
-import { state } from "./state.js";
 import { withBooleanField } from "./compare-domain.js";
 import { renderStandaloneAnalysis } from "./analysis-render.js";
 

@@ -17,6 +17,10 @@ export function parseResult(jobDir: string): Partial<ResultRow> {
     if (count(stats.n_completed_trials) === undefined || count(stats.n_errored_trials) === undefined) {
       return { error: "invalid trial counts in result.json" };
     }
+    const total = count(data.n_total_trials);
+    const invalidCounts = stats.n_errored_trials > stats.n_completed_trials
+      || (data.n_total_trials !== undefined && (total === undefined || total !== stats.n_completed_trials))
+      || ["n_pending_trials", "n_running_trials", "n_cancelled_trials"].some(key => stats[key] !== undefined && count(stats[key]) === undefined);
     let trials = 0, weightedSum = 0;
     for (const e of Object.values(object(stats.evals) ? stats.evals : {})) {
       if (!object(e)) continue;
@@ -24,7 +28,7 @@ export function parseResult(jobDir: string): Partial<ResultRow> {
       if (mean !== undefined && n && n > 0) { trials += n; weightedSum += mean * n; }
     }
     return {
-      error: data.finished_at === null || stats.n_pending_trials > 0 || stats.n_running_trials > 0 || stats.n_cancelled_trials > 0
+      error: invalidCounts ? "contagens inconsistentes em result.json" : typeof data.finished_at !== "string" || !data.finished_at.trim() || stats.n_pending_trials > 0 || stats.n_running_trials > 0 || stats.n_cancelled_trials > 0
         ? "job incompleto ou com trials cancelados" : stats.n_completed_trials === 0 ? "nenhum trial concluído" : undefined,
       nTrials: stats.n_completed_trials, nErrors: stats.n_errored_trials,
       meanReward: trials ? weightedSum / trials : undefined,
@@ -38,11 +42,13 @@ export function normalizeAnalysis(parsed: unknown): Record<string, any> | null {
   if (!object(parsed)) return null;
   const results = Array.isArray(parsed.results) ? parsed.results : (object(parsed.checks) || typeof parsed.summary === "string" ? [parsed] : null);
   if (!results || results.some((r: unknown) => !object(r))) return null;
-  let pass = 0, fail = 0, notApplicable = 0, unknown = 0, costReportedTrials = 0, reportedCostUsd = 0;
+  let pass = 0, fail = 0, notApplicable = 0, unknown = 0, incompleteTrials = 0, costReportedTrials = 0, reportedCostUsd = 0;
   for (const trial of results) {
     const cost = number(trial.cost_usd) ?? number(trial.estimated_cost_usd);
     if (cost !== undefined && cost >= 0) { costReportedTrials++; reportedCostUsd += cost; }
-    for (const check of Object.values(object(trial.checks) ? trial.checks : {})) {
+    const checks = Object.values(object(trial.checks) ? trial.checks : {});
+    if (!checks.length || trial.error || trial.exception_info) incompleteTrials++;
+    for (const check of checks) {
       const outcome = object(check) ? check.outcome : undefined;
       if (outcome === "pass") pass++;
       else if (outcome === "fail") fail++;
@@ -53,8 +59,8 @@ export function normalizeAnalysis(parsed: unknown): Record<string, any> | null {
   const applicable = pass + fail;
   const costComplete = results.length > 0 && costReportedTrials === results.length;
   return { ...parsed, results, estimated_cost_usd: costComplete ? reportedCostUsd : undefined,
-    aggregate: { nTrials: results.length, pass, fail, notApplicable, unknown, applicable,
-      passRate: applicable && !unknown ? pass / applicable : undefined, costComplete, costReportedTrials,
+    aggregate: { nTrials: results.length, pass, fail, notApplicable, unknown, incompleteTrials, applicable,
+      passRate: applicable && !unknown && !incompleteTrials ? pass / applicable : undefined, costComplete, costReportedTrials,
       costUsd: costComplete ? reportedCostUsd : undefined,
       reportedCostUsd: costReportedTrials ? reportedCostUsd : undefined } };
 }
@@ -76,8 +82,11 @@ export function resolveAnalysisJson(trialPath: string, stdout: string): Record<s
 
 export function csvEscape(v: unknown): string {
   if (v === undefined || v === null) return "";
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  // Labels/errors can come from imported configuration. Spreadsheet applications must read
+  // them as text, never as formulas. Numeric values retain their numeric representation.
+  const raw = String(v);
+  const s = typeof v === "string" && (/^[\s]*[=+@-]/.test(raw) || /^[\t\r\n]/.test(raw)) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Score the latest analysis batch only. Smoke results and incomplete judgments are not ranks. */
@@ -87,7 +96,7 @@ export function summarizeAnalysisRecords(records: any[]): Pick<ResultRow, "passR
   const batch = latest.analysisBatchId ? records.filter(r => r.analysisBatchId === latest.analysisBatchId) : [latest];
   const aggregates = batch.map(r => r.analysis?.aggregate);
   const completeBatch = latest.analysisBatchSize === undefined || (batch.length === latest.analysisBatchSize && new Set(batch.map(r => r.analysisBatchIndex)).size === latest.analysisBatchSize);
-  const completeScore = completeBatch && batch.every((r, i) => r.ok !== false && !r.validationMode && aggregates[i] && !aggregates[i].unknown);
+  const completeScore = completeBatch && batch.every((r, i) => r.ok !== false && !r.validationMode && aggregates[i] && !aggregates[i].unknown && !aggregates[i].incompleteTrials);
   const applicable = aggregates.reduce((n, a) => n + (a?.applicable ?? 0), 0);
   return {
     passRate: completeScore && applicable ? aggregates.reduce((n, a) => n + a.pass, 0) / applicable : undefined,

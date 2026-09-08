@@ -30,7 +30,18 @@ igual; avalie uma skill contra uma baseline sem ela. A tela de revisão mostra a
 efetivas antes de executar. O juiz é opcional e seus resultados de modo validação não entram no
 ranking.
 
-## Compatibilidade comprovada
+## Estado de entrega e compatibilidade
+
+O estado atual é **piloto local validado**, com escopo explícito: Windows, Podman 6.0.2,
+Harbor 0.22.0, um serviço Linux `main`, rede pública e imagens base já presentes. A validação
+real desta rodada está em [Validação da plataforma](./docs/VALIDACAO_PLATAFORMA_2026-09-07.md)
+e a auditoria de entrega em [Auditoria de entrega](./docs/AUDITORIA_ENTREGA_2026-09-07.md).
+Isso não constitui certificação para macOS/Linux nem prontidão para implantação corporativa.
+AWS continua somente no plano; não há deploy, autenticação multiusuário, RBAC ou infraestrutura
+cloud implementada. O repositório também não declara uma licença de distribuição: essa decisão
+pertence ao proprietário do projeto.
+
+### Compatibilidade comprovada nesta rodada
 
 - Harbor `0.22.0`, pinado porque o kit depende do contrato dessa versão;
 - Node.js 24+ para TypeScript nativo;
@@ -211,8 +222,21 @@ pwsh scripts/test.ps1
 bash scripts/test.sh
 ```
 
+Esses wrappers cobrem a suíte Node, o checker de imports e o scanner de credenciais. O contrato
+Python do adapter/Analyze usa o Harbor pinado e é separado; em um ambiente com esse runtime,
+rode o comando offline descrito em [Engenharia](./docs/ENGENHARIA.md). Nenhum desses testes
+substitui o smoke real do piloto local.
+
 O plano manual de UI permanece em [Plano de testes da UI](./docs/PLANO_TESTES_UI.md), com cada
 cenário e sua evidência registrada; testes de lógica não são apresentados como clique real.
+
+## Guias por público
+
+Para uso da plataforma, comece por [Instalação manual](./docs/INSTALACAO_MANUAL.md),
+[Como funciona](./docs/COMO_FUNCIONA.md) e [Run, Compare e Analyze](./docs/FLUXO_RUN_COMPARE_ANALYZE.md).
+Para manutenção e automação por agentes, use `AGENTS.md`, `CLAUDE.md`,
+`Harbor_install/skills/` e `Harbor_install/agents/`. Os planos, prompts e relatórios datados
+em `docs/` são material de histórico ou de contribuidores; não substituem o fluxo atual.
 
 ## Skills operacionais
 
@@ -236,6 +260,8 @@ Sem suporte a skills, siga [Instalação manual](./docs/INSTALACAO_MANUAL.md) e
 
 ## Documentação
 
+### Para usar a plataforma
+
 | Documento | Conteúdo |
 |---|---|
 | [Documentação completa](./DOCUMENTACAO.md) | conceitos, decisões, GUI e referência técnica |
@@ -243,12 +269,22 @@ Sem suporte a skills, siga [Instalação manual](./docs/INSTALACAO_MANUAL.md) e
 | [Como funciona](./docs/COMO_FUNCIONA.md) | fluxo e arquitetura |
 | [Run, Compare e Analyze](./docs/FLUXO_RUN_COMPARE_ANALYZE.md) | pré-requisitos de cada jornada |
 | [Compatibilidade Podman](./docs/PODMAN_COMPATIBILITY.md) | gates, ownership e limites atuais |
-| [Plano de testes da UI](./docs/PLANO_TESTES_UI.md) | cenários manuais e evidências |
-| [Validação desta rodada](./docs/VALIDACAO_PLATAFORMA_2026-09-07.md) | cliques reais, DeepSeek, custos, smoke e limites |
+| [Plano de testes da UI](./docs/PLANO_TESTES_UI.md) | checklist manual; evidência específica fica rotulada como histórica |
+
+### Para contribuir e operar por agentes
+
+| Documento | Conteúdo |
+|---|---|
 | [Engenharia](./docs/ENGENHARIA.md) | regras do repositório e incidentes que as originaram |
 | [Pendências](./docs/PENDENCIAS.md) | trabalho deliberadamente adiado |
-| [Plano desta evolução](./docs/PLANO_PLATAFORMA_2026-09-07.md) | escopo documentado antes da implementação e acompanhamento |
-| [Continuidade com Claude](./docs/PROMPT_CLAUDE_PLATAFORMA.md) | prompt independente da conversa para retomar o trabalho |
+
+### Histórico, auditoria e planejamento
+
+| Documento | Conteúdo |
+|---|---|
+| [Validação desta rodada](./docs/VALIDACAO_PLATAFORMA_2026-09-07.md) | evidência datada de Windows/Podman e limites conhecidos |
+| [Auditoria de entrega](./docs/AUDITORIA_ENTREGA_2026-09-07.md) | lacunas de distribuição, CI, documentação e escopo |
+| [Plano da plataforma](./docs/PLANO_PLATAFORMA_2026-09-07.md) e [prompts de continuidade](./docs/PROMPT_CLAUDE_PLATAFORMA.md) | escopo e handoff datados, não instruções normativas |
 | [Plano AWS corporativo](./docs/PLANO_AWS_CORPORATIVO.md) | plano futuro; nenhuma infraestrutura AWS foi criada |
 
 O plano AWS é somente documental nesta rodada. Não há deploy, autenticação multiusuário, RBAC

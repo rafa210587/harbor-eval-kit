@@ -1,5 +1,5 @@
 import { escapeHtml } from "./core.js";
-import { candidateDifferences, resultState } from "./compare-domain.js";
+import { candidateDifferences, judgeEvaluation, resultState } from "./compare-domain.js";
 
 export function renderEffectivePlan(box, plan) {
   if (!plan?.candidates?.length) {
@@ -8,7 +8,13 @@ export function renderEffectivePlan(box, plan) {
   }
   const baseline = Number.isInteger(plan.baselineIndex) ? plan.baselineIndex : undefined;
   const baselineCandidate = baseline === undefined ? null : plan.candidates[baseline];
-  box.innerHTML = `<p><strong>${escapeHtml(plan.title || "Experimento sem título")}</strong> · ${escapeHtml(plan.tasks?.length ?? "?")} task(s) × ${escapeHtml(plan.nAttempts)} tentativa(s) · concorrência ${escapeHtml(plan.concurrency)}</p>` +
+  const tasks = plan.tasks || [];
+  const extra = Array.isArray(plan.extra) && plan.extra.length ? plan.extra.join(" ") : "nenhum";
+  box.innerHTML = `<p><strong>${escapeHtml(plan.title || "Experimento sem título")}</strong> · ${escapeHtml(tasks.length || "?")} task(s) × ${escapeHtml(plan.nAttempts)} tentativa(s) · concorrência ${escapeHtml(plan.concurrency)}</p>` +
+    `<p class="row-sub"><strong>Entrada:</strong> ${escapeHtml(plan.taskPath || "não reportada")}</p>` +
+    (plan.description ? `<p class="row-sub"><strong>Pergunta:</strong> ${escapeHtml(plan.description)}</p>` : "") +
+    (tasks.length > 1 ? `<details><summary>Ver ${tasks.length} tasks efetivas</summary><div class="result-details">${tasks.map((task) => `<div>${escapeHtml(task)}</div>`).join("")}</div></details>` : "") +
+    `<details><summary>Ver execução efetiva</summary><div class="result-details">Jobs dir: ${escapeHtml(plan.jobsDir || "não reportado")} · ambiente: ${escapeHtml(plan.env || "não reportado")} · argumentos extras: ${escapeHtml(extra)}${plan.dryRun ? " · dry run" : ""}</div></details>` +
     plan.candidates.map((candidate, index) => {
       const skillNames = (candidate.skills || []).map((skill) => skill.label || skill.id).join(", ") || "nenhuma";
       const differences = candidateDifferences(candidate, baselineCandidate);
@@ -18,7 +24,7 @@ export function renderEffectivePlan(box, plan) {
 }
 
 export function renderResultsTable(table, rows, plan, allowAnalysis, onAnalyze) {
-  table.innerHTML = "<tr><th>Candidato</th><th>Estado</th><th>Reward médio</th><th>Custo reportado</th><th>Duração</th><th>Ações</th></tr>";
+  table.innerHTML = "<tr><th>Candidato</th><th>Estado</th><th>Reward médio</th><th>Avaliação do juiz</th><th>Custo reportado</th><th>Duração</th><th>Ações</th></tr>";
   rows.forEach((row, index) => {
     const tr = document.createElement("tr");
     const candidate = plan?.candidates?.find((item) => item.jobName === row.jobName) || plan?.candidates?.[index];
@@ -28,7 +34,8 @@ export function renderResultsTable(table, rows, plan, allowAnalysis, onAnalyze) 
     const reward = typeof row.meanReward === "number" ? row.meanReward.toFixed(3) : "Não reportado";
     const cost = typeof row.costUsd === "number" ? `$${row.costUsd.toFixed(4)}` : "Não reportado";
     const duration = typeof row.durationSec === "number" ? `${row.durationSec.toFixed(1)} s` : "Não reportado";
-    tr.innerHTML = `<td><strong>${escapeHtml(candidate?.label || row.agent || row.jobName)}</strong>${baseline}${dryRunBadge}<div class="row-sub">${escapeHtml(row.model || candidate?.model || "modelo não reportado")}</div></td><td>${escapeHtml(resultState(row, plan?.dryRun === true))}</td><td>${escapeHtml(reward)}</td><td>${escapeHtml(cost)}</td><td>${escapeHtml(duration)}</td>`;
+    const skillset = row.skillset || candidate?.skillset?.label || "nenhuma";
+    tr.innerHTML = `<td><strong>${escapeHtml(candidate?.label || row.agent || row.jobName)}</strong>${baseline}${dryRunBadge}<div class="row-sub">Modelo: ${escapeHtml(row.model || candidate?.model || "não reportado")} · Skills: ${escapeHtml(skillset)}</div></td><td>${escapeHtml(resultState(row, plan?.dryRun === true))}</td><td>${escapeHtml(reward)}</td><td>${escapeHtml(judgeEvaluation(row))}</td><td>${escapeHtml(cost)}</td><td>${escapeHtml(duration)}</td>`;
     const action = document.createElement("td");
     if (row.ok && allowAnalysis) {
       const button = document.createElement("button");

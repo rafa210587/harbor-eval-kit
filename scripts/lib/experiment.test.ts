@@ -65,7 +65,22 @@ test("extra args cannot override protected dimensions or embed credentials", () 
   assert.throws(() => parseExperimentExtra("--ak max_tokens=invalid"), /inteiro/);
   for (const raw of ["--n-attempts 30", "-k30", "--model=x", "--config x", "--path other", "--retry 30", "--ak api_key=value", "--print-config", "--ak 'unterminated"]) assert.throws(() => parseExperimentExtra(raw));
   assert.deepEqual(parseExperimentExtra('--ak "system_prompt=use spaces" --timeout-multiplier 1.5'), ["--ak", "system_prompt=use spaces", "--timeout-multiplier", "1.5"]);
+  for (const key of ["api_key", "authorization", "access_token", "client_secret"]) {
+    assert.throws(() => parseExperimentExtra(`--ak config='{"model":{"${key}":"fixture-value"}}'`), /credencial/);
+  }
+  assert.throws(() => parseExperimentExtra("--ak config='{broken}'"), /JSON válido/);
+  assert.doesNotThrow(() => parseExperimentExtra('--ak config=\'{"model":{"model_kwargs":{"max_tokens":100}},"agent":{"step_limit":5}}\''));
 });
+
+test("known credentials in any plan input are refused before snapshot or subprocess", () => fixture(async (root, task) => {
+  const plan = createExperimentPlan({ path: task, jobsDir: join(root, "jobs"), description: "private fixture-value" }, cliCandidates([combo]));
+  let calls = 0;
+  await assert.rejects(runExperiment(plan, { secrets: { PROVIDER_AUTH: "fixture-value" }, executor: async () => {
+    calls++; return { code: 0, stdout: "", stderr: "", durationSec: 0 };
+  } }), /credencial encontrada/);
+  assert.equal(calls, 0);
+  assert.equal(existsSync(experimentDirectory(plan.jobsDir, plan.id)), false);
+}));
 
 test("snapshots retain task and authored skill inputs after source edits; duplicate ID refuses reuse", () => fixture((root, task) => {
   const plan = createExperimentPlan({ path: task, jobsDir: join(root, "jobs") }, resolveRegisteredCandidates([{ agentId: "a" }], registries));

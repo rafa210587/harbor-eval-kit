@@ -59,10 +59,12 @@
   .row .row-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; min-width: 0; max-width: 100%; }
   .row .row-actions button { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
   .row .row-actions button.danger { color: var(--err); }
+  .row-action-status { color: var(--err); margin: 4px 0 0; overflow-wrap: anywhere; }
   .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 0; }
   .checkbox-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; }
   .checkbox-group-filter { flex: 1 0 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 5px 8px; font-size: 12px; margin-bottom: 2px; }
   .checkbox-inline { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; }
+  .checkbox-inline input[type="checkbox"] { flex-shrink: 0; }
   .checkbox-inline label { margin: 0; color: var(--text); }
   .radio-inline { display: flex; gap: 16px; margin: 6px 0; }
   .radio-inline label { display: flex; align-items: center; gap: 5px; color: var(--text); margin: 0; font-size: 13px; }
@@ -99,6 +101,8 @@
   .analysis-heading .badge, .analysis-check .badge { margin-left: 0; }
   .analysis-summary { margin: 6px 0; }
   .analysis-trial { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 10px; }
+  .analysis-history-item + .analysis-history-item { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+  .analysis-warning { color: var(--warn); }
   .analysis-check { align-items: flex-start; display: grid; gap: 8px; grid-template-columns: auto minmax(0, 1fr); margin: 8px 0; min-width: 0; }
   .outcome-pass { border-color: var(--ok); color: var(--ok); }
   .outcome-fail, .outcome-unknown { border-color: var(--err); color: var(--err); }
@@ -142,6 +146,7 @@
      (estimativa de custo, status de import/export, status de log) -- ver .status-line abaixo. */
   body.compact .hint:not(.status-line):not(.persistent-hint) { display: none; }
   .status-line { /* marker class only, no styling of its own -- inherits .hint's look */ }
+  #initialization-status:not(:empty) { color: var(--err); }
 
   #statusBar-row { display: flex; align-items: center; gap: 10px; }
   #compact-toggle-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; margin: 0; }

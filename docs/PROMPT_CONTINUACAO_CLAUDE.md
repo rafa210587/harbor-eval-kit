@@ -1,5 +1,8 @@
 # Prompt pronto para continuar com Claude
 
+Este prompt descreve a primeira rodada. Para o pedido mais recente de auditoria e publicação,
+use o [prompt e estado da auditoria de entrega](AUDITORIA_ENTREGA_2026-09-07.md#prompt-de-continuidade).
+
 Copie o texto abaixo em uma sessão aberta na raiz deste repositório:
 
 ```text

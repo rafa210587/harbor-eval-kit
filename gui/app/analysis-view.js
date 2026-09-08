@@ -41,6 +41,7 @@ export function standaloneAnalysisView(response) {
       fail: finiteNumber(aggregate.fail),
       notApplicable: finiteNumber(aggregate.notApplicable),
       unknown: finiteNumber(aggregate.unknown),
+      incompleteTrials: finiteNumber(aggregate.incompleteTrials),
     },
     costUsd,
     partialCostUsd,

@@ -75,8 +75,9 @@ em **um** lugar, com o nome do SO explícito.
   por tipo técnico ("utils", "helpers", "misc" — nomes que atraem entulho).
 - Evite indireção sem ganho: uma camada a mais custa contexto tanto quanto código a mais.
 
-**Estado atual:** `scripts/lib/` foi quebrado (2026-09-06) de um arquivo de 1.296 linhas em 11
-módulos, todos abaixo do alvo:
+**Arquitetura atual:** `scripts/lib/` é organizado por domínio. O alvo de 400 linhas é uma
+regra para módulos novos, não um contrato sobre uma contagem fixa de arquivos. As áreas
+principais são:
 
 | Módulo | Responsabilidade |
 |---|---|
@@ -86,9 +87,14 @@ módulos, todos abaixo do alvo:
 | `naming.ts` | `sanitize`/`jobName`/`buildHarborRunArgs` |
 | `exec.ts` | spawn de harbor/podman e montagem do ambiente deles |
 | `secrets.ts` | leitura/escrita do `secrets.env` |
-| `materialize.ts` | escrever skills/rubrics/prompts autorados na GUI em disco |
+| `materialize.ts` | serialização temporária de rubrics/prompts para Analyze |
 | `joblogs.ts` | tail incremental dos logs do Harbor |
 | `tasks.ts` | tasks em disco, descoberta, pin de judge/rubric |
+| `experiment-plan.ts` | plano comum da GUI e da CLI |
+| `experiment-store.ts` | snapshots, hashes e registro durável de cada experimento |
+| `results.ts` | parsing de `result.json` e análises |
+| `analysis-session.ts` | congela modelo, adapter, prompt e Rubrics de um lote de Analyze |
+| `analysis-lock.ts` | recusa análises sobrepostas no mesmo servidor |
 | `litellm.ts` | o encaixe (desligado) do gateway LiteLLM |
 | `cost.ts` | estimativa de custo + guarda de gasto pré-voo do Compare |
 | `bundle.ts` | export/import idempotente de config entre máquinas |
@@ -105,11 +111,11 @@ não obrigou a tocar em `gui-server.ts` nem em `compare-matrix.ts`, então cada 
 extraído e verificado isoladamente. **Ao escrever algo novo, importe do módulo específico e
 prefira engordar ele a engordar o `harbor.ts`.**
 
-O **frontend** foi quebrado logo depois, de 1.917 linhas num arquivo só para 560 de HTML +
-`styles.css` + 13 módulos ES (`gui/app/`), o maior com 281 linhas. Sem build step: são módulos
-ES nativos servidos direto (`<script type="module">`), na mesma filosofia do resto do kit.
+O frontend usa HTML, `styles.css` e módulos ES em `gui/app/`, servidos diretamente
+(`<script type="module">`), sem build step. A lista de arquivos acompanha as
+responsabilidades e pode crescer sem transformar contagens históricas em requisito.
 
-O acoplamento que a quebra obrigou a resolver: `refreshAll()` chamava **16 renderizadores pelo
+O acoplamento que a quebra obrigou a resolver: `refreshAll()` chamava vários renderizadores pelo
 nome**, então aquele arquivo precisava conhecer todos os outros e nenhuma aba podia ser
 adicionada sem editá-lo. Agora cada módulo se registra (`onRefresh(...)`) e o `state.js` só
 itera — adicionar uma aba não toca nele. Mesma ideia para o polling da aba Logs
@@ -193,6 +199,10 @@ do job não é identidade de experimento; cada execução e candidato têm ident
 `results.ts` preserva todos os trials e só calcula uma avaliação agregada quando o lote está
 completo. Resultados de validação não entram no ranking. `registry-service.ts` valida o estado
 mesclado antes de CRUD; apagar uma referência em uso é erro, não uma ablação silenciosa.
+Sessões de Analyze congelam os inputs do lote antes da primeira chamada; o lock cobre alvos
+sobrepostos dentro do mesmo processo. Um resultado sem `finished_at`, com contagens incoerentes
+ou sem checks completos não recebe ranking. Exportação CSV neutraliza fórmulas antes do
+download.
 
 O scanner cobre arquivos versionados e novos não ignorados; ao bloquear uma credencial,
 mostra somente localização e motivo, nunca o valor encontrado. O teste usa valor sintético
@@ -213,6 +223,22 @@ e verifica o código de saída e a ausência desse valor na saída.
 - **Teste o efeito real, não o relato.** O bug do hook passou por checar a saída impressa em vez
   de tentar o commit de verdade. Prefira o teste que falharia se o mecanismo inteiro estivesse
   quebrado.
+
+O contrato Python do adapter gerenciado e do bootstrap de Analyze é uma suíte separada, porque
+importa classes do Harbor pinado. Em um ambiente com esse runtime disponível, rode offline:
+
+```bash
+PYTHONPATH=scripts/python python -m unittest discover -s scripts/python -p 'test_*.py'
+```
+
+Ela não sobe containers, chama providers ou exige rede durante os testes. Os wrappers
+`scripts/test.sh`/`.ps1` cobrem a suíte Node, o checker de imports e o scanner; a suíte Python
+deve ser chamada explicitamente ou por um job de CI com `harbor==0.22.0`. Esse contrato não
+declara smoke real em outro sistema operacional.
+
+O runtime de produção é pinado em Harbor `0.22.0`: o instalador, o bootstrap Python e o gate
+validam essa versão antes de executar. Atualizar Harbor exige revisar o contrato e repetir a
+validação; não basta alterar um número em um documento.
 
 ---
 
@@ -280,7 +306,7 @@ adivinhar.
   servidor: assim vale para run iniciada pelo CLI e sobrevive a restart do `gui-server`.
 - Aba **Logs** + log ao vivo no Compare: tail incremental por byte offset dos logs que o próprio
   Harbor grava. Distinção que importa: **Logs** = execução crua (build da imagem, instalação do
-  agent, teste) — onde falha de container/rede aparece; **Trajectories** = o que o agent fez.
+  agent, teste) — onde falha de container/rede aparece; **Trajetórias** = o que o agent fez.
 - Números de custo/token vêm do `result.json` do Harbor (billing real), nunca de estimativa
   própria — e ficam em branco quando o adapter não reporta, em vez de exibir um número inventado.
 - Erro é mostrado com **a mensagem real** e o que fazer a respeito. Nada de "algo deu errado".

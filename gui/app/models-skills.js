@@ -15,7 +15,7 @@ function renderModelsList() {
   const list = $("#models-list");
   list.innerHTML = state.models.length ? "" : '<p class="muted">Nothing registered yet.</p>';
   for (const item of state.models) {
-    const row = makeRow(item, {
+    const row = makeRow({
       title: `${item.label} (${item.value})`,
       onEdit: () => modelsEdit.startEdit(item.id, () => {
         modelsForm.label.value = item.label;
@@ -36,6 +36,7 @@ function updateModelKeyPreview() {
     : "";
 }
 modelsForm.value.addEventListener("input", updateModelKeyPreview);
+modelsForm.addEventListener("reset-extra", updateModelKeyPreview);
 
 // ================= SKILLS =================
 const skillsForm = $("#skills-form");
@@ -57,12 +58,17 @@ function renderSkillExtraFiles() {
   skillExtraFiles.forEach((f, idx) => {
     const row = document.createElement("div");
     row.className = "panel";
+    const nameId = `skill-extra-name-${idx}`;
+    const nameHelpId = `${nameId}-help`;
+    const contentId = `skill-extra-content-${idx}`;
+    const contentHelpId = `${contentId}-help`;
     row.innerHTML = `
       <div class="row-inline">
-        <div><label>Caminho relativo</label><input type="text" class="extra-file-name" placeholder="examples/bom.py" value="${escapeHtml(f.name)}"></div>
+        <div><label for="${nameId}">Caminho relativo</label><input id="${nameId}" type="text" class="extra-file-name" placeholder="examples/bom.py" value="${escapeHtml(f.name)}" aria-describedby="${nameHelpId}"><p id="${nameHelpId}" class="hint">Finalidade: nome e subpasta do arquivo dentro da skill. Exemplo: examples/bom.py. Padrão: vazio; opcional, linhas sem nome não são salvas.</p></div>
       </div>
-      <label>Conteúdo</label>
-      <textarea class="extra-file-content" style="min-height:90px;">${escapeHtml(f.content)}</textarea>
+      <label for="${contentId}">Conteúdo</label>
+      <textarea id="${contentId}" class="extra-file-content" aria-describedby="${contentHelpId}" style="min-height:90px;">${escapeHtml(f.content)}</textarea>
+      <p id="${contentHelpId}" class="hint">Finalidade: conteúdo entregue ao agente junto com a skill. Exemplo: código, template ou referência. Padrão: vazio; opcional.</p>
       <button type="button" class="secondary" style="margin-top:6px;">Remover este arquivo</button>
     `;
     row.querySelector(".extra-file-name").addEventListener("input", (e) => { skillExtraFiles[idx].name = e.target.value; });
@@ -105,7 +111,7 @@ function renderSkillsList() {
       ? `path: ${item.path || ""}`
       : (item.instructions || "").slice(0, 100) + ((item.instructions || "").length > 100 ? "…" : "")
         + (item.extraFiles && item.extraFiles.length ? ` · +${item.extraFiles.length} arquivo(s) extra` : "");
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.label,
       sub,
       onEdit: () => skillsEdit.startEdit(item.id, () => {
@@ -137,13 +143,14 @@ const skillsetsEdit = wireEditableForm(skillsetsForm, {
 function renderSkillsetSkillPicker(checkedIds = []) {
   checkboxGroup($("#skillset-skill-picker"), state.skills, { name: "skillIds", checkedIds });
 }
+skillsetsForm.addEventListener("reset-extra", () => renderSkillsetSkillPicker());
 
 function renderSkillsetsList() {
   const list = $("#skillsets-list");
   list.innerHTML = state.skillsets.length ? "" : '<p class="muted">Nothing registered yet.</p>';
   for (const item of state.skillsets) {
     const names = (item.skillIds || []).map((id) => state.skills.find((s) => s.id === id)?.label || "?").join(", ");
-    list.appendChild(makeRow(item, {
+    list.appendChild(makeRow({
       title: item.label,
       sub: names || "(sem skills)",
       onEdit: () => skillsetsEdit.startEdit(item.id, () => {

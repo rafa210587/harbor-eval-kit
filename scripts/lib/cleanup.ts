@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, realpathSync, renameSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { updateInstallationManifest } from './installation.ts';
 
 export const RESOURCE_KINDS = ['containers', 'volumes', 'networks', 'images'] as const;
 type Kind = typeof RESOURCE_KINDS[number];
@@ -71,27 +72,29 @@ export function discoverCleanupResources(run: CleanupExecutor): CleanupResource[
 
 /** All validation completes before the first mutation. A failed command stops the plan. */
 export function executeCleanup(manifestPath: string, plan: CleanupPlan, run: CleanupExecutor): void {
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  const audit: any = { started_at: new Date().toISOString(), plan, completed: [], status: 'running' };
-  manifest.uninstall_audit ??= [];
-  manifest.uninstall_audit.push(audit);
-  const persist = () => {
-    const temp = `${manifestPath}.${randomUUID()}.tmp`;
-    writeFileSync(temp, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' });
-    renameSync(temp, manifestPath);
-  };
-  persist();
+  const auditId = randomUUID();
+  const mutateAudit = (change: (audit: any, manifest: any) => void) => updateInstallationManifest(manifestPath, manifest => {
+    manifest.uninstall_audit ??= [];
+    let audit = manifest.uninstall_audit.find((entry: any) => entry.id === auditId);
+    if (!audit) {
+      audit = { id: auditId, started_at: new Date().toISOString(), plan, completed: [], status: 'running' };
+      manifest.uninstall_audit.push(audit);
+    }
+    change(audit, manifest);
+  });
+  mutateAudit(() => {});
   try {
     for (const action of plan.actions) {
       run(action.command, action.args);
-      if (action.command === 'uv' && manifest.installed_by_kit.harbor) manifest.installed_by_kit.harbor.installed = false;
-      audit.completed.push(action);
-      persist();
+      mutateAudit((audit, manifest) => {
+        if (action.command === 'uv' && manifest.installed_by_kit.harbor) manifest.installed_by_kit.harbor.installed = false;
+        audit.completed.push(action);
+      });
     }
-    audit.status = 'complete';
+    mutateAudit(audit => { audit.status = 'complete'; });
   } catch (error) {
-    audit.status = 'failed';
+    mutateAudit(audit => { audit.status = 'failed'; });
     // Do not persist command output: external tools may include environment secrets.
     throw error;
-  } finally { audit.finished_at = new Date().toISOString(); persist(); }
+  } finally { mutateAudit(audit => { audit.finished_at = new Date().toISOString(); }); }
 }

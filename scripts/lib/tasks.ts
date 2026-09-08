@@ -3,9 +3,10 @@
 // dir keyed by task path -- it is a preference of this kit on this machine, not part of the
 // task's own Harbor-defined content.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { getStateDir } from "./paths.ts";
+import { managedPath, newId } from "./paths.ts";
+import { assertSafeId } from "./registry-validation.ts";
 
 // live inside the repo (e.g. evals/python/my-task), not the kit's local state dir --
 // it's the kind of thing you'd commit to git and share with a team. These helpers let the
@@ -102,31 +103,40 @@ export interface TaskRubricDefault {
 }
 
 function getTaskRubricDefaultsPath(): string {
-  return join(getStateDir(), "task-rubric-defaults.json");
+  return managedPath("task-rubric-defaults.json");
 }
 
 function readTaskRubricDefaults(): Record<string, TaskRubricDefault> {
   const p = getTaskRubricDefaultsPath();
   if (!existsSync(p)) return {};
-  try {
-    return JSON.parse(readFileSync(p, "utf-8"));
-  } catch {
-    return {};
-  }
+  let parsed: unknown;
+  try { parsed = JSON.parse(readFileSync(p, "utf-8")); }
+  catch { throw new Error("defaults de task corrompidos; restaure o JSON antes de salvar, arquivo preservado"); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("defaults de task devem ser um objeto JSON");
+  return parsed as Record<string, TaskRubricDefault>;
 }
 
 export function getTaskRubricDefault(taskPath: string): TaskRubricDefault {
-  return readTaskRubricDefaults()[taskPath] ?? {};
+  const all = readTaskRubricDefaults();
+  return Object.hasOwn(all, taskPath) ? all[taskPath] : {};
 }
 
 export function setTaskRubricDefault(taskPath: string, value: TaskRubricDefault): void {
+  if (typeof taskPath !== "string" || !taskPath.trim()) throw new Error("path da task obrigatório");
+  if (value.judgeId) assertSafeId(value.judgeId);
+  if (value.rubricIds !== undefined) {
+    if (!Array.isArray(value.rubricIds)) throw new Error("rubricIds deve ser lista");
+    value.rubricIds.forEach(assertSafeId);
+  }
   const all = readTaskRubricDefaults();
   if ((!value.rubricIds || value.rubricIds.length === 0) && !value.judgeId) {
     delete all[taskPath];
   } else {
-    all[taskPath] = value;
+    Object.defineProperty(all, taskPath, { value, writable: true, enumerable: true, configurable: true });
   }
   const p = getTaskRubricDefaultsPath();
   mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(all, null, 2));
+  const temp = `${p}.${newId()}.tmp`;
+  writeFileSync(temp, JSON.stringify(all, null, 2), { flag: "wx" });
+  renameSync(temp, p);
 }
