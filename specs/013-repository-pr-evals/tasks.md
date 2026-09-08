@@ -222,3 +222,11 @@ Validação local final: login/API/Git confirmados pela UI, juiz de QA salvo com
 e removido, campo candidato aceita 72 h. Config do Harbor instalado confirma 24 h
 para o juiz. Corrigido também carregamento assíncrono dos catálogos na receita.
 Gate completo e scanner passaram; suite ampliada e CI remoto conferidos ao publicar.
+
+
+CI em 2026-09-08 confirmou Linux, macOS e contrato Python. O runner Windows
+revelou aliases curtos 8.3 (como RUNNER~1): realpathSync preservava o alias e
+a comparação com a raiz retornada pelo Git falhava. A canonicalização nativa
+expande o alias; a regressão cobre leitura do commit e bloqueio de snapshot
+dentro da fonte pelo caminho curto. Essa validação de paths não certifica Podman
+no macOS; o doctor/smoke nesse host continua obrigatório.

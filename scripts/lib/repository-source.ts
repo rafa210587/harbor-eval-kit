@@ -79,7 +79,7 @@ export function snapshotRepositoryTree(repo: string, sha: string, destination: s
 }
 
 function snapshotDirectory(source: string, destination: string): RepositoryFile[] {
-  const root = realpathSync(source), files: RepositoryFile[] = [];
+  const root = realpathSync.native(source), files: RepositoryFile[] = [];
   let total = 0;
   const visit = (dir: string, prefix = "", depth = 0) => {
     if (depth > 64) throw new Error("Diretório excede a profundidade permitida.");
@@ -103,9 +103,9 @@ function snapshotDirectory(source: string, destination: string): RepositoryFile[
   return files;
 }
 
-/** Resolve existing ancestors too: macOS temp roots are aliases, and destinations are new. */
+/** Native resolution expands Windows 8.3 aliases as well as macOS temp roots. */
 function canonicalDestination(path: string): string {
-  if (existsSync(path)) return realpathSync(path);
+  if (existsSync(path)) return realpathSync.native(path);
   const parent = dirname(path);
   return parent === path ? path : join(canonicalDestination(parent), relative(parent, path));
 }
@@ -123,14 +123,14 @@ export function prepareRepositorySource(source: RepositorySource, destination: s
   }
   const root = resolve(source.location);
   if (!existsSync(root) || !lstatSync(root).isDirectory() || lstatSync(root).isSymbolicLink()) throw new Error("Fonte local deve ser um diretório real.");
-  const rel = relative(realpathSync(root), canonicalDestination(resolve(destination)));
+  const rel = relative(realpathSync.native(root), canonicalDestination(resolve(destination)));
   if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) throw new Error("Snapshot não pode ser criado dentro da fonte.");
   let revision: string | null = null;
   if (!source.includeWorkingTree) {
     try {
       // A plain folder nested under an unrelated checkout is still only that folder.
       const top = repositoryGit(root, ["rev-parse", "--show-toplevel"]).toString("utf8").trim();
-      if (relative(realpathSync(top), realpathSync(root)) === "") revision = resolveRepositoryCommit(root, source.ref);
+      if (relative(realpathSync.native(top), realpathSync.native(root)) === "") revision = resolveRepositoryCommit(root, source.ref);
       else if (source.ref) throw new Error("A referência exige a raiz do repositório Git.");
     }
     catch (error) { if (source.ref || existsSync(join(root, ".git"))) throw error; }

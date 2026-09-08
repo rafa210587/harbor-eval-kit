@@ -201,3 +201,11 @@ duração de horas nesta validação.
 Em **Credenciais → Acesso ao GitHub**, verifique o login local e a leitura do repo.
 Consulte [Acesso ao GitHub](ACESSO_GITHUB.md) para login, SSO e execução em outro host.
 Nenhum token é cadastrado nesse formulário ou exportado.
+
+
+CI em 2026-09-08 confirmou Linux, macOS e contrato Python. O runner Windows
+revelou aliases curtos 8.3 (como RUNNER~1): realpathSync preservava o alias e
+a comparação com a raiz retornada pelo Git falhava. A canonicalização nativa
+expande o alias; a regressão cobre leitura do commit e bloqueio de snapshot
+dentro da fonte pelo caminho curto. Essa validação de paths não certifica Podman
+no macOS; o doctor/smoke nesse host continua obrigatório.

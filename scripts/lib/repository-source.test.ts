@@ -85,6 +85,20 @@ test("Git root accepts Windows path case differences", { skip: process.platform 
   assert.equal(snapshot.revision, base);
 });
 
+test("Git snapshots accept Windows short paths and still enforce containment", { skip: process.platform !== "win32" }, t => {
+  const { root, repo, commit } = fixture(t);
+  const base = commit("code.txt", "base\n");
+  const shortRoot = execFileSync("cmd.exe", ["/d", "/c", 'for %I in ("%HEK_TEST_LONG_PATH%") do @echo %~sI'], {
+    encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true,
+    env: { ...repositoryProcessEnv(), HEK_TEST_LONG_PATH: root },
+  }).trim();
+  if (!shortRoot.includes("~")) return t.skip("This filesystem does not generate Windows 8.3 aliases.");
+  const shortRepo = join(shortRoot, "repo");
+  const snapshot = prepareRepositorySource({ kind: "local", location: shortRepo, ref: base }, join(root, "short-snapshot"));
+  assert.equal(snapshot.revision, base);
+  assert.throws(() => prepareRepositorySource({ kind: "local", location: repo, includeWorkingTree: true }, join(shortRepo, "nested")), /dentro da fonte/);
+});
+
 test("snapshot refuses credential content even in an ordinary source filename", t => {
   const { root, repo, commit } = fixture(t);
   commit("source.txt", ["Bearer", "synthetic".repeat(8)].join(" "));
