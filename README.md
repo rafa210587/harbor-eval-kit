@@ -74,6 +74,12 @@ está em [Instalação manual](./docs/INSTALACAO_MANUAL.md).
 
 ## Início rápido
 
+**Com Claude Code local:** abra este clone com `claude` e execute `/harbor-setup`.
+A skill do projeto conduz a instalação, os gates e a preparação da demo. Veja
+[Instalação com Claude](./docs/INSTALACAO_CLAUDE.md) para os pré-requisitos, o cadastro
+seguro das credenciais e o fallback caso a skill não apareça. Para instalar manualmente,
+siga os comandos abaixo.
+
 Ative o scanner de credenciais neste clone:
 
 ```powershell
@@ -134,6 +140,10 @@ mesma porta é preservado. Parar a Podman machine é uma ação separada e expl�
 
 ## Primeiro experimento
 
+Para um conjunto já montado com três dificuldades, quatro modelos, duas skills e
+dois juízes, siga o [roteiro teste-live](./docs/TESTE_LIVE.md). O catálogo pode ser
+importado pela UI sem credenciais; a execução paga continua sendo uma ação explícita.
+
 Na GUI, siga **Começar → Novo experimento**:
 
 1. escolha `evals/python/soma-fracoes`;
@@ -147,6 +157,20 @@ Credenciais ficam fora do repositório e a API nunca devolve seus valores. O bot
 credencial faz uma chamada real e exige um modelo explícito do provider escolhido.
 
 ## Jornadas da GUI
+
+O [guia visual das 16 abas](./docs/GUIA_VISUAL.md) explica o que cada área faz,
+quando usá-la e a sequência para montar a primeira comparação.
+
+<details>
+<summary>Ver a UI: configuração, prévia e resultado de um experimento</summary>
+
+![Novo experimento: candidatos e task à esquerda; histórico, prévia e resultado à direita](./docs/screenshots/compare-tab.png)
+
+Captura real de 08/09/2026, durante um teste de cancelamento com Oracle. O estado
+de falha/cancelamento foi provocado para validar a jornada; não representa uma
+comparação de qualidade. Veja também a [tela de Credenciais e o mapa das abas](./docs/GUIA_VISUAL.md#capturas-da-ui).
+
+</details>
 
 - **Começar** explica o próximo passo e aponta para o primeiro experimento.
 - **Novo experimento** cria candidatos, mostra a prévia/diferenças e reabre o histórico.
@@ -265,15 +289,21 @@ Os runbooks em `Harbor_install/skills/` podem ser lidos por qualquer agente, mas
   interpretar avaliações;
 - `harbor-cleanup`: remoção auditável.
 
-Para começar sem depender da descoberta automática, peça ao seu agente: “Leia AGENTS.md e
-Harbor_install/skills/harbor-bootstrap/SKILL.md e siga a instalação neste clone. Preserve
-dependências preexistentes e registre os gates e o smoke antes de declarar READY.” O runbook
-orienta as próximas skills; ele não elimina os pré-requisitos listados acima.
+No Claude Code, a entrada descoberta automaticamente é `/harbor-setup`, versionada
+em `.claude/skills/harbor-setup/`. Ela reutiliza os runbooks acima, sem copiá-los para
+o perfil do usuário. O [guia com Claude](./docs/INSTALACAO_CLAUDE.md) traz o prompt
+alternativo e os limites da automação. Outros agentes podem ler diretamente essa
+skill na raiz do clone. Os pré-requisitos do host continuam necessários.
 
 Sem suporte a skills, siga [Instalação manual](./docs/INSTALACAO_MANUAL.md) e
 [Run, Compare e Analyze](./docs/FLUXO_RUN_COMPARE_ANALYZE.md).
 
 ## Documentação
+
+Para entender ou reconstruir as capacidades, consulte a
+[baseline SDD com seis specs, planos e listas de tasks](./specs/README.md), organizada
+segundo o fluxo do Spec Kit. Ela documenta retrospectivamente a implementação e
+separa o que existe da validação pendente. Não é necessário instalar Spec Kit para usar a GUI.
 
 ### Para usar a plataforma
 

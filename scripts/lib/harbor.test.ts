@@ -123,6 +123,11 @@ describe("buildHarborRunArgs", () => {
 // --- registries de referência -----------------------------------------------------------
 
 describe("JUDGE_MODELS", () => {
+  test("teste-live admite Pro e Opus, sem liberar Flash nem aliases baratos", () => {
+    assert.equal(isJudgeModelAllowed("deepseek/deepseek-v4-pro"), true);
+    assert.equal(isJudgeModelAllowed("anthropic/claude-opus-5"), true);
+    assert.equal(isJudgeModelAllowed("deepseek/deepseek-v4-flash"), false);
+  });
   test("o gate aceita exatamente a lista curada, e nada além", () => {
     for (const m of JUDGE_MODELS) assert.ok(isJudgeModelAllowed(m.value), `${m.value} deveria passar`);
     // O padrão barato do próprio Harbor é bloqueado de propósito: um juiz barato derrota o

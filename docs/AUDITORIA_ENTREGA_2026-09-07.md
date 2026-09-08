@@ -147,7 +147,7 @@ Nenhum dos materiais abaixo foi apagado. Sugestões para decisão do proprietár
 | `docs/PENDENCIAS.md` | Consolidar backlog com o roadmap deste relatório | Evitar duas listas concorrentes; manter uma fonte normativa e o relatório como evidência datada |
 | `config/defaults.env` | Remover se não houver consumidor externo, ou implementar a fonte única | Não há consumidor de runtime identificado no repositório; aparência de configuração ativa pode confundir |
 | `Harbor_install/agents/*.md` | Avaliar consolidação com skills, mantendo o propósito | São papéis/runbooks humanos referenciados por AGENTS.md; ausência de import de código não prova inutilidade |
-| `docs/screenshots/compare-tab.jpg` | Atualizar ou retirar da distribuição após conferir referências externas | Screenshot da interface anterior; não representa a jornada atual |
+| `docs/screenshots/compare-tab.jpg` | Arquivar ou retirar após conferir referências externas | Screenshot anterior preservado; README e guia visual agora usam `compare-tab.png`, capturado nas jornadas reais de 08/09/2026 |
 
 Manter `AGENTS.md`, `CLAUDE.md`, `.claude/skills` e `Harbor_install/skills`: são materiais de
 operação e contribuição, não código morto. Uma futura imagem de runtime pode excluí-los do

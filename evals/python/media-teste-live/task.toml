@@ -1,0 +1,25 @@
+schema_version = "1.4"
+artifacts = []
+
+[task]
+name = "harbor-eval-kit/media-teste-live"
+version = "1.0.0"
+description = "Resolve DAGs deterministicamente e diagnostica ausencias e ciclos"
+authors = []
+keywords = ["python", "dag", "teste-live"]
+
+[metadata]
+
+[verifier]
+timeout_sec = 600.0
+collect = []
+[verifier.env]
+[agent]
+timeout_sec = 600.0
+[environment]
+network_mode = "public"
+build_timeout_sec = 600.0
+os = "linux"
+mcp_servers = []
+[environment.env]
+[solution.env]

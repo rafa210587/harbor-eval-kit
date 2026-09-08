@@ -1,5 +1,9 @@
 # Instalação e operação manual
 
+Para instalação assistida no Claude Code, use `/harbor-setup` conforme o
+[guia de instalação com Claude](INSTALACAO_CLAUDE.md). Este documento é o fallback
+manual e a referência dos comandos por sistema operacional.
+
 Este guia leva um clone novo até uma avaliação local com Harbor 0.22.0 e Podman. O kit nunca
 instala nem chama Docker Engine. Os comandos `status` são somente leitura; `doctor` executa um smoke
 que cria e remove recursos próprios.
@@ -21,7 +25,7 @@ tag e digest. O doctor usa `--pull=never` e preserva essas imagens preexistentes
 Clone e entre no projeto:
 
 ```bash
-git clone <URL-DO-REPOSITORIO> harbor-eval-kit
+git clone https://github.com/rafa210587/harbor-eval-kit.git
 cd harbor-eval-kit
 ```
 

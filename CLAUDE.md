@@ -6,6 +6,8 @@ docs in the same commit). The reasoning behind each rule is in `docs/ENGENHARIA.
 
 Project skills in `.claude/skills/` (invocable by name):
 
+- `harbor-setup` — first local installation and demo preparation; start with
+  `/harbor-setup`. See `docs/INSTALACAO_CLAUDE.md` for prerequisites and fallback.
 - `ship-change` — the definition of done before committing: tests, credential scan,
   cross-platform parity, docs in the same commit.
 - `secret-guard` — credential protection: activate/verify the pre-commit scanner, audit where a
@@ -46,3 +48,7 @@ above (no separate "operational" directory) — the distinction is documented he
 skill's own `## Category` header, and lives entirely in scope, not location.
 
 Do not weaken cleanup safeguards.
+
+For product reconstruction or capability changes, read `specs/README.md` and
+`.specify/memory/constitution.md`. The SDD baseline is retrospective; reconstruction
+checkboxes do not imply that existing code is missing. AWS remains plan-only.

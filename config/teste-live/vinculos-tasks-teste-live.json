@@ -1,0 +1,23 @@
+[
+  {
+    "path": "evals/python/dificil-teste-live",
+    "judgeId": "juiz-opus-teste-live",
+    "rubricIds": [
+      "rubrica-engenharia-teste-live"
+    ]
+  },
+  {
+    "path": "evals/python/media-teste-live",
+    "judgeId": "juiz-opus-teste-live",
+    "rubricIds": [
+      "rubrica-engenharia-teste-live"
+    ]
+  },
+  {
+    "path": "evals/python/simples-teste-live",
+    "judgeId": "juiz-opus-teste-live",
+    "rubricIds": [
+      "rubrica-engenharia-teste-live"
+    ]
+  }
+]

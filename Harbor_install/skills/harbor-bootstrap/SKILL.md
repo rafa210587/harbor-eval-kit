@@ -15,6 +15,12 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
 
 ## Procedure
 
+In Claude Code, `/harbor-setup` is the discoverable project entry point and loads this
+runbook. See `docs/INSTALACAO_CLAUDE.md`. Prefer the repository's `harbor-eval` install
+wrapper over issuing `uv tool install` directly: it snapshots dependencies, runs
+doctor, records ownership and checks the isolated Harbor runtime. Steps below describe
+the gates; do not repeat a successful mutable smoke without a new reason.
+
 1. Read `AGENTS.md`.
 2. Detect the OS first (`win32`/`darwin`/`linux` — e.g. `process.platform` in Node, `uname -s`
    in a POSIX shell, `$IsWindows`/`$IsMacOS`/`$IsLinux` in PowerShell 7+). Step 10 below

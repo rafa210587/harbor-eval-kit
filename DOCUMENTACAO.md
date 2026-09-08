@@ -1,5 +1,10 @@
 # Harbor Eval Kit — Documentação completa
 
+Para instalar com Claude Code, comece por
+[Instalação com Claude e `/harbor-setup`](docs/INSTALACAO_CLAUDE.md).
+Para reconstruir ou evoluir o produto, use a
+[baseline SDD: specs, planos e tasks](specs/README.md).
+
 > Este arquivo documenta **tudo** que foi construído neste kit: como instalar do zero, por que
 > cada peça existe, como funciona por dentro, a lógica de cada decisão, o que foi desligado
 > de propósito, e onde tudo fica guardado. O `README.md` é o guia rápido de comandos; este
@@ -480,6 +485,10 @@ fazem parte do fluxo linear de **Novo experimento**.
 
 ## 10. Cada área em detalhe
 
+Para uma orientação rápida antes dos detalhes, consulte o
+[guia visual das 16 abas](docs/GUIA_VISUAL.md), com a sequência de primeiro uso e
+exemplos de como comparar modelos, agentes e skills.
+
 ### 10.1 Credenciais
 Cadastra chaves de provider. O dropdown lista providers curados (Anthropic, OpenAI, Azure,
 DeepSeek, Gemini, Vertex AI, OpenRouter, Groq, Mistral, Cohere, xAI, Together AI, Fireworks,
@@ -937,6 +946,7 @@ mesmo botão em toda linha `ok` da tabela, uma de cada vez, sequencial) — voc�
 o caso pede (empate, suspeita de gambiarra, decisão final entre finalistas), não em toda
 iteração exploratória. O padrão usa uma **lista curada de modelos**
 (`JUDGE_MODELS`/`isJudgeModelAllowed` em `scripts/lib/catalog.ts`). É uma política operacional,
+incluindo DeepSeek V4 Pro e Claude Opus 5 no conjunto `teste-live`,
 não prova de qualidade: calibre o juiz com exemplos de veredito conhecido. O modo validação
 continua explícito e marcado nos resultados. Confira os IDs reais no provider antes de usar.
 

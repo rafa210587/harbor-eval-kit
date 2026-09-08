@@ -62,8 +62,13 @@ changes that model deliberately. Never read judge controls again while the batch
 
 The judge's model defaults to the curated list (`JUDGE_MODELS` in
 `scripts/lib/catalog.ts`). This policy does not establish judge quality: calibrate against
-known verdicts before using its ranking for a decision. Registering a Judge
-therefore needs the full chain: Secret → a Model whose value is literally one of those ids →
+known verdicts before using its ranking for a decision.
+The `teste-live` pack explicitly includes DeepSeek V4 Pro and Claude Opus 5 in this
+policy. Flash and inexpensive aliases still require validation mode. This is not
+evidence of calibration or agreement between the judges.
+
+Registering a Judge therefore needs the full chain:
+Secret → a Model whose value is literally one of those ids →
 Judge.
 
 Give every call a fresh client-generated `operationId` UUID. The backend creates

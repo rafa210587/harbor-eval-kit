@@ -39,6 +39,7 @@ export function isTestedHarborVersion(installed: string | null | undefined): boo
 }
 
 export const JUDGE_MODELS: { label: string; value: string }[] = [
+  { label: "DeepSeek V4 Pro", value: "deepseek/deepseek-v4-pro" },
   { label: "Claude Opus 5", value: "anthropic/claude-opus-5" },
   { label: "Claude Fable 5.1", value: "anthropic/claude-fable-5-1" },
   { label: "GPT-5.1", value: "openai/gpt-5.1" },
