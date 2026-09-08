@@ -73,3 +73,11 @@ Rotas, comandos e arquivos foram conferidos contra o código em 2026-09-08.
 A descoberta e execução interativa de `/harbor-setup` em uma instalação nova do
 Claude Code ainda não foram exercitadas nesta rodada. O histórico de testes reais
 da plataforma está no README; a revisão da skill não amplia sua certificação.
+
+## Configuração opcional depois do doctor
+
+O assistente fica em **Tasks → Spec de repositório + PR**; conexões reutilizáveis
+ficam em **Agentes → Integrações de CLI e harness**. O [guia específico](REPOSITORIOS_E_HARNESSES.md)
+explica cada etapa, credenciais Git/API/login nativo, calibração sem juiz, evidências
+somente por diff, export/import de receitas e fallback manual. Use apenas fontes
+confiáveis; diagnóstico no host não certifica a sessão do CLI em container.

@@ -8,6 +8,7 @@ import { estimateCompareCost, checkCostGuard } from "./cost.ts";
 import { assertSafeId } from "./registry-validation.ts";
 
 export interface Candidate extends Combo {
+  integrationId?: string;
   id: string;
   label: string;
   profileId?: string;
@@ -121,6 +122,7 @@ export function resolveRegisteredCandidates(entries: unknown, registries: { agen
     });
     if (agent.instructions?.trim()) skills.unshift({ id: `agent-${agent.id}`, label: "instruções do perfil", mode: "authored", instructions: agent.instructions });
     return { agent: agent.agentValue, model: model?.value ?? null, label: agent.label, profileId: agent.id,
+      ...(agent.integrationId ? { integrationId: agent.integrationId } : {}),
       skillset: { label: sets.length ? sanitize(sets.map(s => s.label).join("+")) : "none", paths: [] }, skills };
   });
 }

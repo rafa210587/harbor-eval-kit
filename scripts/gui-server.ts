@@ -17,6 +17,10 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { spawn, type ChildProcess } from "node:child_process";
 import { registerExperimentRoutes, isExperimentActive } from "./experiment-routes.ts";
+import { registerRepositoryRoutes } from "./repository-routes.ts";
+import { prepareRepositoryAnalysisTarget, restoreRepositoryAnalysisResults } from "./lib/reference-evidence.ts";
+import { publicJson } from "./lib/public-json.ts";
+import { loadRedactionSecrets } from "./lib/redaction-secrets.ts";
 import { createRegistryEntry, updateRegistryEntry, deleteRegistryEntry, RegistryNotFoundError } from "./lib/registry-service.ts";
 import { appendExperimentAnalysis, readExperiment } from "./lib/experiment-store.ts";
 import { redactOutput } from "./lib/experiment-runner.ts";
@@ -109,7 +113,9 @@ function addRoute(method: string, path: string, handler: Handler): void {
 }
 
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
-  const body = redactOutput(JSON.stringify(data), loadSecretsEnv());
+  const response = publicJson(status, data);
+  const body = response.body;
+  status = response.status;
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
@@ -212,7 +218,7 @@ addRoute("GET", "/api/logs/tail", (req, res) => {
   const file = url.searchParams.get("file");
   const offset = Number(url.searchParams.get("offset") ?? "0") || 0;
   if (!job || !file) return sendJson(res, 400, { ok: false, error: "job and file query params are required" });
-  const tail = tailJobLog(jobsDir, job, file, offset, loadSecretsEnv());
+  const tail = tailJobLog(jobsDir, job, file, offset, loadRedactionSecrets());
   if (!tail) return sendJson(res, 404, { ok: false, error: "log file not found (or outside the jobs dir)" });
   sendJson(res, 200, tail);
 });
@@ -222,7 +228,7 @@ addRoute("GET", "/api/operations/:id", (req, res, params) => {
   const rawOffset = url.searchParams.get("offset") ?? "0";
   const offset = Number(rawOffset);
   if (!Number.isSafeInteger(offset) || offset < 0) return sendJson(res, 400, { ok: false, error: "offset deve ser inteiro não negativo" });
-  const operation = readOperation(params.id, offset, loadSecretsEnv());
+  const operation = readOperation(params.id, offset, loadRedactionSecrets());
   const executionUncertain = operationExecutionUncertain(operation, activeOperationIds);
   sendJson(res, 200, { ...operation, executionUncertain });
 });
@@ -402,6 +408,7 @@ interface ViewProcess {
 
 const viewProcesses = new Map<string, ViewProcess>();
 const activeOperationIds = new Set<string>();
+registerRepositoryRoutes(addRoute, sendJson, activeOperationIds);
 
 addRoute("POST", "/api/view", async (_req, res, _params, body) => {
   const { jobsDir } = body;
@@ -556,7 +563,9 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   const operationId = body.operationId;
   assertOperationId(operationId);
   const harborJobName = `harbor-eval-kit-analysis-${operationId.replaceAll("-", "").toLowerCase()}`;
-  const args = ["analyze", String(trialPath), "--model", resolvedModel,
+  const repositoryTarget = prepareRepositoryAnalysisTarget(String(trialPath), undefined, { allowFailedChecks: body.judgeOnFailure === true, customPromptPath: promptPath });
+  if (repositoryTarget) promptPath = repositoryTarget.promptPath;
+  const args = ["analyze", repositoryTarget?.path ?? String(trialPath), "--model", resolvedModel,
     "--jobs-dir", analysisJobsDir, "--job-name", harborJobName];
   if (session) { if (frozen?.rubricPath) args.push("--rubric", frozen.rubricPath); }
   else if (rubricId && rubricId !== "__default__") {
@@ -583,6 +592,7 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     try {
       const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000,
         onOutput: (channel, text) => appendOperationLog(operationId, channel, text, secretsEnv) });
+      if (result.code === 0 && repositoryTarget) restoreRepositoryAnalysisResults(repositoryTarget);
       const artifact = result.code === 0
         ? resolveAnalysisArtifact(String(trialPath), analysisJobsDir, harborJobName)
         : null;

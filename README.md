@@ -7,6 +7,11 @@ numa GUI local e numa CLI reproduzível.
 
 O runtime local é **Podman somente**. O kit não instala nem chama Docker Engine.
 
+O modo **Tasks → Spec de repositório + PR** prepara avaliações de requisitos
+Markdown contra um PR histórico mergeado. Conexões de CLI ficam recolhidas em
+**Agentes**. Veja o [guia de repositórios e harnesses](docs/REPOSITORIOS_E_HARNESSES.md)
+para configuração, isolamento, import/export e limites de validação desta entrega.
+
 ## O que a plataforma entrega
 
 | Harbor | Harbor Eval Kit |
@@ -333,6 +338,10 @@ Não é necessário instalar Spec Kit para usar a GUI.
 | [Pendências](./docs/PENDENCIAS.md) | trabalho deliberadamente adiado |
 
 ### Histórico, auditoria e planejamento
+
+Novo fluxo: [spec 013 — implementar specs de repositórios e avaliar contra PRs
+mergeados](./specs/013-repository-pr-evals/spec.md), incluindo configuração de harnesses
+pela UI. **Fluxo implementado; certificação completa dos harnesses e sistemas operacionais ainda pendente.** Veja o [guia e os testes reais](docs/REPOSITORIOS_E_HARNESSES.md).
 
 | Documento | Conteúdo |
 |---|---|

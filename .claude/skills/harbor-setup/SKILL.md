@@ -41,3 +41,20 @@ Trabalhe na raiz deste clone. Leia `AGENTS.md`, `docs/INSTALACAO_CLAUDE.md` e
 Para retomar, confira o estado atual antes de repetir qualquer etapa. Para operar
 após instalar, encaminhe às skills harbor-up, harbor-down e harbor-status em
 `Harbor_install/skills/`. Para reconstruir código, use `specs/README.md`.
+
+## Repository / PR mode (spec 013)
+
+Read `docs/REPOSITORIOS_E_HARNESSES.md` from the repository root before configuring
+this optional mode. Keep the standard doctor/install sequence. Tasks has a collapsed
+repository/spec/merged-PR wizard; Agents has reusable CLI integrations. Credentials
+for Git acquisition stay on the host, separate from inference bindings. Both API
+and native CLI identity require trusted source code; do not promise a broker or
+adversarial credential isolation. Check the server capability catalog: unsupported
+native adapters must remain blocked. Do not enable LiteLLM or provision AWS implicitly.
+
+Calibrate the historical base and reference with deterministic checks before running
+candidates. The judge receives only the two diffs as code plus selected requirements,
+rubric and sanitized check results. Never use raw upstream Analyze on the original
+repository trial to bypass this evidence boundary. Failed checks block paid judging
+unless the user selects the diagnostic override. The guide also provides the manual
+fallback, local recipe import/export and the actual validation limits.

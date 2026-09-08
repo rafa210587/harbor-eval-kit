@@ -31,6 +31,7 @@ $("#analyze-form").addEventListener("submit", async (e) => {
     return;
   }
   let baseData = withBooleanField({ path: rawData.path, jobsDir: rawData.jobsDir, judgeId: analysisConfig.judgeId }, "validationMode", analysisConfig.validationMode);
+  baseData.judgeOnFailure = $("#analyze-failed-checks").checked;
   const criterionRuns = analysisConfig.rubricIds.map((rubricId) => ({
     rubricId,
     label: rubricId === "__default__"

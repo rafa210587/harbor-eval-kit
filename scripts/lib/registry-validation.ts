@@ -41,7 +41,7 @@ export function validateRegistryEntry(name: RegistryName, value: unknown): asser
   assertSafeId(item.id);
   const fields: Record<RegistryName, string[]> = {
     skills: ["label", "mode", "instructions", "path", "extraFiles"], skillsets: ["label", "skillIds"],
-    models: ["label", "value"], agents: ["label", "agentValue", "modelId", "instructions", "defaultSkillsetIds", "notes"],
+    models: ["label", "value"], agents: ["label", "agentValue", "modelId", "integrationId", "instructions", "defaultSkillsetIds", "notes"],
     criteria: ["name", "description", "guidance"], rubrics: ["label", "criterionIds"],
     judges: ["label", "agentValue", "modelId", "promptTemplate", "defaultRubricIds", "notes"],
   };
@@ -67,6 +67,7 @@ export function validateRegistryEntry(name: RegistryName, value: unknown): asser
     } else if (typeof item[key] !== "string") throw new Error(`${key} deve ser texto`);
   }
   if (item.modelId) assertSafeId(item.modelId);
+  if (item.integrationId !== undefined) assertSafeId(item.integrationId);
   if (name === "skills" && item.mode !== "authored" && item.mode !== "path") throw new Error("mode deve ser authored ou path");
   if (name === "skills" && item.mode === "path" && (typeof item.path !== "string" || !item.path.trim())) throw new Error("path obrigatório");
   for (const field of name === "skillsets" ? ["skillIds"] : name === "rubrics" ? ["criterionIds"] : []) {

@@ -7,7 +7,7 @@ import { tailTextFile, type LogTail } from "./joblogs.ts";
 
 export type OperationStatus = "starting" | "running" | "succeeded" | "failed";
 export interface OperationRecord {
-  version: 1; id: string; type: "analyze" | "view"; status: OperationStatus;
+  version: 1; id: string; type: "analyze" | "view" | "repository"; status: OperationStatus;
   createdAt: string; updatedAt: string; finishedAt?: string;
   targetPath: string; jobsDir: string; harborJobName?: string;
   artifactPath?: string; error?: string; result?: unknown;

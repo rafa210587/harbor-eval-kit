@@ -193,3 +193,22 @@ juiz e pode ter custo; o cartão da operação mostra estado, tempo, caminho e l
 
 Para analisar candidatos de um experimento aberto, prefira os botões da própria
 tabela em Novo experimento, que mantêm o julgamento associado ao histórico.
+
+## Repositório + PR e integrações CLI
+
+As capturas seguintes mostram a UI real de 08/09/2026, com dados de teste sem valores
+secretos. A conexão ilustrativa não foi salva; o cadastro QA usado na validação
+foi removido. Diagnóstico do host não certifica autenticação/execução no container.
+
+![Checks determinísticos no assistente de repositório + PR](screenshots/repository-checks.png)
+
+A etapa Checks concentra comandos, diretórios, timeouts, saídas e pesos. O limiar
+fica em Opções avançadas de aprovação e mantém 1 como padrão. A fonte,
+os documentos e o PR ficam nas etapas anteriores; ambiente e juiz ficam recolhidos
+na revisão. A importação preenche o assistente sem gravar antes de Salvar.
+
+![Integração de CLI com nome de variável e versão esperada](screenshots/harness-integration.png)
+
+Agentes mantém uma seção recolhível de conexões. O formulário vincula o nome da
+variável, nunca o segredo; a conexão pode ser editada e reutilizada nos perfis.
+O [guia do fluxo](REPOSITORIOS_E_HARNESSES.md) detalha pré-requisitos e limitações.

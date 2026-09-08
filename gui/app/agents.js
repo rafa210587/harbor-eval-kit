@@ -5,6 +5,16 @@ import { state, onRefresh, refreshAll } from "./state.js";
 
 // ================= AGENTS =================
 const agentsForm = $("#agents-form");
+const integrationField = document.createElement("label");
+integrationField.innerHTML = 'Conexão de CLI (opcional)<select name="integrationId" data-field-help="off"><option value="">Padrão atual do Harbor</option></select><span class="hint">Reutiliza versão e autenticação configuradas em Integrações abaixo. O adapter deve coincidir.</span>';
+agentsForm.querySelector('button[type="submit"]').before(integrationField);
+let integrations = [];
+function renderIntegrationSelect(selected = agentsForm.integrationId.value) {
+  agentsForm.integrationId.innerHTML = '<option value="">Padrão atual do Harbor</option>' + integrations.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)} · ${escapeHtml(item.adapter)}</option>`).join("");
+  if (selected && !integrations.some(i => i.id === selected)) agentsForm.integrationId.add(new Option("Conexão local ausente — reconecte", selected));
+  agentsForm.integrationId.value = selected;
+}
+document.addEventListener("hek:harness-integrations-refreshed", event => { integrations = event.detail.integrations; renderIntegrationSelect(); });
 agentsForm.dataset.apiPath = "/api/agents";
 const agentsEdit = wireEditableForm(agentsForm, {
   addLabel: "Adicionar agente",
@@ -12,6 +22,7 @@ const agentsEdit = wireEditableForm(agentsForm, {
     label: form.label.value,
     agentValue: form.agentValue.value,
     modelId: form.modelId.value || undefined,
+    integrationId: form.integrationId.value || undefined,
     instructions: form.instructions.value,
     defaultSkillsetIds: $$('input[name=defaultSkillsetIds]:checked', form).map((i) => i.value),
     notes: form.notes.value,
@@ -50,6 +61,7 @@ function renderAgentsList() {
         agentsForm.agentValue.value = item.agentValue;
         agentsForm.instructions.value = item.instructions || "";
         agentsForm.notes.value = item.notes || "";
+        renderIntegrationSelect(item.integrationId || "");
         renderAgentModelSelect(item.modelId || "");
         renderAgentDefaultSkillsetPicker(item.defaultSkillsetIds || []);
       }),

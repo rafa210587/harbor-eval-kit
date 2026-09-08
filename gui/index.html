@@ -655,7 +655,7 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-analyze" class="tab">
     <div class="panel">
       <h2>Análise avulsa por conjuntos de critérios</h2>
-      <p class="hint">Pede para um juiz ler a trajetória de um job concluído e emitir PASS/FAIL por critério. Use para uma inspeção ad hoc; no fluxo normal, prefira Analisar junto aos resultados de Novo experimento.</p>
+      <p class="hint">Pede um parecer PASS/FAIL por critério sobre um job concluído. Tasks tradicionais usam a trajetória; tasks de repositório + PR fornecem somente diffs e requisitos ao juiz. Use para uma inspeção ad hoc; no fluxo normal, prefira Analisar junto aos resultados de Novo experimento.</p>
       <form id="analyze-form">
         <label for="f-job-or-trial-path">Caminho do job ou trial</label>
         <input id="f-job-or-trial-path" type="text" name="path" placeholder=".\jobs\cmp__agent-oracle__skill-none" required>
@@ -669,6 +669,10 @@ Por que é ruim: explique a consequência concreta.
         <div class="checkbox-inline">
           <input type="checkbox" id="analyze-standalone-validation-mode" name="validationMode">
           <label for="analyze-standalone-validation-mode">Modo validação — necessário quando o juiz usa modelo fora da lista curada. O veredito sai marcado como não válido.</label>
+        </div>
+        <div class="checkbox-inline">
+          <input type="checkbox" id="analyze-failed-checks" data-field-help="off">
+          <label class="persistent-hint" for="analyze-failed-checks">Julgar falhas para diagnóstico — somente para tasks de repositório + PR. Padrão desligado: checks precisam passar antes de chamar o juiz. Esta opção permite gastar com o juiz mesmo quando falharam; não muda o resultado determinístico.</label>
         </div>
         <button class="primary" type="submit">Analisar</button>
       </form>

@@ -47,6 +47,12 @@ sem tarefas executáveis de implantação nesta baseline.
 
 ## Como reconstruir
 
+A proposta [013 — Spec de repositório, PR histórico e harness](013-repository-pr-evals/spec.md)
+é **prospectiva, aprovada e implementada em parte; a aceitação integral continua rastreada nas tasks**. Seu
+[plano](013-repository-pr-evals/plan.md) e suas
+[tasks com prompt de continuidade](013-repository-pr-evals/tasks.md) ficam separados
+da baseline retrospectiva de 12 capacidades e do inventário congelado acima.
+
 1. Preserve este repositório como referência. Trabalhe em um diretório novo ou branch
    isolada; não apague o projeto para testar reprodução.
 2. Leia constituição, README, auditoria e todas as specs antes de selecionar uma capacidade.

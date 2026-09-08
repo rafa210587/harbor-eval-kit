@@ -34,6 +34,8 @@ export interface ResultRow {
 }
 
 export interface ExecOptions {
+  /** Explicit connection: inherit only host bootstrap variables, not ambient provider auth/gateway. */
+  isolatedEnv?: boolean;
   /** Mirror stdout/stderr to this process's own streams as they arrive. */
   echo?: boolean;
   /** Inject the Podman-forwarded DOCKER_HOST for this child only (default: true on win32). */
@@ -64,6 +66,8 @@ export interface ExecResult {
 
 export interface AgentEntry {
   id: string;
+  /** Local harness connection; exported catalogs require rebinding on the destination. */
+  integrationId?: string;
   label: string;
   agentValue: string;
   /** Models registry id. Used when a compare run doesn't sweep/override the model. */

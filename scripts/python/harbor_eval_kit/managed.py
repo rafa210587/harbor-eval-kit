@@ -17,6 +17,7 @@ from uuid import uuid4
 from harbor.environments.base import ExecResult
 from harbor.environments.capabilities import EnvironmentCapabilities
 from harbor.environments.docker.docker import DockerEnvironment
+from harbor.models.task.config import NetworkPolicy
 from .ownership import LABEL, PREFIX, base_images, prove, read_manifest, reconcile_reserved, remember, reserve
 
 
@@ -44,11 +45,17 @@ class ManagedPodmanEnvironment(DockerEnvironment):
         # Reject before DockerEnvironment can run its own unowned egress probe.
         config = kwargs["task_env_config"]
         environment_dir = Path(kwargs["environment_dir"])
-        policies = [kwargs.get("network_policy"), *(kwargs.get("phase_network_policies") or [])]
+        if kwargs.get("network_policy") is None:
+            kwargs["network_policy"] = NetworkPolicy(network_mode=config.network_mode or "public", allowed_hosts=config.allowed_hosts or [])
+        policies = [kwargs["network_policy"], *(kwargs.get("phase_network_policies") or [])]
         if str(config.os) not in ("linux", "TaskOS.LINUX"):
             raise ValueError("Adaptador gerenciado suporta containers Linux")
-        if any(p and p.network_mode.value != "public" for p in policies):
-            raise ValueError("Política de rede restrita requer adaptador gerenciado com suporte verificado")
+        modes = {p.network_mode.value for p in policies if p}
+        if not modes:
+            modes = {config.network_mode.value}
+        if len(modes) != 1 or not modes <= {"public", "no-network"}:
+            raise ValueError("Somente rede public ou no-network estática; allowlist e mudanças de política não são suportadas")
+        self._managed_network_mode = next(iter(modes))
         if (environment_dir / "docker-compose.yaml").exists() or kwargs.get("extra_docker_compose"):
             raise ValueError("Task Compose/multisserviço ainda não suportada pelo adaptador gerenciado")
         self._namespace = PREFIX + uuid4().hex[:24]
@@ -63,7 +70,7 @@ class ManagedPodmanEnvironment(DockerEnvironment):
 
     @property
     def capabilities(self):
-        return EnvironmentCapabilities(mounted=True)
+        return EnvironmentCapabilities(mounted=True, disable_internet=True)
 
     @staticmethod
     def _requires_egress_control(**kwargs):
@@ -102,11 +109,16 @@ class ManagedPodmanEnvironment(DockerEnvironment):
     def _docker_compose_paths(self):
         image = self.task_env_config.docker_image if self._use_prebuilt else self._names["images"]
         self._owned_overlay.parent.mkdir(parents=True, exist_ok=True)
-        self._owned_overlay.write_text(json.dumps({
+        overlay = {
             "services": {"main": {"image": image, "pull_policy": "never",
                 "container_name": self._names["containers"], "labels": {LABEL: "true"}}},
-            "networks": {"default": {"name": self._names["networks"], "labels": {LABEL: "true"}}},
-        }), encoding="utf-8")
+        }
+        if self._managed_network_mode == "no-network":
+            # Compose translates this into Podman's --network none; no default network.
+            overlay["services"]["main"]["network_mode"] = "none"
+        else:
+            overlay["networks"] = {"default": {"name": self._names["networks"], "labels": {LABEL: "true"}}}
+        self._owned_overlay.write_text(json.dumps(overlay), encoding="utf-8")
         return [*super()._docker_compose_paths, self._owned_overlay]
 
     async def _podman(self, args, *, env=None, check=True, timeout_sec=None, stdin_data=None, on_output=None):
@@ -234,5 +246,6 @@ class ManagedPodmanEnvironment(DockerEnvironment):
                                     stdin_data=stdin_data, on_output=on_output)
         if command[0] == "up":
             await self._record("containers")
-            await self._record("networks")
+            if self._managed_network_mode != "no-network":
+                await self._record("networks")
         return result

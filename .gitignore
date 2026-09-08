@@ -1,5 +1,7 @@
 jobs/
 jobs-test/
+# Materialized private repository tasks are local runtime data, not demo source.
+evals/repositories/
 node_modules/
 __pycache__/
 *.py[cod]

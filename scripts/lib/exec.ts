@@ -16,6 +16,7 @@ import { getLitellmGatewayConfig, buildLitellmRuntimeEnv, applyLitellmGatewayEnv
 import { resolvePodmanConnection, validatePodmanInterfaces } from "./podman.ts";
 import { managedRunArgs, managedRuntimeEnv } from "./managed-runtime.ts";
 import { getHarborPythonPath } from "./harbor-python.ts";
+import { loadRedactionSecrets } from "./redaction-secrets.ts";
 
 const terminationRequested = new WeakSet<ChildProcess>();
 
@@ -164,7 +165,7 @@ export function execCommand(
   return new Promise((resolvePromise) => {
     const start = Date.now();
     const dockerHostFix = opts.dockerHostFix ?? true;
-    const env = dockerHostFix
+    const env = opts.isolatedEnv ? isolatedExecutionEnv(opts.extraEnv) : dockerHostFix
       ? buildHarborEnv(opts.extraEnv)
       : withPythonUtf8(withTelemetryDisabled({ ...process.env, ...opts.extraEnv }));
     // stdin is explicitly closed ("ignore"), never left as an open, silently-empty pipe.
@@ -239,7 +240,15 @@ export function execCommand(
   });
 }
 
+export function isolatedExecutionEnv(extra: Record<string, string> = {}, parent: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "TMPDIR", "HOMEDRIVE", "HOMEPATH"])
+    if (parent[key]) env[key] = parent[key];
+  return withPythonUtf8(withTelemetryDisabled({ ...env, ...extra }));
+}
+
 export async function execHarbor(args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
+  opts = { ...opts, redactValues: [...Object.values(loadRedactionSecrets()), ...(opts.redactValues ?? []), ...Object.values(opts.extraEnv ?? {})] };
   const managedArgs = managedRunArgs(args);
   const extraEnv = managedRuntimeEnv(args, opts.extraEnv);
   if (["run", "analyze"].includes(args[0]) && !args.includes("--print-config")) {

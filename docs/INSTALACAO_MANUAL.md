@@ -253,3 +253,11 @@ Node e Python usam o mesmo arquivo `<manifest>.runtime-lock`, relêem o manifest
 lock e fazem substituição atômica, preservando registros concorrentes. Se o lock continuar ocupado
 por 30 segundos, a operação aborta; confirme primeiro se ainda existe um processo ativo antes de
 tratar o arquivo como lock abandonado.
+
+## Configuração opcional de repositórios e CLI
+
+O assistente fica em **Tasks → Spec de repositório + PR**; conexões reutilizáveis
+ficam em **Agentes → Integrações de CLI e harness**. O [guia específico](REPOSITORIOS_E_HARNESSES.md)
+explica cada etapa, credenciais Git/API/login nativo, calibração sem juiz, evidências
+somente por diff, export/import de receitas e fallback manual. Use apenas fontes
+confiáveis; diagnóstico no host não certifica a sessão do CLI em container.

@@ -90,6 +90,35 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             ManagedPodmanEnvironment(environment_dir=self.root, environment_name="task", session_id="trial",
                 trial_paths=TrialPaths(self.root / "trial"), task_env_config=EnvironmentConfig())
 
+    async def test_static_no_network_overlay_and_no_network_resource_record(self):
+        with patch.dict(os.environ, {"HARBOR_EVAL_MANIFEST": str(self.root / "manifest.json")}):
+            env = ManagedPodmanEnvironment(environment_dir=self.root, environment_name="task", session_id="trial",
+                trial_paths=TrialPaths(self.root / "isolated"), task_env_config=EnvironmentConfig(network_mode="no-network"),
+                network_policy=NetworkPolicy(network_mode="no-network"),
+                phase_network_policies=[NetworkPolicy(network_mode="no-network")])
+        env._podman = AsyncMock(return_value=ExecResult(return_code=0))
+        env._record = AsyncMock()
+        await env._run_docker_compose_command(["up", "-d"])
+        overlay = json.loads(env._owned_overlay.read_text())
+        self.assertEqual(overlay["services"]["main"]["network_mode"], "none")
+        self.assertNotIn("networks", overlay)
+        self.assertIn(str(env._owned_overlay), env._podman.call_args.args[0])
+        env._record.assert_awaited_once_with("containers")
+        self.assertTrue(env.capabilities.disable_internet)
+        self.assertFalse(env.capabilities.dynamic_network_policy)
+        with self.assertRaisesRegex(ValueError, "cannot change"):
+            await env.set_network_policy(NetworkPolicy(network_mode="public"))
+
+    async def test_allowlist_and_dynamic_network_policies_rejected(self):
+        for policy, phases in [
+            (NetworkPolicy(network_mode="allowlist", allowed_hosts=["example.com"]), []),
+            (NetworkPolicy(network_mode="public"), [NetworkPolicy(network_mode="no-network")]),
+        ]:
+            with self.assertRaisesRegex(ValueError, "estática"):
+                ManagedPodmanEnvironment(environment_dir=self.root, environment_name="task", session_id="trial",
+                    trial_paths=TrialPaths(self.root / "trial"), task_env_config=EnvironmentConfig(),
+                    network_policy=policy, phase_network_policies=phases)
+
     async def test_streams_redacted_child_env_before_completion(self):
         stdout, stderr = asyncio.StreamReader(), asyncio.StreamReader()
         stdout.feed_data(b"progress synthetic-child-value\n")

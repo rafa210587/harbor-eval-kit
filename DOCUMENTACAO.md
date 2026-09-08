@@ -548,6 +548,10 @@ Agrupa uma ou mais Skills por checkbox — mesma referência por `id`, sem dupli
 você editar uma Skill, todo Skillset que a usa já reflete a mudança).
 
 ### 10.5 Agentes
+
+A seção recolhível **Integrações de CLI e harness** cadastra conexões reutilizáveis
+para API ou login nativo suportado. Vincule a conexão ao perfil; diagnóstico no
+host não certifica o container. Veja [configuração e limites](docs/REPOSITORIOS_E_HARNESSES.md#conectar-um-harness).
 Um agent aqui é um **perfil de uso**, não só o nome cru do Harbor: junta
 `agentValue` (`claude-code`, `codex`, `oracle`, `nop`, ...) + um **model padrão** + instruções
 próprias + **default skill sets**. Isso é o que **Novo experimento** usa pra pré-preencher
@@ -635,6 +639,11 @@ editável — troque o que quiser, mas mantenha os marcadores `{trial_path}`, `{
 orientação de cada critério; sem eles o juiz fica sem saber o que examinar.
 
 ### 10.9 Tasks
+
+O assistente opcional **Spec de repositório + PR** prepara uma task a partir da base
+histórica, requisitos Markdown e PR mergeado. Calibra checks sem LLM e reutiliza
+Novo experimento. Receitas têm export/import próprio, sem credenciais ou código.
+Veja o [guia completo](docs/REPOSITORIOS_E_HARNESSES.md).
 Wizard fino sobre `harbor init --task`, **com editor de arquivos direto no navegador**
 (instruction.md, Dockerfile, solve.sh, test.sh — `GET`/`POST /api/tasks/detail`). Templates
 elaborados alinhados ao rubric de qualidade que o próprio `harbor check` usa
@@ -1067,7 +1076,12 @@ scripts/lib/*.ts              lógica compartilhada modular (ver docs/ENGENHARIA
                                harbor.ts (superfície pública). O experiment-store prepara os
                                snapshots e hashes; materialize atende somente os arquivos
                                temporários necessários a rubrics/prompts do Analyze.
-scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
+scripts/gui-server.ts         servidor HTTP; delega rotas de experimentos e repositórios
+scripts/repository-routes.ts  endpoints de receitas, preparação e conexões CLI
+scripts/lib/repository-*.ts   aquisição, snapshots, calibração e materialização
+scripts/lib/reference-evidence.ts  pacote de diffs do juiz, sem árvore/trajectory
+scripts/lib/harness-*.ts      bindings locais, capacidades e proteção de sessão
+scripts/templates/repository-verifier.py  checks não root no verifier sem rede
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
 scripts/harbor-cli.ts         status read-only e eval pelo executor comum
 scripts/gui-lifecycle.ts      preflight/status/stop usados pelos pares de wrappers
