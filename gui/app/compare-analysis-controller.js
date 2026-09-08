@@ -51,7 +51,7 @@ export function setupCompareAnalysis({ getRows, getJobsDir, getExperimentId, ren
     const startedAt = Date.now(), progress = $("#compare-analysis-progress");
     const eligible = getRows().map((row, index) => row.ok ? index : -1).filter((index) => index >= 0);
     let position = 1;
-    const show = () => { progress.textContent = `Analisando ${position}/${eligible.length} · ${Math.round((Date.now() - startedAt) / 1000)}s. Juiz e rubrics estão congelados; detalhes aparecem abaixo.`; };
+    const show = () => { progress.textContent = `Analisando ${position}/${eligible.length} · ${Math.round((Date.now() - startedAt) / 1000)}s. Juiz e conjuntos de critérios estão congelados; detalhes aparecem abaixo.`; };
     show();
     const timer = setInterval(show, 1000);
     let completed = false;

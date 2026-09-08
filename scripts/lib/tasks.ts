@@ -3,7 +3,7 @@
 // dir keyed by task path -- it is a preference of this kit on this machine, not part of the
 // task's own Harbor-defined content.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { managedPath, newId } from "./paths.ts";
 import { assertSafeId } from "./registry-validation.ts";
@@ -62,16 +62,20 @@ export interface TaskListing {
   source: "evals" | "datasets";
 }
 
-function scanTaskTree(baseDir: string, source: TaskListing["source"]): TaskListing[] {
+export function scanTaskTree(baseDir: string, source: TaskListing["source"]): TaskListing[] {
   const out: TaskListing[] = [];
-  if (!existsSync(baseDir)) return out;
-  for (const group of readdirSync(baseDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
-    const groupDir = join(baseDir, group.name);
-    for (const task of readdirSync(groupDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
-      const dir = join(groupDir, task.name);
+  if (!existsSync(baseDir) || lstatSync(baseDir).isSymbolicLink()) return out;
+  const visit = (dir: string, depth: number) => {
+    if (existsSync(join(dir, "task.toml")) || existsSync(join(dir, "instruction.md"))) {
       out.push({ path: dir, stub: isTaskStub(dir), source });
+      return; // environment/, tests/ and steps/ belong to this task, not new tasks.
     }
-  }
+    if (depth >= 12) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.isSymbolicLink() && !entry.name.startsWith(".") && entry.name !== "node_modules") visit(join(dir, entry.name), depth + 1);
+    }
+  };
+  visit(baseDir, 0);
   return out;
 }
 

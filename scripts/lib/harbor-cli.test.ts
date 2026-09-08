@@ -35,6 +35,15 @@ test("stream redaction covers a secret split across arbitrary chunks", () => {
   jsonStream.write('secret');
   jsonStream.end();
   assert.equal(escaped, "value=[REDACTED]");
+
+  let unicode = "";
+  const unrelatedSecret = "unrelated-secret";
+  const unicodeStream = createStreamingRedactor([unrelatedSecret], text => { unicode += text; });
+  const input = "prefix🔑" + "x".repeat(unrelatedSecret.length - 2);
+  unicodeStream.write(input);
+  unicodeStream.end();
+  assert.equal(unicode, input);
+  assert.doesNotMatch(unicode, /�/);
 });
 
 test("exec decodes one-byte UTF-8 writes before redacting the child environment secret", async () => {
@@ -47,6 +56,14 @@ test("exec decodes one-byte UTF-8 writes before redacting the child environment 
   assert.equal(result.code, 0);
   assert.equal(result.stdout, "[REDACTED]");
   assert.doesNotMatch(result.stdout, /�/);
+});
+
+test("child Python file and stdio encoding stay UTF-8 even with conflicting host overrides", async () => {
+  const result = await execCommand(process.execPath, ["-e", "process.stdout.write(JSON.stringify([process.env.PYTHONUTF8,process.env.PYTHONIOENCODING]))"], {
+    extraEnv: { PYTHONUTF8: "0", PYTHONIOENCODING: "cp1252" }, dockerHostFix: false,
+  });
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.stdout), ["1", "utf-8"]);
 });
 
 test("timeout kills an owned descendant that ignores SIGTERM", async () => {

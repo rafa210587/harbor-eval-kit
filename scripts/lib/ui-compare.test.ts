@@ -9,6 +9,9 @@ import { createLogReadGuard } from "../../gui/app/log-domain.js";
 import { taskFilesForSave } from "../../gui/app/task-domain.js";
 import { firstUseChecklist } from "../../gui/app/start-domain.js";
 import { initializationFailureMessage, runDeleteAction } from "../../gui/app/ui-actions.js";
+import { defaultCriterionSetIds, effectiveStandaloneCriterionSetIds } from "../../gui/app/judging-domain.js";
+import { applyOperationSnapshot, createOperationState, operationStatusText } from "../../gui/app/operation-domain.js";
+import { safeLocalViewerUrl, viewerStatusText } from "../../gui/app/viewer-domain.js";
 
 test("freezeAnalysisConfig snapshots judge, rubrics and boolean validation mode", () => {
   const rubrics = ["r1", "r2"];
@@ -117,6 +120,16 @@ test("report URL is canonical and result state does not turn missing data into z
   assert.equal(resultState({ ok: true }, true), "Configuração validada; sem execução");
 });
 
+test("saved results remain explicitly tied to their persisted title and id", () => {
+  const html = readFileSync(new URL("../../gui/index.html", import.meta.url), "utf8");
+  const compare = readFileSync(new URL("../../gui/app/compare.js", import.meta.url), "utf8");
+  assert.match(html, /id="compare-results-label"/);
+  assert.match(compare, /Resultados salvos — \$\{plan\.title \|\| "Experimento sem título"\} · \$\{plan\.id\}/);
+  assert.match(compare, /labelSavedResults\(completedRecord\.plan\)/);
+  assert.match(compare, /labelSavedResults\(record\.plan\)/);
+  assert.match(compare, /stopCompareLiveLog\(\{ clear: true \}\);\s*labelSavedResults\(null\);\s*\$\("#compare-table"\)\.innerHTML = "";/);
+});
+
 test("judge evaluation exposes scores and never ranks validation or incomplete analyses", () => {
   assert.equal(judgeEvaluation({ passRate: 0.75 }), "75% PASS");
   assert.equal(judgeEvaluation({ analyses: [] }), "Não analisado");
@@ -180,6 +193,99 @@ test("editing a validation judge keeps its non-curated model selectable", () => 
   assert.equal(judgeNeedsValidation(models, curated, "curated"), false);
 });
 
+test("judge criterion-set defaults are copied and standalone analysis runs every selected set", () => {
+  const judge = { id: "judge-1", defaultRubricIds: ["quality", "security"] };
+  const defaults = defaultCriterionSetIds([judge], "judge-1");
+  defaults.push("mutated");
+  assert.deepEqual(judge.defaultRubricIds, ["quality", "security"]);
+  assert.deepEqual(effectiveStandaloneCriterionSetIds(["quality", "security", "quality"]), ["quality", "security"]);
+  assert.deepEqual(effectiveStandaloneCriterionSetIds([]), ["__default__"]);
+  assert.deepEqual(defaultCriterionSetIds([judge], "missing"), []);
+});
+
+test("standalone judge selection pre-marks defaults and executes one request per criterion set", () => {
+  const judging = readFileSync(new URL("../../gui/app/judging.js", import.meta.url), "utf8");
+  const misc = readFileSync(new URL("../../gui/app/misc.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../../gui/index.html", import.meta.url), "utf8");
+  assert.match(judging, /#analyze-judge-picker[\s\S]*defaultCriterionSetIds/);
+  assert.match(misc, /for \(const \[index, \{ rubricId, label \}\] of criterionRuns\.entries\(\)\)/);
+  assert.match(misc, /api\("POST", "\/api\/analysis-sessions", analysisConfig\)/);
+  assert.match(misc, /api\("POST", "\/api\/analyze", \{ \.\.\.baseData, rubricId, operationId \}\)/);
+  assert.match(misc, /analysisSessionId: analysisConfig\.analysisSessionId/);
+  assert.doesNotMatch(html, /id="analyze-rubric-select"/);
+  assert.match(html, /Cada conjunto marcado gera uma chamada paga separada/);
+});
+
+test("viewer accepts only explicit HTTP loopback URLs and explains not-ready state", () => {
+  assert.equal(safeLocalViewerUrl("http://localhost:3000/view"), "http://localhost:3000/view");
+  assert.equal(safeLocalViewerUrl("http://127.0.0.1:3000/"), "http://127.0.0.1:3000/");
+  assert.equal(safeLocalViewerUrl("http://[::1]:3000/"), "http://[::1]:3000/");
+  assert.equal(safeLocalViewerUrl("https://localhost:3000/"), null);
+  assert.equal(safeLocalViewerUrl("http://example.com/"), null);
+  assert.equal(safeLocalViewerUrl("javascript:alert(1)"), null);
+  assert.match(viewerStatusText({ status: "starting", url: null }, 12), /12s.*ainda não está pronta/);
+  assert.match(viewerStatusText({ status: "failed", error: "porta ocupada" }), /porta ocupada/);
+  const compare = readFileSync(new URL("../../gui/app/compare.js", import.meta.url), "utf8");
+  const live = readFileSync(new URL("../../gui/app/viewer-live.js", import.meta.url), "utf8");
+  assert.match(compare, /launchViewer\(lastCompareJobsDir\)/);
+  assert.doesNotMatch(compare, /window\.open\(res\.url/);
+  assert.match(live, /safeLocalViewerUrl\(viewer\?\.url\)[\s\S]*?window\.open\(safeUrl/);
+  assert.match(live, /viewer\.status === "starting"[\s\S]*?monitorViewer/);
+});
+
+test("operation snapshots append incremental logs and retain durable paths", () => {
+  const initial = createOperationState("operation-1", "jobs/source");
+  const running = applyOperationSnapshot(initial, {
+    id: "operation-1",
+    status: "running",
+    targetPath: "jobs/source",
+    jobsDir: "jobs",
+    harborJobName: "harbor-eval-kit-analysis-operation1",
+    hasHarborJob: true,
+    operationStatePath: "state/operations/operation-1/operation.json",
+    operationLogPath: "state/operations/operation-1/operation.log",
+    log: { content: "first\n", nextOffset: 6, truncated: false },
+  });
+  const failed = applyOperationSnapshot(running, {
+    id: "operation-1",
+    status: "failed",
+    artifactPath: "jobs/harbor-eval-kit-analysis-operation1/analysis.json",
+    error: "judge unavailable",
+    log: { content: "second\n", nextOffset: 13, truncated: true },
+  });
+  assert.equal(failed.logText, "first\nsecond\n");
+  assert.equal(failed.offset, 13);
+  assert.equal(failed.jobsDir, "jobs");
+  assert.equal(failed.harborJobName, "harbor-eval-kit-analysis-operation1");
+  assert.equal(failed.hasHarborJob, true);
+  assert.equal(failed.operationStatePath, "state/operations/operation-1/operation.json");
+  assert.equal(failed.operationLogPath, "state/operations/operation-1/operation.log");
+  assert.equal(failed.artifactPath, "jobs/harbor-eval-kit-analysis-operation1/analysis.json");
+  assert.equal(failed.truncated, true);
+  assert.equal(failed.terminal, true);
+  assert.match(operationStatusText(failed), /judge unavailable/);
+  const withoutInternalJob = applyOperationSnapshot(failed, { id: "operation-1", status: "succeeded", hasHarborJob: false, log: {} });
+  assert.equal(withoutInternalJob.hasHarborJob, false);
+  assert.equal(applyOperationSnapshot(failed, { id: "another", status: "succeeded" }), failed);
+  const uncertain = applyOperationSnapshot(running, { id: "operation-1", status: "running", executionUncertain: true, log: {} });
+  assert.match(operationStatusText(uncertain), /incerta após reinício/);
+});
+
+test("every analysis request gets an operation id and the monitor links its Harbor job to Logs", () => {
+  const misc = readFileSync(new URL("../../gui/app/misc.js", import.meta.url), "utf8");
+  const compareAnalysis = readFileSync(new URL("../../gui/app/compare-analysis.js", import.meta.url), "utf8");
+  const live = readFileSync(new URL("../../gui/app/operation-live.js", import.meta.url), "utf8");
+  const logs = readFileSync(new URL("../../gui/app/logs.js", import.meta.url), "utf8");
+  assert.match(misc, /const operationId = crypto\.randomUUID\(\);[\s\S]*?\/api\/analyze[\s\S]*?operationId/);
+  assert.match(compareAnalysis, /const operationId = crypto\.randomUUID\(\);[\s\S]*?\/api\/analyze[\s\S]*?operationId/);
+  assert.match(live, /error\.status === 404[\s\S]*?!requestPending/);
+  assert.match(live, /items\.slice\(-8\)/);
+  assert.match(live, /state\.terminal\) stop\(\{ preserve: true \}\)/);
+  assert.match(live, /hek:open-operation-log/);
+  assert.match(live, /state\.hasHarborJob && state\.jobsDir && state\.harborJobName/);
+  assert.match(logs, /export async function openOperationLog\(jobsDir, job\)/);
+});
+
 test("new task verifier fails safely instead of approving a stub", () => {
   const activeLines = SAFE_TEST_SH_TEMPLATE.split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
   assert.ok(activeLines.includes("echo 0 > /logs/verifier/reward.txt"));
@@ -195,6 +301,13 @@ test("task editor preserves an absent solution until the user writes one", () =>
   const tasks = readFileSync(new URL("../../gui/app/tasks.js", import.meta.url), "utf8");
   assert.match(tasks, /files\.solveSh \?\? ""/);
   assert.doesNotMatch(tasks, /files\.solveSh \|\| TASK_TEMPLATES\.solveSh/);
+});
+
+test("new task form supplies the organization required for an unprefixed name", () => {
+  const html = readFileSync(new URL("../../gui/index.html", import.meta.url), "utf8");
+  const help = readFileSync(new URL("../../gui/app/field-help.js", import.meta.url), "utf8");
+  assert.match(html, /name="org" value="harbor-eval-kit"/);
+  assert.match(help, /Namespace exigido quando o nome não contém \/.*Padrão: harbor-eval-kit/);
 });
 
 test("first-use checklist accepts a free agent but still requires a selected task", () => {
@@ -287,4 +400,15 @@ test("UI wiring uses structured cost acknowledgement and one frozen session per 
   assert.doesNotMatch(compare, /teto de \\$\|às cegas/);
   assert.equal(controller.match(/api\("POST", "\/api\/analysis-sessions"/g)?.length, 2);
   assert.match(analysis, /analysisSessionId: batchConfig\.analysisSessionId/);
+});
+
+test("standalone analysis carries its explicit work directory and saved results retain identity", () => {
+  const html = readFileSync(new URL("../../gui/index.html", import.meta.url), "utf8");
+  const misc = readFileSync(new URL("../../gui/app/misc.js", import.meta.url), "utf8");
+  const compare = readFileSync(new URL("../../gui/app/compare.js", import.meta.url), "utf8");
+  assert.match(html, /id="analyze-jobs-dir"[^>]*name="jobsDir"[^>]*value="jobs"[^>]*required/);
+  assert.match(misc, /path: rawData\.path, jobsDir: rawData\.jobsDir/);
+  assert.match(compare, /Resultados salvos — \$\{plan\.title/);
+  assert.match(compare, /labelSavedResults\(record\.plan\)/);
+  assert.match(compare, /labelSavedResults\(completedRecord\.plan\)/);
 });

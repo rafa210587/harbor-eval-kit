@@ -22,6 +22,7 @@ export function startCompareLiveLog(jobsDir, experimentId, { reconnect = false, 
   box.hidden = false;
   pre.textContent = "";
   let job = null, file = null, offset = 0, timer = null, stopped = false;
+  let candidateId = null, processOffset = 0;
   const cancelReloaded = async () => {
     cancelBtn.disabled = true;
     cancelBtn.textContent = "Cancelando…";
@@ -56,6 +57,21 @@ export function startCompareLiveLog(jobsDir, experimentId, { reconnect = false, 
       const jobs = await api("GET", `/api/logs/jobs?jobsDir=${encodeURIComponent(jobsDir)}`);
       const ownJobs = jobs.filter((candidateJob) => names.has(candidateJob.name));
       const running = ownJobs.find((candidateJob) => candidateJob.running) || ownJobs[0];
+      const candidate = record.plan.candidates.find((item) => item.jobName === running?.name)
+        || record.plan.candidates.find((item) => !record.rows.some((row) => row.jobName === item.jobName))
+        || record.plan.candidates.at(-1);
+      if (candidate) {
+        if (candidate.id !== candidateId) {
+          candidateId = candidate.id;
+          processOffset = 0;
+          pre.textContent = `Saída do processo · ${candidate.label || candidate.id}\n`;
+        }
+        const captured = await api("GET", `/api/experiments/${encodeURIComponent(experimentId)}/logs/${encodeURIComponent(candidate.id)}?jobsDir=${encodeURIComponent(jobsDir)}&offset=${processOffset}`);
+        if (stopped || !liveGuard.isCurrent(token)) return;
+        if (captured.content) { pre.textContent += captured.content; pre.scrollTop = pre.scrollHeight; }
+        processOffset = captured.nextOffset;
+        if (captured.size > 0) return;
+      }
       if (!running) return;
       if (job !== running.name) { file = null; offset = 0; pre.textContent = ""; }
       job = running.name;

@@ -3,6 +3,22 @@ import type { RegistryName } from "./types.ts";
 export type RegistryItem = { id: string; [key: string]: unknown };
 export type RegistrySnapshot = Partial<Record<RegistryName, RegistryItem[]>>;
 export const REGISTRY_NAMES: RegistryName[] = ["skills", "skillsets", "models", "agents", "criteria", "rubrics", "judges"];
+export const REGISTRY_REFERENCES: [RegistryName, string, RegistryName][] = [
+  ["skillsets", "skillIds", "skills"], ["agents", "modelId", "models"], ["agents", "defaultSkillsetIds", "skillsets"],
+  ["rubrics", "criterionIds", "criteria"], ["judges", "modelId", "models"], ["judges", "defaultRubricIds", "rubrics"],
+];
+
+export function registryReferencesTo(registries: RegistrySnapshot, target: RegistryName, id: string): string[] {
+  const blockers: string[] = [];
+  for (const [from, field, to] of REGISTRY_REFERENCES) {
+    if (to !== target) continue;
+    for (const item of registries[from] ?? []) {
+      const ids = Array.isArray(item[field]) ? item[field] as string[] : item[field] ? [item[field] as string] : [];
+      if (ids.includes(id)) blockers.push(`${from}.${field} → ${target}`);
+    }
+  }
+  return [...new Set(blockers)];
+}
 
 export function assertSafeId(id: unknown): asserts id is string {
   if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id)) {
@@ -67,11 +83,7 @@ export function validateRegistrySnapshot(registries: RegistrySnapshot): void {
       seen.add(item.id);
     }
   }
-  const references: [RegistryName, string, RegistryName][] = [
-    ["skillsets", "skillIds", "skills"], ["agents", "modelId", "models"], ["agents", "defaultSkillsetIds", "skillsets"],
-    ["rubrics", "criterionIds", "criteria"], ["judges", "modelId", "models"], ["judges", "defaultRubricIds", "rubrics"],
-  ];
-  for (const [from, field, to] of references) for (const item of registries[from] ?? []) {
+  for (const [from, field, to] of REGISTRY_REFERENCES) for (const item of registries[from] ?? []) {
     const ids = Array.isArray(item[field]) ? item[field] as string[] : item[field] ? [item[field] as string] : [];
     for (const id of ids) if (!(registries[to] ?? []).some(entry => entry.id === id)) throw new Error(`referência inexistente: ${from}.${field} → ${to}`);
   }

@@ -8,6 +8,7 @@ import { refreshTaskList } from "./tasks.js";
 import { refreshViewList } from "./misc.js";
 import { installFieldHelp } from "./field-help.js";
 import { initializationFailureMessage } from "./ui-actions.js";
+import { resumeOperationMonitors } from "./operation-live.js";
 
 import "./models-skills.js";
 import "./agents.js";
@@ -21,6 +22,7 @@ import "./start.js";
 
 // ---------- init ----------
 loadStatus();
+resumeOperationMonitors();
 const initialLoads = [
   ["catálogo", refreshAll()],
   ["tasks", refreshTaskList()],

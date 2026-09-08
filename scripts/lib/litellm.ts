@@ -28,7 +28,7 @@ export const LITELLM_GATEWAY_DISABLED: LitellmGatewayConfig = {
 const CONFIG_KEYS = new Set(["_comment", "enabled", "hostBaseUrl", "containerBaseUrl", "inferenceKeyEnv", "masterKeyEnv", "env"]);
 const PLACEHOLDERS = new Set(["hostBaseUrl", "containerBaseUrl", "inferenceKey"]);
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const INFRA_NAMES = new Set(["DOCKER_HOST", "PATH", "HOME", "PWD", "PYTHONIOENCODING"]);
+const INFRA_NAMES = new Set(["DOCKER_HOST", "PATH", "HOME", "PWD", "PYTHONIOENCODING", "PYTHONUTF8"]);
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`configuração LiteLLM inválida: ${label} deve ser um objeto`);

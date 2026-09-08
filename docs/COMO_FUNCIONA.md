@@ -168,15 +168,15 @@ quisesse testar se uma skill de "boas práticas Python" muda o resultado, isso v
 | `resolvedor-claude` | `mini-swe-agent` | `claude-sonnet-5` |
 | `resolvedor-deepseek` | `mini-swe-agent` | `deepseek-v4-flash` |
 
-> **Por que `mini-swe-agent` e não `claude-code`?** O Harbor instalado aceita 42 valores de
-> `--agent`, divididos em dois tipos. Os **model-agnostic** (`mini-swe-agent`, `terminus`,
+> **Por que `mini-swe-agent` e não `claude-code`?** O Harbor instalado registra os adapters
+> disponíveis no `AgentFactory`, divididos em dois tipos. Os **model-agnostic** (`mini-swe-agent`, `terminus-2`,
 > `aider`, `opencode`, `openhands`, `swe-agent`, `goose`, `langgraph`…) são construídos sobre
 > o LiteLLM e aceitam qualquer string `provider/modelo` — são esses que permitem trocar só o
 > model mantendo todo o resto igual, que é exatamente o que uma comparação model-vs-model
 > exige. Os demais são CLIs de um fornecedor específico (`claude-code`, `codex`, `gemini-cli`,
 > `cursor-cli`…) e falam a API daquele fornecedor; combiná-los com um model de outro provider
 > é problema do adapter, não algo que este kit garanta. Na aba Agentes o campo
-> `--agent value` tem autocomplete com os 42, marcando quais são model-agnostic.
+> `--agent value` tem autocomplete com os adapters registrados, marcando quais são model-agnostic.
 >
 > **Validado de verdade** (2026-09-06, nesta máquina): `mini-swe-agent` +
 > `deepseek/deepseek-chat` resolveu a task `soma-fracoes` com reward **1.0**, custo

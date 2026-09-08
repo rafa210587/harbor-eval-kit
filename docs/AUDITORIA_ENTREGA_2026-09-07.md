@@ -8,6 +8,12 @@ remover código comprovadamente sem uso, fazer commit e push. Materiais/document
 listados como sugestões de remoção, sem exclusão nesta rodada. AWS permanece somente plano;
 LiteLLM continua OFF. Não repetir os testes pagos já registrados sem um defeito que exija isso.
 
+**Atualização datada — 2026-09-07:** a rodada atual autorizada para novas chamadas pagas está
+descrita em [Jornadas reais da UI](JORNADAS_REAIS_UI_2026-09-07.md). Ela não reabre as validações
+históricas deste relatório; exportações continuam proibidas de incluir credenciais, AWS segue
+somente plano, e pendências/gates/commit devem ser conferidos antes de publicar. As frases abaixo
+que registram “nenhuma chamada paga” referem-se à auditoria offline descrita neste arquivo.
+
 Este arquivo reúne plano e relatório para evitar mais documentos de acompanhamento.
 Para continuar em outra sessão: leia AGENTS.md, docs/ENGENHARIA.md, a skill
 `.claude/skills/ship-change/SKILL.md`, este relatório e o estado do Git. Não refaça trabalho

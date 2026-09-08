@@ -9,6 +9,8 @@ import { stopContainersForJob, terminateProcessTree } from "./lib/exec.ts";
 import { reportCsv } from "./lib/results.ts";
 import { loadSecretsEnv } from "./lib/secrets.ts";
 import { redactOutput } from "./lib/experiment-runner.ts";
+import { assertSafeExport } from "./lib/export-safety.ts";
+import { registerExperimentLogRoutes } from "./experiment-log-routes.ts";
 
 type SendJson = (res: ServerResponse, status: number, data: unknown) => void;
 type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: any) => void | Promise<void>;
@@ -21,7 +23,8 @@ function planFromBody(body: any) {
   return createExperimentPlan(body, candidates);
 }
 
-export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson): void {
+export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson, getSecrets: () => Record<string, string> = loadSecretsEnv): void {
+  registerExperimentLogRoutes(addRoute, sendJson);
   addRoute("POST", "/api/compare/estimate", (_req, res, _params, body) => {
     const plan = planFromBody(body);
     sendJson(res, 200, { ...estimateExperiment(plan), nTasks: plan.tasks.length, plan });
@@ -57,7 +60,8 @@ export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson)
     if (!["csv", "json"].includes(format)) throw new Error("formato de exportação deve ser csv ou json");
     const record = readExperiment(url.searchParams.get("jobsDir") || "jobs", params.id);
     const content = format === "csv" ? reportCsv(record.rows) : JSON.stringify(record.rows, null, 2);
+    assertSafeExport(record.rows, getSecrets());
     res.writeHead(200, { "Content-Type": format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="experiment-${record.plan.id}.${format}"`, "Cache-Control": "no-store" });
-    res.end(redactOutput(content, loadSecretsEnv()));
+    res.end(redactOutput(content, getSecrets()));
   });
 }

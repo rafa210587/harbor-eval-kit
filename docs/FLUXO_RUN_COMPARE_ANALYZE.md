@@ -38,16 +38,23 @@ Antes do spawn, `execHarbor` troca `--env docker` pelo adapter
 `harbor_eval_kit.managed:ManagedPodmanEnvironment`. O nome `docker` permanece como entrada
 compatível na GUI/CLI; nenhuma execução local chama Docker Engine.
 
+Cada candidato possui dois níveis de observabilidade. O executor cria primeiro
+`<jobsDir>/.experiments/<id>/logs/<candidateId>.log`, que captura stdout/stderr já mascarados,
+inclusive falhas de gate ou spawn anteriores à criação do job pelo Harbor. Depois que o Harbor
+inicia o job, seus próprios artefatos ficam em `<jobsDir>/<jobName>/job.log` e
+`<jobsDir>/<jobName>/<trial>/trial.log`; a trajetória estruturada fica em
+`<jobsDir>/<jobName>/<trial>/agent/trajectory.json`.
+
 Repare: `--model` e `--skill` são **condicionais**. É isso que torna Model e Skill opcionais
 em vez de obrigatórios — o que a tabela abaixo detalha.
 
 ### 1.1 Nem todo agent aceita qualquer model
 
-O catálogo `HARBOR_AGENTS` espelha os valores aceitos por `harbor run --help`, e a diferença
+O catálogo `HARBOR_AGENTS` espelha os adapters registrados no `AgentFactory` do Harbor 0.22.0, e a diferença
 entre eles decide se uma comparação model-vs-model é possível:
 
 - **Model-agnostic** (LiteLLM por baixo — aceitam qualquer `provider/modelo`):
-  `mini-swe-agent`, `terminus`/`terminus-1`/`terminus-2`, `aider`, `opencode`, `openhands`,
+  `mini-swe-agent`, `terminus-2`, `aider`, `opencode`, `openhands`,
   `openhands-sdk`, `swe-agent`, `goose`, `langgraph`, `cline-cli`, `dspy-rlm`, `deerflow`,
   `trae-agent`. **Use um destes** para trocar só o model mantendo o resto igual.
 - **CLIs de um fornecedor** (falam a API do próprio fornecedor): `claude-code`, `codex`,
@@ -58,7 +65,7 @@ entre eles decide se uma comparação model-vs-model é possível:
 
 O campo `--agent value` na aba Agentes tem autocomplete vindo desse catálogo, marcando quais são
 model-agnostic — a fonte é `HARBOR_AGENTS` em `scripts/lib/catalog.ts`, servida por
-`GET /api/harbor-agents`. É um espelho mantido à mão, derivado de `harbor run --help` (o Harbor não expõe
+`GET /api/harbor-agents`. É um espelho mantido à mão do `AgentFactory` (o Harbor não expõe
 essa lista de forma legível por máquina — `harbor agent list` não existe), então revalide ao
 atualizar o Harbor.
 
@@ -240,9 +247,43 @@ Na tabela de resultados do Compare, botão **Analisar** na linha desejada → es
 marque zero ou mais rubrics → cada rubric marcado vira uma chamada separada, com o custo
 daquela análise mostrado individualmente.
 
+Cada chamada recebe um `operationId` novo. Enquanto o POST está em andamento,
+`GET /api/operations/<operationId>?offset=<N>` expõe status e somente os novos bytes do log já
+mascarado. O registro e o log ficam em
+`~/.harbor-eval-kit/operations/<operationId>/`; nenhuma credencial, env completo ou argv com
+valor secreto é persistido. O job interno do Harbor recebe nome
+`harbor-eval-kit-analysis-<operationId-sem-hífens>` e o mesmo `--jobs-dir` do experimento, o que
+torna `job.log`, `trial.log` e a trajetória do juiz localizáveis durante a chamada.
+
+Ao concluir uma análise de um trial, Harbor grava `analysis.json` no próprio trial analisado.
+Ao analisar um job com vários trials, cada trial recebe seu artefato e o relatório agregado fica
+no job interno. O experimento registra cada
+rubric da rodada com `analysisBatchId`, posição e tamanho do lote; resultados parciais ou em modo
+validação não viram ranking.
+
+O nome determinístico do job permanece no registro para auditoria, mas a GUI só oferece **Abrir
+este job em Logs** quando `<jobsDir>/<harborJobName>` existe de fato. Se esse diretório tiver sido
+removido ou estiver ausente, o atalho fica oculto. O `operation.log` e o artefato gravado no
+próprio trial continuam disponíveis independentemente desse atalho.
+
+O backend resolve esse caminho canônico pelos argumentos da própria invocação, sem depender da
+formatação de `stdout`. Código zero sem `analysis.json` válido termina a operação como falha; não
+há resultado bem-sucedido com análise nula.
+
+Se o servidor reiniciar e encontrar uma operação persistida em `starting`/`running` sem prova de
+que pertence ao processo atual, a leitura retorna `executionUncertain: true`. A GUI deve parar o
+poll contínuo e orientar a inspeção dos logs e do job. O kit não retoma a chamada e não mata um
+PID persistido.
+
 O juiz é um agente Harbor de verdade, com acesso a arquivo: ele lê `result.json`,
 `agent/trajectory.json` e `test-stdout.txt` dentro do trial antes de responder — não é uma
 chamada de LLM crua em cima de um resumo.
+
+**Trajetórias** inicia `harbor view` para inspecionar esses artefatos locais e só aceita e expõe
+uma URL HTTP de loopback (`localhost`, `127.0.0.1` ou `::1`). O viewer não executa Run ou
+Analyze e não altera resultados. Seu stdout,
+stderr, startup, falha e encerramento também são registrados como operação; Stop só confirma
+sucesso depois que o processo iniciado pelo kit termina.
 
 ## 7. Exemplos de payload (para quem for automatizar)
 
@@ -268,13 +309,16 @@ A segunda entrada mostra o override: mesmo agent, model diferente, só naquela l
 
 ```json
 {
-  "path": "jobs/cmp__agent-claude-code__model-deepseek-deepseek-v4-flash__skill-none/<trial>",
+  "operationId": "<uuid-novo>",
+  "path": "jobs/<prefixo-runId-cN>/<trial>",
+  "jobsDir": "jobs",
   "judgeId": "<id-do-judge>",
   "rubricId": "<id-do-rubric>"
 }
 ```
 
 `rubricId` pode ser omitido ou `"__default__"` para usar o rubric padrão do Harbor.
+Não reutilize `operationId`: o backend responde 409 para preservar o histórico anterior.
 
 **Equivalente em CLI** (produto cartesiano, não lista explícita — ver
 [`DOCUMENTACAO.md` §12](../DOCUMENTACAO.md#12-compare-matrixts-cli-vs-gui--quando-usar-cada-um)):

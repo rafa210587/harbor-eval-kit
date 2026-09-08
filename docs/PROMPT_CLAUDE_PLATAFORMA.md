@@ -3,6 +3,12 @@
 O pedido posterior de auditoria, commit e push está no
 [relatório de entrega](AUDITORIA_ENTREGA_2026-09-07.md), que deve ser lido primeiro.
 
+**Rodada vigente (2026-09-07):** a nova solicitação autorizada está em
+[Jornadas reais da UI](JORNADAS_REAIS_UI_2026-09-07.md). Ela pode executar as chamadas pagas
+explicitamente previstas nessa rodada, sem repetir validações já concluídas. Exportações nunca
+incluem credenciais; AWS permanece somente plano. Antes de qualquer publicação, confira pendências,
+gates e commit no Git; não trate evidência histórica como uma autorização nova.
+
 Cole o texto abaixo numa sessão aberta na raiz do clone. O relatório e o Git são a fonte do
 estado atual; este prompt não depende do histórico da conversa.
 
@@ -11,6 +17,8 @@ Continue o Harbor Eval Kit a partir do estado existente, sem reiniciar a impleme
 
 Leia AGENTS.md, docs/ENGENHARIA.md, .claude/skills/ship-change/SKILL.md,
 docs/PLANO_PLATAFORMA_2026-09-07.md e docs/VALIDACAO_PLATAFORMA_2026-09-07.md.
+Leia também docs/JORNADAS_REAIS_UI_2026-09-07.md: ela é a rodada atual autorizada para chamadas
+pagas, com escopo e limites próprios.
 Inspecione git status, log e diff. Preserve alterações existentes. O usuário posteriormente
 autorizou commit e push completos; confira o relatório de auditoria antes de publicar ou repetir trabalho.
 O plano foi documentado antes das mudanças no commit 7b9a886; o usuário autorizou executar
@@ -26,6 +34,9 @@ e o Git antes de decidir se existe trabalho restante.
 AWS: SOMENTE plano corporativo e menção no README. O usuário reiterou NÃO EXECUTAR AWS.
 Não provisionar, implantar ou criar infraestrutura cloud. LiteLLM proxy continua OFF;
 schema/ambiente foram preparados e testados offline. Não ativar como efeito colateral.
+Exportações de bundle e relatório nunca incluem credenciais; preserve essa guarda em qualquer
+correção. Não repita smoke, comparação ou julgamento já registrados sem defeito concreto que
+exija isso.
 
 Podman somente; nunca instalar Docker, fazer prune global ou remover preexistentes.
 Recursos precisam de prefixo harbor-eval-kit-, label io.harbor-eval-kit.managed=true,
@@ -62,4 +73,6 @@ auto-resume ou estatística avançada nesta rodada. Não expandir o escopo silen
 Se o relatório já marcar a entrega concluída e o Git contiver o commit, informe isso e
 trate apenas uma nova solicitação explícita. Se ainda faltarem checks/commit, complete-os,
 atualize relatório e plano, e informe resultado e limitações honestamente.
+Antes de declarar pronto, confira os gates pendentes e o commit/estado do Git; a rodada paga
+acima não autoriza publicar artefatos sem essa verificação.
 ```

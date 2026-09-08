@@ -3,7 +3,7 @@ import { existsSync, readdirSync, lstatSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AgentEntry, Combo, ModelEntry, SkillEntry, SkillsetEntry } from "./types.ts";
-import { sanitize, jobName } from "./naming.ts";
+import { sanitize, jobName, MAX_JOB_NAME_LENGTH } from "./naming.ts";
 import { estimateCompareCost, checkCostGuard } from "./cost.ts";
 import { assertSafeId } from "./registry-validation.ts";
 
@@ -31,6 +31,7 @@ export interface ExperimentPlan {
   baselineIndex?: number;
   candidates: Candidate[];
 }
+export const MAX_JOB_PATH_LENGTH = 240;
 export function positiveInteger(raw: unknown, name: string): number {
   const value = Number(raw);
   if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} deve ser inteiro positivo`);
@@ -137,10 +138,26 @@ export function createExperimentPlan(input: { path: string; jobsDir?: string; jo
   }
   if (input.baselineIndex !== undefined && (!Number.isInteger(input.baselineIndex) || Number(input.baselineIndex) < 0 || Number(input.baselineIndex) >= candidates.length)) throw new Error("baselineIndex deve identificar um candidato da comparação");
   if (input.env && input.env !== "docker") throw new Error("este kit usa apenas o backend docker do Harbor conectado ao Podman");
-  const prefix = `${sanitize(input.jobPrefix ?? "cmp").slice(0, 24)}-${id}`;
+  const prefix = sanitize(input.jobPrefix ?? "cmp").slice(0, 16);
   const plan: ExperimentPlan = { version: 1, id, createdAt: new Date().toISOString(), taskPath: resolve(input.path), tasks: discoverExperimentTasks(input.path), jobsDir: resolve(input.jobsDir ?? "jobs"),
     nAttempts: positiveInteger(input.nAttempts ?? 1, "n-attempts"), concurrency: positiveInteger(input.concurrency ?? 1, "concurrency"), dryRun: input.dryRun === true, env: "docker", extra: parseExperimentExtra(input.extra),
-    candidates: candidates.map((c, i) => ({ ...c, id: `candidate-${i + 1}`, jobName: jobName(`${prefix}-${i + 1}`, { ...c, skillset: { ...c.skillset, label: sanitize(c.skillset.label).slice(0, 32) } }) })) };
+    candidates: candidates.map((c, i) => ({ ...c, id: `candidate-${i + 1}`, jobName: jobName(prefix, { ...c, skillset: { ...c.skillset, label: sanitize(c.skillset.label).slice(0, 32) } }, { runId: id, candidateIndex: i + 1 }) })) };
+  const longestTask = plan.tasks.reduce((longest, task) => basename(task).length > basename(longest).length ? task : longest, plan.tasks[0]);
+  for (const candidate of plan.candidates) {
+    if (candidate.jobName.length > MAX_JOB_NAME_LENGTH) throw new Error(`nome de job excede ${MAX_JOB_NAME_LENGTH} caracteres; encurte o prefixo`);
+    const jobPath = join(plan.jobsDir, candidate.jobName);
+    if (jobPath.length > MAX_JOB_PATH_LENGTH) {
+      throw new Error(`caminho do job excede ${MAX_JOB_PATH_LENGTH} caracteres; encurte jobs-dir antes de iniciar trials`);
+    }
+    const trialArtifactPath = join(plan.jobsDir, candidate.jobName, `${basename(longestTask)}__XXXXXXX`, "artifacts", "logs", "artifacts");
+    if (trialArtifactPath.length > MAX_JOB_PATH_LENGTH) {
+      throw new Error(`caminho de trial/artefatos excede ${MAX_JOB_PATH_LENGTH} caracteres; encurte jobs-dir ou task antes de iniciar trials`);
+    }
+  }
+  const experimentPath = join(plan.jobsDir, ".experiments", plan.id, "experiment.json");
+  if (experimentPath.length > MAX_JOB_PATH_LENGTH) {
+    throw new Error(`caminho do experimento excede ${MAX_JOB_PATH_LENGTH} caracteres; encurte jobs-dir antes de iniciar trials`);
+  }
   if (!Number.isSafeInteger(plan.tasks.length * plan.nAttempts * candidates.length)) throw new Error("volume de trials excede inteiro seguro");
   plan.title = (input.title as string | undefined)?.trim() || undefined;
   plan.description = (input.description as string | undefined)?.trim() || undefined;

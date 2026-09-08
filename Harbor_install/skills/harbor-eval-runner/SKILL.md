@@ -14,8 +14,9 @@ Use to run model, agent or skill evaluations.
 1. Run doctor.
 2. Confirm required secret names exist in `~/.harbor-eval-kit/secrets.env` without printing
    values. GUI and matrix CLI load them into child environments only; never pass them in argv.
-3. Confirm the agent name against `harbor run --help` (the `--agent` option lists every
-   accepted adapter). Do **not** use `harbor agent list` or `harbor agent schema <agent>` —
+3. Confirm the agent name against the installed Harbor `AgentFactory` (the `--agent` help
+   list can include enum values that are not registered). Do **not** use `harbor agent list`
+   or `harbor agent schema <agent>` —
    verified 2026-09-06 on Harbor 0.22.0: there is no `harbor agent` command at all ("No such
    command 'agent'"), and `harbor adapter` only offers `init`/`review`, not a listing. There is
    no machine-readable adapter list; this kit mirrors it by hand in `HARBOR_AGENTS`
@@ -23,7 +24,7 @@ Use to run model, agent or skill evaluations.
    `GET /api/harbor-agents`) — re-check it when upgrading
    Harbor.
 4. **Match the adapter to the model.** Only the model-agnostic (LiteLLM-backed) adapters —
-   `mini-swe-agent`, `terminus`, `aider`, `opencode`, `openhands`, `swe-agent`, `goose`,
+   `mini-swe-agent`, `terminus-2`, `aider`, `opencode`, `openhands`, `swe-agent`, `goose`,
    `langgraph`, … — accept an arbitrary `provider/model`. A vendor CLI adapter (`claude-code`,
    `codex`, `gemini-cli`, …) speaks its own vendor's API, so it is the wrong choice for a
    model-vs-model comparison across providers. `HARBOR_AGENTS` carries a `modelAgnostic` flag
@@ -69,6 +70,10 @@ exact normalized name and managed label all agree; otherwise preserve it for ins
 
 ## Watching a run in progress
 
+The executor creates `<jobsDir>/.experiments/<id>/logs/<candidateId>.log` before spawning each
+candidate. This already-redacted log includes Podman/Harbor gate and spawn diagnostics that can
+happen before Harbor creates a job directory. Use it for the earliest failure boundary.
+
 `harbor run` writes its logs into the jobs dir as it goes. To follow one without blocking on
 the process, read `<jobsDir>/<job>/job.log` and `<jobsDir>/<job>/<trial>/trial.log` directly,
 or use the GUI's read-only routes: `GET /api/logs/jobs` (job dirs, with a `running` flag taken
@@ -76,8 +81,14 @@ from each `result.json`'s `finished_at`), `GET /api/logs/files`, `GET /api/logs/
 (incremental by byte offset). A job's completion is `finished_at != null` in its `result.json`
 — poll that rather than guessing from elapsed time.
 
-The common executor decodes stdout/stderr as UTF-8 before masking secret values across chunk
-boundaries. Timeout and user cancellation stop only the tree rooted at the spawned Harbor process:
+Agent text logs under `<trial>/agent/`, verifier `test-output.txt`/`test-stdout.txt`, reward and
+`exception.txt` are also available through the guarded log routes. The structured history used
+by the Harbor viewer remains `<trial>/agent/trajectory.json`.
+
+The common executor overrides inherited Python locale settings with `PYTHONUTF8=1` and
+`PYTHONIOENCODING=utf-8`; this covers default `Path.read_text()` as well as stdout/stderr. It
+decodes process output before masking secret values across chunk boundaries. Timeout and user
+cancellation stop only the tree rooted at the spawned Harbor process:
 native `taskkill /T /F` on Windows, or a PPID snapshot followed by `SIGKILL` child-first on
 macOS/Linux. Resource cleanup still requires the manifest, exact name and managed label.
 

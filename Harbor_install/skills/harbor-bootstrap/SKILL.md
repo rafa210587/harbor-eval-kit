@@ -39,9 +39,10 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
    `uv tool install harbor==0.22.0`
 10. Validate:
     - `harbor --help`
-    - `harbor run --help` (its `--agent` option enumerates every accepted adapter — there is
-      no `harbor agent list`: verified 2026-09-06 on Harbor 0.22.0, that command does not
-      exist, and `harbor adapter` only offers `init`/`review`)
+    - `harbor run --help` as a candidate list, then the installed Harbor 0.22.0
+      `AgentFactory` mapping as the runtime authority — help can include enum values that are
+      not registered. There is no `harbor agent list`: verified 2026-09-06, that command does
+      not exist, and `harbor adapter` only offers `init`/`review`.
     - `harbor dataset list` or the equivalent reported by `harbor --help`
 11. Run the read-only connection gates before any container work:
     - `node scripts/installation.ts gate <manifest>`

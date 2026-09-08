@@ -66,6 +66,30 @@ known verdicts before using its ranking for a decision. Registering a Judge
 therefore needs the full chain: Secret → a Model whose value is literally one of those ids →
 Judge.
 
+Give every call a fresh client-generated `operationId` UUID. The backend creates
+`~/.harbor-eval-kit/operations/<id>/operation.json` and `operation.log` before `execHarbor`,
+then `GET /api/operations/<id>?offset=N` returns incremental, already-redacted progress. It
+passes the experiment's `--jobs-dir` and a deterministic
+`--job-name harbor-eval-kit-analysis-<id-without-hyphens>` to Harbor, so the judge's own
+`job.log`, `trial.log` and trajectory can be located while Analyze is still running.
+
+In the standalone GUI, keep **Path do job ou trial a analisar** separate from **Pasta de
+trabalho da análise**. The first is the existing input that the judge reads. The second is the
+new invocation's `jobsDir`, defaults to `jobs`, and controls where the deterministic internal
+job and its logs/report are written. Changing the workspace must not rewrite or relocate the
+input target. Record and display both paths explicitly.
+
+For a single source trial, Harbor copies `analysis.json` back into that trial and also writes
+the canonical result there. Keep the deterministic invocation name for audit, but offer a Logs
+shortcut only while `<jobsDir>/<harborJobName>` is a real directory. If that directory was
+removed or is missing, hide the shortcut. The durable `operation.log` remains available
+when no internal job exists. For a source job, inspect each trial's artifact and use the internal
+report for the aggregate. Preserve `analysisBatchId`, batch index and batch size for every rubric
+call; an incomplete batch cannot produce a score.
+Resolve this canonical path from the invocation's input, jobs directory and deterministic job
+name, never from terminal formatting. Exit zero without a valid canonical artifact is a failed
+operation, not a successful null analysis.
+
 **Validation mode.** To smoke-test that the analyze pipeline works at all without paying for a
 high-tier model, `POST /api/analyze` accepts `validationMode: true`, which is also exposed as a
 checkbox in the GUI (needed in two places: the Judges form, to even offer a non-curated model,
@@ -90,3 +114,12 @@ History and exported JSON/CSV are persisted records of completed or active exper
 do not promise automatic process resume after a server restart. Reopen the saved comparison and
 inspect its result files. An active row without a confirmed Harbor process remains uncertain until
 the process identity is verified.
+
+Likewise, a persisted Analyze operation in `starting`/`running` that does not belong to the
+current server process returns `executionUncertain: true`. Stop automatic polling, inspect its
+operation log and Harbor job, and never resume it or kill a persisted PID automatically.
+
+`harbor view` is a read-only inspector for local job logs, trajectories and analysis artifacts.
+The kit accepts and exposes only an HTTP loopback URL from that process. Its process log and
+lifecycle are observable through the same operation endpoint; do not treat opening the viewer
+as another evaluation.

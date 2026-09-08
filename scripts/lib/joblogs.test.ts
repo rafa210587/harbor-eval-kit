@@ -34,15 +34,18 @@ test("only known log artifacts are listable and tailable", () => {
     writeFileSync(join(job, "job.log"), "job\n");
     writeFileSync(join(job, "agent", "agent-stdout.txt"), "stdout\n");
     writeFileSync(join(job, "agent", "agent-stderr.txt"), "stderr\n");
+    writeFileSync(join(job, "agent", "mini-swe-agent.txt"), "agent\n");
     writeFileSync(join(job, "stdout.txt"), "stdout\n");
     writeFileSync(join(job, "stderr.txt"), "stderr\n");
     writeFileSync(join(job, "verifier", "test-stdout.txt"), "test\n");
+    writeFileSync(join(job, "verifier", "test-output.txt"), "test details\n");
     writeFileSync(join(job, "verifier", "reward.txt"), "1\n");
+    writeFileSync(join(job, "exception.txt"), "failure\n");
     writeFileSync(join(job, "verifier", "config.txt"), "private-config\n");
     writeFileSync(join(job, "secrets.env"), "PRIVATE_SECRET=fixture\n");
 
     const files = listJobLogFiles(root, "custom-job");
-    for (const expected of ["job.log", "agent/agent-stdout.txt", "agent/agent-stderr.txt", "stdout.txt", "stderr.txt", "verifier/test-stdout.txt", "verifier/reward.txt"]) {
+    for (const expected of ["job.log", "agent/agent-stdout.txt", "agent/agent-stderr.txt", "agent/mini-swe-agent.txt", "stdout.txt", "stderr.txt", "verifier/test-stdout.txt", "verifier/test-output.txt", "verifier/reward.txt", "exception.txt"]) {
       assert.ok(files.includes(expected), `expected ${expected} to be listed`);
     }
     assert.equal(files.includes("verifier/config.txt"), false);
@@ -54,6 +57,23 @@ test("only known log artifacts are listable and tailable", () => {
     mkdirSync(join(job, "named.log"));
     assert.equal(listJobLogFiles(root, "custom-job").includes("named.log"), false);
     assert.equal(tailJobLog(root, "custom-job", "named.log", 0), null);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("tail holds an incomplete UTF-8 code point until the next append", () => {
+  const root = mkdtempSync(join(tmpdir(), "hek-log-utf8-")), job = join(root, "job"), file = join(job, "trial.log");
+  mkdirSync(job);
+  try {
+    const complete = Buffer.from("before 🔑 after");
+    const split = Buffer.byteLength("before ") + 2;
+    writeFileSync(file, complete.subarray(0, split));
+    const first = tailJobLog(root, "job", "trial.log", 0)!;
+    assert.equal(first.content, "before ");
+    assert.equal(first.nextOffset, Buffer.byteLength("before "));
+    appendFileSync(file, complete.subarray(split));
+    const second = tailJobLog(root, "job", "trial.log", first.nextOffset)!;
+    assert.equal(second.content, "🔑 after");
+    assert.doesNotMatch(first.content + second.content, /�/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

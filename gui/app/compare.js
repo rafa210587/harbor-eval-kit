@@ -9,6 +9,7 @@ import { describeField } from "./field-help.js";
 import { renderEffectivePlan, renderResultsTable } from "./compare-render.js";
 import { startCompareLiveLog, stopCompareLiveLog } from "./compare-live.js";
 import { setupCompareAnalysis } from "./compare-analysis-controller.js";
+import { launchViewer } from "./viewer-live.js";
 import { renderStandaloneAnalysis } from "./analysis-render.js";
 
 // ================= COMPARE =================
@@ -156,10 +157,11 @@ async function refreshCostEstimate() {
     }
     el.textContent = `~$${est.estimateUsd.toFixed(4)} em ${est.totalTrials} trial(s)${semHistorico}`;
     el.style.color = cap > 0 && est.estimateUsd > cap ? "var(--warn)" : "var(--ok)";
-  } catch {
+  } catch (err) {
     if (!estimateGuard.isCurrent(token)) return;
-    el.textContent = "Preencha uma task/dataset válido para estimar o volume e custo.";
-    el.style.color = "";
+    el.textContent = `Prévia indisponível: ${err.message}`;
+    el.style.color = "var(--err)";
+    renderEffectivePreview(null);
   }
 }
 
@@ -199,13 +201,9 @@ $("#compare-sort-btn").addEventListener("click", () => {
   renderCompareTable();
 });
 
-$("#compare-view-btn").addEventListener("click", async () => {
+$("#compare-view-btn").addEventListener("click", () => {
   if (!lastCompareJobsDir) return;
-  try {
-    const res = await api("POST", "/api/view", { jobsDir: lastCompareJobsDir });
-    if (res.url) window.open(res.url, "_blank");
-    else alert("Viewer iniciado, mas nenhuma URL detectada em 8s ainda.");
-  } catch (err) { alert(err.message); }
+  void launchViewer(lastCompareJobsDir);
 });
 
 function updateDownloadLinks() {
@@ -216,6 +214,17 @@ function updateDownloadLinks() {
     link.hidden = !visible;
     if (visible) link.href = experimentDownloadUrl(lastCompareJobsDir, lastExperimentId, format);
   }
+}
+
+function labelSavedResults(plan) {
+  const label = $("#compare-results-label");
+  if (!plan?.id) {
+    label.hidden = true;
+    label.textContent = "Resultados salvos";
+    return;
+  }
+  label.hidden = false;
+  label.textContent = `Resultados salvos — ${plan.title || "Experimento sem título"} · ${plan.id}`;
 }
 
 $("#compare-form").addEventListener("submit", async (e) => {
@@ -245,6 +254,8 @@ $("#compare-form").addEventListener("submit", async (e) => {
   rememberExperiment(jobsDir, body.runId);
   allowAnalysis = false;
   const out = $("#compare-output");
+  stopCompareLiveLog({ clear: true });
+  labelSavedResults(null);
   $("#compare-table").innerHTML = "";
   $("#compare-post-actions").hidden = true;
   $("#compare-analyze-panel").hidden = true;
@@ -277,11 +288,11 @@ $("#compare-form").addEventListener("submit", async (e) => {
   const tick = setInterval(() => {
     const secs = Math.round((Date.now() - startedAt) / 1000);
     if (!cancelRequested) {
-      out.textContent = `Rodando há ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s… ${body.dryRun ? "(dry run)" : "pode demorar — acompanhe o log abaixo, na aba Logs, ou cancele ao lado."}`;
+      out.textContent = `Rodando há ${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s… ${body.dryRun ? "dry run: a saída capturada aparece abaixo, mesmo sem job." : "pode demorar — acompanhe a saída abaixo; quando o job aparecer, seus arquivos também ficam na aba Logs."}`;
     }
   }, 1000);
   out.textContent = "Rodando…";
-  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir, body.runId, {
+  const liveStop = startCompareLiveLog(jobsDir, body.runId, {
     onRecord: (record) => {
       lastCompareRows = record.rows;
       lastComparePlan = record.plan;
@@ -311,6 +322,7 @@ $("#compare-form").addEventListener("submit", async (e) => {
     const completedRecord = await api("GET", `/api/experiments/${encodeURIComponent(result.experimentId)}?jobsDir=${encodeURIComponent(jobsDir)}`);
     lastCompareRows = completedRecord.rows;
     lastComparePlan = completedRecord.plan;
+    labelSavedResults(completedRecord.plan);
     allowAnalysis = !body.dryRun;
     renderCompareTable();
     out.textContent = body.dryRun
@@ -351,6 +363,7 @@ setupExperimentHistory(record => {
   lastCompareJobsDir = record.plan.jobsDir;
   lastCompareRows = record.rows.map((row) => ({ ...row, analyses: record.analyses?.[row.jobName] || [] }));
   lastComparePlan = record.plan;
+  labelSavedResults(record.plan);
   allowAnalysis = !record.plan.dryRun && record.status !== "running";
   renderCompareTable();
   renderEffectivePreview(record.plan);
@@ -386,7 +399,7 @@ setupExperimentHistory(record => {
       item.className = "analysis-history-item";
       const rubric = document.createElement("p");
       rubric.className = "row-sub";
-      rubric.textContent = `Análise ${index + 1} · rubric: ${analysis.rubricId === "__default__" || !analysis.rubricId ? "padrão do Harbor" : analysis.rubricLabel || analysis.rubricId}`;
+      rubric.textContent = `Análise ${index + 1} · conjunto: ${analysis.rubricId === "__default__" || !analysis.rubricId ? "padrão do Harbor" : analysis.rubricLabel || analysis.rubricId}`;
       item.appendChild(rubric);
       const rendered = document.createElement("div");
       renderStandaloneAnalysis(rendered, analysis);

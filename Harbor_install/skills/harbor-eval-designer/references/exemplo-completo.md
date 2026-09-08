@@ -62,4 +62,4 @@ Esses dois agents não gastam API — é o jeito mais barato de descobrir que o 
 | `oracle` dá 0.0 | `test.sh` cobra algo que a `instruction.md` não pede, ou caminho errado |
 | `nop` dá 1.0 | teste não verifica nada de verdade (ex.: só checa se o arquivo existe) |
 | reward vazio | `test.sh` não escreveu `/logs/verifier/reward.txt` |
-| agent real falha sempre | instrução ambígua — leia a trajetória na aba Trajectories |
+| agent real falha sempre | instrução ambígua — leia a trajetória na aba Trajetórias |

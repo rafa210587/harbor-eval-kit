@@ -136,12 +136,12 @@ export function listExperiments(jobsDir: string) {
   }).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function appendExperimentAnalysis(jobsDir: string, id: string, jobName: string, analysis: any): void {
+export function appendExperimentAnalysis(jobsDir: string, id: string, jobName: string, analysis: any, secrets?: Record<string, string>): void {
   const record = readExperiment(jobsDir, id);
   if (!record.plan.candidates.some(c => c.jobName === jobName)) throw new Error("job não pertence ao experimento");
   (record.analyses[jobName] ??= []).push(analysis);
   const row = record.rows.find(r => r.jobName === jobName);
   if (row) Object.assign(row, summarizeAnalysisRecords(record.analyses[jobName]));
   writeExperiment(record);
-  writeReport(record.rows, join(experimentDirectory(jobsDir, id), "report"));
+  writeReport(record.rows, join(experimentDirectory(jobsDir, id), "report"), secrets);
 }

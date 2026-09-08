@@ -18,9 +18,9 @@
  * behaviour, and all of it fails *silently* rather than loudly when Harbor changes underneath
  * it. The list below is what breaks, and each entry was verified by hand against 0.22.0:
  *
- * - HARBOR_AGENTS (below) mirrors `harbor run --help`'s `--agent` choices.
- * - resolveAnalysisJson() parses the `Report: <path>` line `harbor analyze` prints, and the
- *   `{results: [...]}` shape it writes for a job-level path.
+ * - HARBOR_AGENTS (below) mirrors the registered `AgentFactory` values in Harbor 0.22.0.
+ * - resolveAnalysisArtifact() selects the canonical `analysis.json` from the explicit input
+ *   and deterministic analysis job, and normalizes the `{results: [...]}` job-level shape.
  * - parseResult() reads result.json's field names.
  * - materialize.ts writes a rubric TOML matching harbor/analyze/prompts/analyze-rubric.toml,
  *   and a judge prompt using harbor's {trial_path}/{task_section}/{criteria_guidance} markers.
@@ -84,7 +84,7 @@ export const PROVIDERS: ProviderEntry[] = [
 
 // ---------- Harbor agent adapters ----------
 /**
- * The `--agent` values the installed Harbor accepts, from `harbor run --help` (Harbor 0.22.0).
+ * The `--agent` values registered by the installed Harbor 0.22.0 AgentFactory.
  * The GUI used to only hint at four of these in prose, which made the most useful question
  * unanswerable from the UI: *which adapter can drive a non-Anthropic model?* Not every adapter
  * is model-agnostic -- a vendor CLI adapter (claude-code, codex, gemini-cli, ...) speaks its
@@ -95,11 +95,13 @@ export const PROVIDERS: ProviderEntry[] = [
  * Validated end-to-end on 2026-09-06: `mini-swe-agent` + `deepseek/deepseek-chat` scored
  * reward 1.0 on a real task for $0.0017.
  *
- * This is a hand-maintained mirror of Harbor's own list, not something Harbor exposes
- * machine-readably (`harbor agent list` does not exist -- confirmed: "No such command").
- * Re-check it against `harbor run --help` when upgrading Harbor.
+ * This is a hand-maintained mirror of Harbor's factory map, not something Harbor exposes
+ * machine-readably (`harbor agent list` does not exist). Re-check it against the installed
+ * `harbor/agents/factory.py` when upgrading Harbor. The Agents field remains free text so
+ * custom import paths and ACP registry shorthands remain usable even when absent here.
  */
 export const HARBOR_AGENTS: { value: string; modelAgnostic: boolean }[] = [
+  { value: "acp", modelAgnostic: false },
   { value: "aider", modelAgnostic: true },
   { value: "antigravity-cli", modelAgnostic: false },
   { value: "antigravity-sdk", modelAgnostic: false },
@@ -137,8 +139,6 @@ export const HARBOR_AGENTS: { value: string; modelAgnostic: boolean }[] = [
   { value: "qwen-coder", modelAgnostic: false },
   { value: "rovodev-cli", modelAgnostic: false },
   { value: "swe-agent", modelAgnostic: true },
-  { value: "terminus", modelAgnostic: true },
-  { value: "terminus-1", modelAgnostic: true },
   { value: "terminus-2", modelAgnostic: true },
   { value: "trae-agent", modelAgnostic: true },
   { value: "vibe", modelAgnostic: false },

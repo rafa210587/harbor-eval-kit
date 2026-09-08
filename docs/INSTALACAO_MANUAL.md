@@ -181,8 +181,12 @@ versão 0.22.0 e o Python isolado correspondente. Uma instalação preexistente 
 fora desse ambiente é preservada e bloqueia a conclusão de `install` e do gate READY até ser
 corrigida pelo responsável.
 
-O executor decodifica stdout/stderr como UTF-8 antes de mascarar valores secretos, inclusive
-quando um caractere ou segredo atravessa limites de chunks. Em timeout ou cancelamento, encerra
+O executor força `PYTHONUTF8=1` e `PYTHONIOENCODING=utf-8` no subprocesso, inclusive quando o
+host herdou valores conflitantes. Isso cobre tanto stdout/stderr quanto leituras Python sem
+`encoding=` explícito, como `Path.read_text()`. Em 07/09/2026, um smoke local no Python isolado
+do Harbor leu sem perda uma fixture com `mínima`, `padrão`, `Não` e emoji. A saída também é
+decodificada antes de mascarar valores secretos, inclusive quando um caractere ou segredo
+atravessa limites de chunks. Em timeout ou cancelamento, encerra
 somente a árvore derivada do processo que ele próprio iniciou: `taskkill /T /F` no Windows e um
 snapshot PPID com `SIGKILL` nos descendentes no macOS/Linux. A limpeza posterior continua
 dependendo das provas de propriedade do manifest.

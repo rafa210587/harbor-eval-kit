@@ -1,4 +1,4 @@
-import { escapeHtml } from "./core.js";
+import { escapeHtml, api } from "./core.js";
 import { candidateDifferences, judgeEvaluation, resultState } from "./compare-domain.js";
 
 export function renderEffectivePlan(box, plan) {
@@ -37,6 +37,29 @@ export function renderResultsTable(table, rows, plan, allowAnalysis, onAnalyze) 
     const skillset = row.skillset || candidate?.skillset?.label || "nenhuma";
     tr.innerHTML = `<td><strong>${escapeHtml(candidate?.label || row.agent || row.jobName)}</strong>${baseline}${dryRunBadge}<div class="row-sub">Modelo: ${escapeHtml(row.model || candidate?.model || "não reportado")} · Skills: ${escapeHtml(skillset)}</div></td><td>${escapeHtml(resultState(row, plan?.dryRun === true))}</td><td>${escapeHtml(reward)}</td><td>${escapeHtml(judgeEvaluation(row))}</td><td>${escapeHtml(cost)}</td><td>${escapeHtml(duration)}</td>`;
     const action = document.createElement("td");
+    if (plan?.jobsDir && candidate) {
+      const logs = document.createElement("button");
+      logs.className = "secondary";
+      logs.textContent = "Logs";
+      logs.title = "Abrir os arquivos reais do Harbor para este candidato";
+      logs.onclick = () => document.dispatchEvent(new CustomEvent("hek:open-operation-log", { detail: { jobsDir: plan.jobsDir, job: row.jobName } }));
+      action.appendChild(logs);
+      const processLog = document.createElement("details");
+      const processSummary = document.createElement("summary");
+      processSummary.textContent = "Saída do processo";
+      const processContent = document.createElement("pre");
+      processContent.className = "output";
+      processLog.append(processSummary, processContent);
+      processLog.addEventListener("toggle", async () => {
+        if (!processLog.open) return;
+        processContent.textContent = "Lendo saída persistida…";
+        try {
+          const tail = await api("GET", `/api/experiments/${encodeURIComponent(plan.id)}/logs/${encodeURIComponent(candidate.id)}?jobsDir=${encodeURIComponent(plan.jobsDir)}`);
+          processContent.textContent = tail.content || "Esta execução não tem saída de processo registrada; consulte Logs para os arquivos do Harbor.";
+        } catch (err) { processContent.textContent = `Erro ao ler saída: ${err.message}`; }
+      });
+      action.appendChild(processLog);
+    }
     if (row.ok && allowAnalysis) {
       const button = document.createElement("button");
       button.className = "secondary";

@@ -9,6 +9,7 @@ import { buildHarborRunArgs } from "./naming.ts";
 import { execHarbor, runPool } from "./exec.ts";
 import { loadSecretsEnv } from "./secrets.ts";
 import { parseResult, writeReport } from "./results.ts";
+import { openCandidateLog, type CandidateLogWriter } from "./experiment-logs.ts";
 
 export interface RunControl { cancelled: boolean; children: Set<ChildProcess>; jobsDir: string; jobNames: Set<string> }
 export function redactOutput(text: string, secrets: Record<string, string>): string {
@@ -46,16 +47,24 @@ export async function runExperiment(plan: ExperimentPlan, options: {
       else {
         control?.jobNames.add(c.jobName);
         let child: ChildProcess | undefined;
+        let candidateLog: CandidateLogWriter | undefined;
+        const captured = new Set<"stdout" | "stderr">();
         const args = buildHarborRunArgs({ taskPath: record.plan.taskPath, combo: c, jobsDir: plan.jobsDir, name: c.jobName, env: plan.env, nAttempts: String(plan.nAttempts), extra: plan.extra, autoYes: true, printConfigOnly: plan.dryRun });
         try {
           if (existsSync(join(plan.jobsDir, c.jobName))) throw new Error("diretório de job já existe; execução recusada");
-          const result = await execute(args, { extraEnv: secrets, dockerHostFix: options.dockerHostFix, onSpawn: process => { child = process; control?.children.add(process); } });
+          candidateLog = openCandidateLog(plan.jobsDir, plan.id, c.id, Object.values(secrets));
+          const result = await execute(args, { extraEnv: secrets, redactValues: Object.values(secrets), dockerHostFix: options.dockerHostFix, onSpawn: process => { child = process; control?.children.add(process); }, onOutput: (stream, text) => { captured.add(stream); candidateLog?.write(stream, text); } });
+          if (!captured.has("stdout")) candidateLog.write("stdout", result.stdout);
+          if (!captured.has("stderr")) candidateLog.write("stderr", result.stderr);
           row.durationSec = result.durationSec;
           if (result.code !== 0) row.error = redactOutput(result.stderr.trim() || `exit ${result.code}`, secrets).slice(-4000);
           else if (!plan.dryRun) Object.assign(row, parseResult(join(plan.jobsDir, c.jobName)));
           row.ok = result.code === 0 && !row.error && (!row.nErrors || row.nErrors === 0);
-        } catch (err) { row.error = redactOutput((err as Error).message, secrets); }
-        finally { if (child) control?.children.delete(child); }
+        } catch (err) {
+          row.error = redactOutput((err as Error).message, secrets);
+          candidateLog?.write("stderr", `${row.error}\n`);
+        }
+        finally { candidateLog?.close(); if (child) control?.children.delete(child); }
       }
       record.rows.push(row);
       writeExperiment(record);
@@ -66,7 +75,7 @@ export async function runExperiment(plan: ExperimentPlan, options: {
     record.finishedAt = new Date().toISOString();
     writeExperiment(record);
     const outPrefix = join(experimentDirectory(plan.jobsDir, plan.id), "report");
-    writeReport(rows, outPrefix);
+    writeReport(rows, outPrefix, secrets);
     return { ok: true, experimentId: plan.id, cancelled: control?.cancelled ?? false, rows, reportJson: `${outPrefix}.json`, reportCsv: `${outPrefix}.csv` };
   } catch (err) {
     record.status = "failed";

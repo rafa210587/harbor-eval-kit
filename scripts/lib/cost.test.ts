@@ -49,6 +49,18 @@ describe("histórico de custo", () => {
       assert.deepEqual(readCostHistory(dir), []);
     });
   });
+
+  test("lê agent e model do plano congelado para nomes compactos", () => {
+    withJobsDir((dir) => {
+      const experiment = join(dir, ".experiments", "run-1");
+      mkdirSync(experiment, { recursive: true });
+      job(dir, "cmp-80c5f48e-b827-4759-878f-0bd2da19d3d8-c1", 0.008, 2);
+      writeFileSync(join(experiment, "experiment.json"), JSON.stringify({
+        plan: { candidates: [{ jobName: "cmp-80c5f48e-b827-4759-878f-0bd2da19d3d8-c1", agent: "mini-swe-agent", model: "deepseek/deepseek-v4-flash" }] },
+      }));
+      assert.deepEqual(readCostHistory(dir), [{ agent: "mini-swe-agent", model: "deepseek-deepseek-v4-flash", costUsd: 0.008, trials: 2 }]);
+    });
+  });
 });
 
 describe("estimativa", () => {

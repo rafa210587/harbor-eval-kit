@@ -27,6 +27,7 @@ export * from "./paths.ts";
 export * from "./naming.ts";
 export * from "./secrets.ts";
 export * from "./joblogs.ts";
+export * from "./operations.ts";
 export * from "./tasks.ts";
 export * from "./litellm.ts";
 export * from "./cost.ts";

@@ -163,7 +163,8 @@ obrigatórios:
 - **Skills** e **Skill Sets** — escreva instruções ou agrupe Skills (opcionais).
 - **Agentes** — monte um perfil com `agentValue` do Harbor, modelo padrão, instructions e
   skill sets padrão.
-- **Critérios**, **Rubrics** e **Juízes** — configure avaliação qualitativa (opcional).
+- **Critérios**, **Conjuntos de critérios** e **Juízes** — configure avaliação qualitativa
+  (opcional; o Harbor chama cada conjunto de `rubric`).
 - **Tasks** — crie uma task real (`harbor init --task`) e preencha os arquivos no editor.
   Os `evals/*/seed-task` são stubs de template e precisam ser preenchidos antes de comparar.
 - **Novo experimento** — escolha agentes, task e volume, revise a prévia e execute. Reward,
@@ -435,9 +436,9 @@ ajuda a não confundir os nomes parecidos:
 |---|---|---|---|
 | **Skill** | Instruções que um agent pode receber | Conjunto de skills e Agent | registry; snapshot da execução |
 | **Skill Set** | Pacote nomeado de 1+ Skills | Agent (`defaultSkillsetIds`), linha do Compare | — (é só uma lista de ids) |
-| **Criterion** | Um critério de avaliação: `name`+`description`+`guidance` | Rubric (`criterionIds`) | vira um bloco `[[criteria]]` no `.toml` do rubric |
-| **Rubric do juiz** | Pacote nomeado de 1+ Critérios | Analyze / botão "Analisar" do Compare | definição no registry; conteúdo serializado para a chamada |
-| **Juiz** | Perfil de uso do avaliador: `agentValue`, modelo, instruções custom (opcional) e Rubrics padrão | Compare, Analyze, Task↔Rubric default | registry; sessão de Analyze congelada |
+| **Critério** | Uma pergunta de avaliação: `name`+`description`+`guidance` | Conjunto de critérios (`criterionIds`) | vira um bloco `[[criteria]]` no `.toml` do `rubric` |
+| **Conjunto de critérios** | Pacote nomeado de 1+ Critérios; chamado de `rubric` pelo Harbor | Analyze / botão "Analisar" do Compare | definição no registry; conteúdo serializado para a chamada |
+| **Juiz** | Perfil de uso do avaliador: `agentValue`, modelo, instruções custom (opcional) e Conjuntos de critérios padrão | Compare, Analyze, preferência de Task | registry; sessão de Analyze congelada |
 | **Model** | Atalho de label → `provider/modelo` | Agent (`modelId`), linha do Compare (override) | passado direto como `--model` pro Harbor |
 | **Agent** | "Perfil de uso": `agentValue` do Harbor + model padrão + instructions + default skill sets | linha do Compare | passado como `--agent`/`--model`/`--skill` pro Harbor |
 | **Task** | O problema em si: `task.toml` + `instruction.md` + `Dockerfile` + `solve.sh` + `test.sh` | Compare (`path`) | `evals/<lang>/<nome>/` ou `datasets/<nome>/<nome>/` |
@@ -445,7 +446,7 @@ ajuda a não confundir os nomes parecidos:
 | **Trial** | Uma tentativa dentro de um job (normalmente 1, a menos que `n-attempts` > 1) | — | `<jobs-dir>/<job-name>/<trial>/` |
 | **Reward** | Número (0/1 ou fração) que `tests/test.sh` escreve em `/logs/verifier/reward.txt` | — | dentro do `result.json` do job |
 | **Analysis** | Veredito PASS/FAIL/N-A por critério, gerado pelo juiz LLM sobre um job já rodado | — | `analysis.json` dentro do diretório analisado |
-| **Task↔Rubric default** | 0+ Judge Rubrics + 1 Judge "pinados" numa Task, pra pré-marcar sozinhos no painel Analisar do Compare | Task (editor, seção "Judge padrão desta task") | `~/.harbor-eval-kit/task-rubric-defaults.json`, chaveado pelo path da task |
+| **Padrão de análise da Task** | 0+ Conjuntos de critérios + 1 Juiz guardados numa Task, para pré-marcar o painel Analisar | Task (editor, seção "Juiz padrão desta task") | `~/.harbor-eval-kit/task-rubric-defaults.json`, chaveado pelo path da task |
 
 **Agent (Harbor_install) ≠ Agent (GUI)**: `Harbor_install/agents/*.md` são papéis pro Claude
 Code operar o kit (`environment-doctor`, `harbor-installer`, ...). A área "Agentes" da GUI é
@@ -548,15 +549,15 @@ cada linha. As instruções e Skills resolvidas entram no snapshot pelo
 
 **Valores de `agentValue` aceitos** pelo Harbor instalado aparecem no autocomplete do próprio
 campo (`<datalist>` alimentado por `GET /api/harbor-agents`, cuja fonte é a constante
-`HARBOR_AGENTS` em `scripts/lib/catalog.ts` — espelho mantido à mão de `harbor run --help`,
-porque `harbor agent list` não existe neste Harbor). O campo continua **livre**: o Harbor
+`HARBOR_AGENTS` em `scripts/lib/catalog.ts` — espelho mantido à mão do `AgentFactory` do
+Harbor 0.22.0, porque `harbor agent list` não existe neste Harbor). O campo continua **livre**: o Harbor
 também aceita um import path customizado (`module.path:ClassName`) e atalhos ACP
 (`acp:opencode@1.3.9`), que um `<select>` fechado impediria.
 
 A distinção que mais importa na hora de comparar models está marcada na lista:
 
 - **Model-agnostic** (LiteLLM por baixo, aceitam qualquer `provider/modelo`): `mini-swe-agent`,
-  `terminus`/`-1`/`-2`, `aider`, `opencode`, `openhands`, `openhands-sdk`, `swe-agent`,
+  `terminus-2`, `aider`, `opencode`, `openhands`, `openhands-sdk`, `swe-agent`,
   `goose`, `langgraph`, `cline-cli`, `dspy-rlm`, `deerflow`, `trae-agent`. São os únicos com
   que faz sentido rodar "mesmo agent, dois providers diferentes".
 - **CLIs de um fornecedor**: `claude-code`, `codex`, `gemini-cli`, `cursor-cli`,
@@ -572,8 +573,10 @@ Um critério reutilizável que um juiz LLM usa pra avaliar uma run: `name` (iden
 como PASS/FAIL/N-A). O template segue o formato real que o próprio Harbor usa internamente
 (achado em `harbor/analyze/prompts/analyze-rubric.toml` do pacote instalado).
 
-### 10.7 Rubrics do juiz
-Agrupa Critérios por checkbox — mesma relação Skill→Conjunto de skills. O conteúdo é
+### 10.7 Conjuntos de critérios
+Agrupa Critérios por checkbox — mesma relação Skill→Conjunto de skills. O Harbor chama esse
+pacote de `rubric`; a GUI usa **Conjunto de critérios** para deixar clara a diferença entre uma
+pergunta individual e o grupo reutilizável. O conteúdo é
 serializado temporariamente por `serializeRubricToml` no schema exato que
 `harbor analyze --rubric` espera; o cadastro e os inputs de uma execução permanecem no
 registry e no snapshot do experimento, respectivamente.
@@ -596,10 +599,17 @@ Mesma relação que Agent tem com Model/Skill Set, só que do lado de quem julga
 **quem executa o julgamento** (`agentValue`, o mesmo `--agent` do Harbor — por padrão
 `claude-code`), **com qual model** (dropdown filtrado só pros models cadastrados em **Modelos** cujo
 `provider/modelo` bate com a lista curada high-tier do kit — nunca o padrão barato do próprio
-Harbor, `claude-haiku-4-5`), **instruções customizadas** (opcional) e **quais Judge Rubrics
-marcar por padrão**. Depois de cadastrado, escolha esse Judge no painel Analisar de **Novo
-experimento**, em **Análise avulsa**, ou no pin de uma Task — em vez de escolher
-model/agent/rubric soltos toda run.
+Harbor, `claude-haiku-4-5`), **instruções customizadas** (opcional) e **quais Conjuntos de
+critérios marcar por padrão**. Esse vínculo aparece junto do modelo, antes do editor longo de
+instruções, e a lista do juiz salvo mostra os nomes vinculados. Depois de cadastrado, escolha
+esse Juiz no painel Analisar de **Novo experimento**, em **Análise avulsa**, ou no padrão de
+uma Task.
+
+Os conjuntos do Juiz são uma **pré-seleção**, não uma regra escondida. No Novo experimento e
+na Análise avulsa, podem ser alterados antes de executar. Uma Task pode guardar sua própria
+seleção, que substitui a pré-seleção do Juiz quando aquela Task é usada. No Compare, a sessão
+de análise congela a escolha final do operador antes da primeira chamada, por isso editar o
+cadastro depois não muda um lote em andamento.
 
 **Importante — isto NÃO é uma skill de verdade.** O `harbor analyze` roda um agente Harbor real
 com acesso a arquivo (não é uma chamada de LLM crua: ele lê `result.json`,
@@ -641,11 +651,12 @@ O campo "Steps" do formulário de criação decide entre task de **um passo só*
 ordem; se um passo falhar, os seguintes são pulados). Use N>0 só quando a task modela um fluxo
 de várias etapas dependentes entre si.
 
-**Rubrics/Judge padrão da task**: o editor também tem "Judge padrão desta task" (dropdown de
-Juízes) e "Rubrics padrão desta task" (checkbox, pode marcar **vários Rubrics**, não
-só um; escolher um Judge pré-marca os rubrics padrão dele aqui, ainda editável). Isso não roda
+**Juiz e conjuntos de critérios padrão da task**: o editor também tem "Juiz padrão desta task"
+(dropdown de Juízes) e "Conjuntos de critérios padrão desta task" (checkbox, pode marcar
+**vários conjuntos**, não só um; escolher um Juiz pré-marca os padrões dele aqui, ainda
+editáveis). Isso não roda
 nada sozinho — é só um "lembrete pinado": quando essa task é usada numa run do Compare, o
-painel Analisar já abre com esse Judge e esses rubrics pré-selecionados, prontos pra clicar em
+painel Analisar já abre com esse Juiz e esses conjuntos pré-selecionados, prontos pra clicar em
 "Analisar" (ver 10.10 e 11). Fica salvo em
 `~/.harbor-eval-kit/task-rubric-defaults.json`, indexado pelo path da task — não dentro da
 pasta da task, pra não misturar preferência de UI com o conteúdo da task em si.
@@ -669,14 +680,15 @@ Harbor grava — ver seção 11 pra detalhes de onde vem cada número.
 
 Depois do resultado: botão **Ver trajetórias** (abre `harbor view` já no jobs-dir certo) e um
 painel opcional **Analisar** por linha (ou "Analisar todas") usando um **Judge** +
-**um ou mais Judge Rubrics** (checkbox — cada um marcado dispara uma chamada de análise
+**um ou mais Conjuntos de critérios** (checkbox — cada um marcado dispara uma chamada de análise
 separada, os resultados aparecem empilhados, cada um com o custo daquela análise). Antes do
 lote, a GUI cria uma sessão de análise (`POST /api/analysis-sessions`) que congela o adaptador,
-modelo, prompt e todos os Rubrics escolhidos. Cada chamada do lote leva esse ID, então edições
+modelo, prompt e todos os conjuntos escolhidos. Cada chamada do lote leva esse ID, então edições
 posteriores no cadastro não alteram a análise em andamento; o ID também fica persistido junto
-ao resultado. **Análise avulsa** continua sendo uma chamada independente por solicitação.
+ao resultado. **Análise avulsa** também cria uma sessão antes de percorrer os conjuntos marcados,
+para que todas as chamadas daquele clique usem os mesmos conteúdos e modelo.
 Se a task
-rodada tiver Judge/rubrics pinados (seção 10.9), o painel já abre com eles pré-selecionados —
+rodada tiver Juiz/conjuntos guardados (seção 10.9), o painel já abre com eles pré-selecionados —
 pode ajustar antes de clicar.
 
 ### 10.10-b Guarda de gasto (teto + estimativa)
@@ -744,8 +756,12 @@ Aba **Configuração**. Agentes, Modelos, Skills, Conjuntos de skills, Critério
 revisa em PR. **Exportar** baixa um `.json` com todas as registries (`GET /api/config/export`);
 **Importar** aplica um bundle (`POST /api/config/import`, `scripts/lib/bundle.ts`).
 
-**Nunca inclui secret** — um Model é só `label` + `provider/modelo`, nunca uma chave; testado
-explicitamente (`bundle.test.ts`, "nunca inclui nada parecido com secret").
+**Nunca inclui secret** — um Model é só `label` + `provider/modelo`, nunca uma chave. Antes de
+devolver o bundle, iniciar uma resposta de relatório ou gravar um relatório local, o guard
+fail-closed percorre campos e textos aninhados, procurando valores de secrets conhecidos, nomes
+de arquivos sensíveis e padrões de credencial. Ao detectar suspeita, recusa a operação antes
+dos headers ou dos bytes do arquivo; o contrato é coberto por `export-safety.test.ts` e
+`export-route-security.test.ts`.
 
 **Idempotente por id**: o bundle preserva o id original de cada item, e importar faz *upsert*
 (atualiza se o id já existe localmente, insere se não existe) — importar o mesmo bundle duas
@@ -784,9 +800,19 @@ quando forem necessários, o operador deve registrar ou fixar esses valores no p
 Isso preserva os inputs locais, mas não congela o comportamento do provider nem o conteúdo de
 imagens remotas sem digest. Reiniciar o servidor não retoma automaticamente processos.
 
-Os relatórios podem ser baixados em JSON ou CSV pela área **Novo experimento**. O exportador
-CSV neutraliza células que começariam com `=`, `+`, `-` ou `@`, para que abrir o arquivo numa
-planilha não interprete texto de resultado como fórmula.
+Os diretórios de candidatos têm nomes curtos (`prefixo-runId-cN`) para preservar margem no
+limite de caminho do Windows. O `experiment.json` mantém o agente, modelo e conjunto de skills
+completos usados na linha, então essa informação continua legível na GUI e na CLI. O
+planejamento verifica também um caminho representativo de trial/artefatos antes de preparar
+qualquer trial; se exceder o limite conservador, informa para encurtar `jobs-dir` ou a task.
+
+Os relatórios podem ser baixados em JSON ou CSV pela área **Novo experimento**. A mesma guarda
+fail-closed é aplicada ao conteúdo do relatório antes de iniciar a resposta HTTP ou gravar os
+arquivos locais; ela também cobre texto de erro, saída do juiz e estruturas aninhadas. O
+exportador CSV neutraliza células que começariam com `=`, `+`, `-` ou `@`, para que abrir o
+arquivo numa planilha não interprete texto de resultado como fórmula. Isso detecta os padrões e
+valores conhecidos no momento da exportação; não substitui a revisão de artefatos externos que
+o operador escolha compartilhar.
 
 ### 10.11 Datasets
 **O que é**: um pacote de tasks já prontas publicado por terceiros — o oposto de criar sua
@@ -804,9 +830,10 @@ automaticamente no picker do Compare — não virou um conceito ou fluxo separad
 `job.log` do job, `trial.log` de cada tentativa, a saída bruta do agent e a do verificador.
 **Por que existe**: o Compare é síncrono (um POST que só responde no fim, ver seção 13), então
 uma run de vários minutos parecia travada. Agora o painel **Log ao vivo** aparece dentro do
-próprio Compare durante a run, e esta aba mostra o mesmo — inclusive depois que terminou, e
-para runs iniciadas pelo CLI ou por um `gui-server` que já reiniciou (o estado vem do disco,
-não da memória deste processo).
+próprio Compare durante a run. Ele mostra primeiro o `stdout`/`stderr` capturado pelo kit e,
+assim que existir um job real, passa a acompanhar também os arquivos do Harbor. Esta aba lê os
+arquivos persistidos do job — inclusive depois que terminou e para runs iniciadas pelo CLI.
+Um dry run ainda mostra a saída capturada no Compare, mas pode não criar um job para listar aqui.
 
 **Como funciona**: três rotas somente-leitura — `GET /api/logs/jobs` (lista os jobs, marcando
 com `▶` o que ainda está rodando, lido do `finished_at: null` no `result.json` do próprio
@@ -834,8 +861,12 @@ não basta — reward baixo e você quer ver onde travou, reward alto e quer con
 um atalho, ou só quer entender o estilo de trabalho do agent. Complementa o Analyze: Analyze
 dá um veredito resumido de um LLM juiz; aqui você vê a trajetória inteira direto, sem
 intermediário. **Como usar**: aponte pro mesmo jobs-dir da run (o botão "Ver trajetórias" no
-Compare já faz isso sozinho) e clique "Start viewer" — abre um link numa aba nova. É um
-processo de vida longa (fica escutando numa porta) até clicar "Stop" na lista abaixo; a lista
+Compare já faz isso sozinho) e clique **Iniciar visualizador**. A tela trava o início duplicado,
+mostra tempo, estado e o log redigido enquanto o Harbor prepara o servidor. Quando a URL HTTP
+local (`localhost`, `127.0.0.1` ou `::1`) fica pronta, ela aparece como link e a GUI tenta abri-la
+numa nova aba; endereços externos ou de outro protocolo são recusados. O botão do Compare leva
+para esse mesmo painel, já com a pasta correta. É um
+processo de vida longa (fica escutando numa porta) até clicar **Parar** na lista abaixo; a lista
 de viewers ativos é só em memória e não sobrevive a um restart do `gui-server` (os processos
 continuam de pé, só a lista que esquece deles — pare manualmente se precisar).
 
@@ -844,11 +875,41 @@ Uso ad-hoc do `harbor analyze` num path específico, escolhendo um Judge já cad
 fluxo normal, use o botão **Analisar** direto na tabela de resultados de **Novo experimento**
 (seção 10.10); esta área existe quando você já tem um path exato em mente.
 
+O formulário separa dois caminhos que têm funções diferentes:
+
+- **Path do job ou trial a analisar** é o input já existente que o juiz lê. Ele pode apontar
+  para um job inteiro ou para um trial específico e não é movido pela análise.
+- **Pasta de trabalho da análise** é o `jobsDir` passado à nova invocação, com padrão `jobs`.
+  É onde o Harbor grava o job interno determinístico, seus logs e, ao analisar um job inteiro,
+  o relatório agregado. Alterar esse campo não troca o input analisado.
+
+Use uma pasta de trabalho explícita quando quiser que o job interno fique ao lado de um conjunto
+de jobs já organizado. O cartão persistente mostra separadamente o alvo, a pasta de trabalho,
+o nome do job interno e o caminho final do artefato; use esses valores, sem deduzir um caminho a
+partir do outro.
+
+Ao escolher o Juiz, todos os Conjuntos de critérios padrão dele são pré-marcados e continuam
+editáveis. Cada conjunto marcado produz uma chamada paga separada e um bloco de resultado
+próprio; sem marcação, a chamada usa os critérios nativos `reward_hacking` e
+`task_specification` do Harbor. Antes da primeira chamada, a GUI cria uma sessão que congela
+juiz, modelo, prompt e o conteúdo de todos os conjuntos marcados. Assim, uma edição em outra aba
+durante o processamento não muda as chamadas seguintes daquele clique.
+
 A resposta é mostrada como resumo de checks e custo reportado, seguida dos trials com badges
 PASS/FAIL/N-A/desconhecido e explicações; o JSON bruto fica em **Detalhes técnicos**. Modo
 validação recebe badge explícito e não vale como avaliação. Um trial sem checks completos gera
 aviso persistente e nenhuma nota é calculada. A operação trava o botão, mostra o tempo decorrido
 e não dispara uma chamada automática depois de salvar credenciais.
+
+Cada chamada também cria um cartão persistente de operação com o path analisado, pasta de
+trabalho, estado, log incremental, caminho do artefato e atalho para abrir o job interno na aba
+**Logs** quando esse diretório realmente existe. O nome de invocação permanece na auditoria; se
+o diretório `<jobsDir>/<harborJobName>` tiver sido removido ou estiver ausente, o atalho fica
+oculto e o `operation.log` continua disponível. Enquanto a
+operação estiver ativa, recarregar a página retoma esse acompanhamento pelo registro em disco; os
+oito cartões mais recentes também são reconstituídos após o término. Se o POST original se perder,
+o resultado concluído é reexibido a partir desse registro. O mesmo
+acompanhamento aparece nas análises iniciadas em **Novo experimento**.
 
 O bootstrap é process-local: `execHarbor` detecta `analyze` e executa o Python do Harbor com
 `-m harbor_eval_kit.cli`. O módulo verifica o gate do Harbor **0.22.0**, valida a entrada
@@ -893,13 +954,13 @@ calculado no lado do kit (pass/total de critérios aplicáveis) entre resultados
 — o Harbor avalia uma trajetória por vez, não várias numa chamada só; quem rankeia é a
 própria GUI (`analyzeRow`/`compare-sort-btn` em `gui/app/compare.js`).
 
-**Um resultado pode ser analisado por vários Rubrics ao mesmo tempo.** O checkbox-picker do painel
-Analisar (seção 10.10) aceita marcar mais de um Rubric; antes do lote, a sessão congela modelo,
-adapter, prompt e todos os Rubrics. `analyzeRow` faz **uma chamada `POST /api/analyze` por
-Rubric** (sequencial, não em paralelo), cada uma gerando seu próprio `analysis.json`/veredito,
-exibidos empilhados sob o nome do Rubric. O `passRate`
-usado pra ordenar soma pass/aplicável de **todos** os rubrics analisados naquele resultado —
-então rodar 2 rubrics (ex.: "Python Quality" + "Reward Hacking Check") sobre o mesmo job conta
+**Um resultado pode ser analisado por vários Conjuntos de critérios ao mesmo tempo.** O painel
+Analisar (seção 10.10) aceita marcar mais de um conjunto; antes do lote, a sessão congela modelo,
+adapter, prompt e todos os conjuntos. `analyzeRow` faz **uma chamada `POST /api/analyze` por
+conjunto** (sequencial, não em paralelo), cada uma gerando seu próprio `analysis.json`/veredito,
+exibidos empilhados sob o nome do conjunto. O `passRate`
+usado pra ordenar soma pass/aplicável de **todos** os conjuntos analisados naquele resultado —
+então rodar 2 conjuntos (ex.: "Python Quality" + "Reward Hacking Check") sobre o mesmo job conta
 os critérios dos dois juntos, não substitui um pelo outro. Se nenhum rubric for marcado, cai
 no rubric padrão do próprio Harbor (`reward_hacking` + `task_specification`).
 
@@ -914,9 +975,9 @@ O servidor recusa análises sobrepostas para o mesmo job/trial enquanto já exis
 ativa naquele processo (`scripts/lib/analysis-lock.ts`). Esse bloqueio é local ao servidor e
 não coordena processos em máquinas ou instâncias diferentes.
 
-Pra não ter que marcar isso toda vez: uma Task pode ter um Judge + rubrics **pinados**
+Pra não ter que marcar isso toda vez: uma Task pode guardar um Juiz + conjuntos de critérios
 (seção 10.9) — o painel Analisar detecta que a run atual usou aquela task e já vem com esse
-Judge e esses rubrics pré-selecionados, sem rodar nada sozinho (o clique em "Analisar"
+Juiz e esses conjuntos pré-selecionados, sem rodar nada sozinho (o clique em "Analisar"
 continua manual).
 
 ### Custo, tokens e velocidade

@@ -12,7 +12,7 @@ import { readJsonBody } from "./lib/http-body.ts";
 import { discoverProviderModels } from "./lib/provider-probe.ts";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { spawn, type ChildProcess } from "node:child_process";
 import { registerExperimentRoutes, isExperimentActive } from "./experiment-routes.ts";
@@ -22,6 +22,7 @@ import { redactOutput } from "./lib/experiment-runner.ts";
 import { freezeAnalysisInputs } from "./lib/analysis-inputs.ts";
 import { createAnalysisSession, readAnalysisSession, sessionAnalysisInput } from "./lib/analysis-session.ts";
 import { withAnalysisTarget } from "./lib/analysis-lock.ts";
+import { viewerUrlFromOutput } from "./lib/viewer-process.ts";
 import {
   type CriterionEntry,
   type JudgeEntry,
@@ -33,6 +34,10 @@ import {
   JUDGE_MODELS,
   PROVIDERS,
   buildHarborEnv,
+  createStreamingRedactor,
+  createOperation,
+  appendOperationLog,
+  assertOperationId,
   deleteSecret,
   execCommand,
   execHarbor,
@@ -44,9 +49,11 @@ import {
   listTasks,
   loadSecretsEnv,
   newId,
-  resolveAnalysisJson,
+  resolveAnalysisArtifact,
   parseResult,
   readRegistry,
+  readOperation,
+  operationExecutionUncertain,
   readTaskFiles,
   exportConfigBundle,
   importConfigBundle,
@@ -59,6 +66,7 @@ import {
   listJobLogFiles,
   listJobLogs,
   tailJobLog,
+  terminateProcessTree,
   resolveJudgePromptPath,
   resolvePodmanDockerHost,
   resolveRubricCriteria,
@@ -66,6 +74,7 @@ import {
   setTaskRubricDefault,
   saveSecret,
   testProviderKey,
+  updateOperation,
   writeTaskFiles,
 } from "./lib/harbor.ts";
 
@@ -154,7 +163,7 @@ addRoute("GET", "/api/providers", (_req, res) => {
 
 // The `--agent` values the installed Harbor accepts. Served from the one server-side list so
 // the Agents/Judges forms can offer real autocomplete instead of asking the user to remember
-// 42 adapter names (and to surface which ones can drive an arbitrary provider's model).
+// Adapter names (and which ones can drive an arbitrary provider's model).
 addRoute("GET", "/api/harbor-agents", (_req, res) => {
   sendJson(res, 200, { agents: HARBOR_AGENTS, freeAgents: FREE_AGENTS });
 });
@@ -195,6 +204,16 @@ addRoute("GET", "/api/logs/tail", (req, res) => {
   const tail = tailJobLog(jobsDir, job, file, offset, loadSecretsEnv());
   if (!tail) return sendJson(res, 404, { ok: false, error: "log file not found (or outside the jobs dir)" });
   sendJson(res, 200, tail);
+});
+
+addRoute("GET", "/api/operations/:id", (req, res, params) => {
+  const url = new URL(req.url ?? "", "http://localhost");
+  const rawOffset = url.searchParams.get("offset") ?? "0";
+  const offset = Number(rawOffset);
+  if (!Number.isSafeInteger(offset) || offset < 0) return sendJson(res, 400, { ok: false, error: "offset deve ser inteiro não negativo" });
+  const operation = readOperation(params.id, offset, loadSecretsEnv());
+  const executionUncertain = operationExecutionUncertain(operation, activeOperationIds);
+  sendJson(res, 200, { ...operation, executionUncertain });
 });
 
 addRoute("POST", "/api/secrets/test", async (_req, res, _params, body) => {
@@ -365,63 +384,100 @@ interface ViewProcess {
   child: ChildProcess;
   url: string | null;
   jobsDir: string;
+  status: "starting" | "running" | "failed";
+  error?: string;
+  stopRequested: boolean;
 }
 
 const viewProcesses = new Map<string, ViewProcess>();
+const activeOperationIds = new Set<string>();
 
 addRoute("POST", "/api/view", async (_req, res, _params, body) => {
   const { jobsDir } = body;
   if (!jobsDir) return sendJson(res, 400, { ok: false, error: "jobsDir is required" });
 
   const id = newId();
+  const secrets = loadSecretsEnv();
+  createOperation({ id, type: "view", targetPath: resolve(String(jobsDir)), jobsDir: resolve(String(jobsDir)) }, secrets);
+  activeOperationIds.add(id);
   const child = spawn("harbor", ["view", String(jobsDir)], { env: buildHarborEnv() });
+  const view: ViewProcess = { id, child, url: null, jobsDir: String(jobsDir), status: "starting", stopRequested: false };
+  viewProcesses.set(id, view);
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
   let buffer = "";
   let settled = false;
 
   const url = await new Promise<string | null>((resolvePromise) => {
-    const onData = (d: Buffer) => {
-      buffer += d.toString();
-      const match = buffer.match(/https?:\/\/\S+/);
-      if (match && !settled) {
-        settled = true;
-        resolvePromise(match[0]);
+    const finish = (value: string | null) => {
+      if (!settled) { settled = true; resolvePromise(value); }
+    };
+    const onText = (channel: "stdout" | "stderr", text: string) => {
+      appendOperationLog(id, channel, text, secrets);
+      buffer = (buffer + text).slice(-16_000);
+      const detectedUrl = viewerUrlFromOutput(buffer);
+      if (detectedUrl && !view.url) {
+        view.url = detectedUrl;
+        view.status = "running";
+        updateOperation(id, { status: "running" }, secrets);
+        finish(view.url);
       }
     };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("error", () => {
-      if (!settled) {
-        settled = true;
-        resolvePromise(null);
-      }
+    const stdout = createStreamingRedactor(Object.values(secrets), text => onText("stdout", text));
+    const stderr = createStreamingRedactor(Object.values(secrets), text => onText("stderr", text));
+    child.stdout.on("data", (text: string) => stdout.write(text));
+    child.stderr.on("data", (text: string) => stderr.write(text));
+    child.once("error", (error) => {
+      view.status = "failed";
+      view.error = redactOutput(error.message, secrets);
+      updateOperation(id, { status: "failed", error: view.error, finishedAt: new Date().toISOString() }, secrets);
+      activeOperationIds.delete(id);
+      finish(null);
     });
-    setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        resolvePromise(null);
+    child.once("exit", (code, signal) => {
+      stdout.end();
+      stderr.end();
+      if (view.stopRequested) {
+        updateOperation(id, { status: "succeeded", finishedAt: new Date().toISOString() }, secrets);
+        viewProcesses.delete(id);
+      } else {
+        view.status = "failed";
+        view.error = `harbor view terminou antes de ser parado (código ${code ?? "null"}, sinal ${signal ?? "nenhum"})`;
+        updateOperation(id, { status: "failed", error: view.error, finishedAt: new Date().toISOString() }, secrets);
       }
-    }, 8000);
+      activeOperationIds.delete(id);
+      finish(null);
+    });
+    setTimeout(() => finish(null), 8000);
   });
 
-  viewProcesses.set(id, { id, child, url, jobsDir: String(jobsDir) });
-  child.on("exit", () => viewProcesses.delete(id));
-  sendJson(res, 200, { ok: true, id, url });
+  sendJson(res, view.status === "failed" ? 500 : 200, { ok: view.status !== "failed", id, url, status: view.status, error: view.error });
 });
 
 addRoute("GET", "/api/view", (_req, res) => {
   sendJson(
     res,
     200,
-    Array.from(viewProcesses.values()).map((v) => ({ id: v.id, url: v.url, jobsDir: v.jobsDir }))
+    Array.from(viewProcesses.values()).map((v) => ({ id: v.id, url: v.url, jobsDir: v.jobsDir, status: v.status, error: v.error }))
   );
 });
 
-addRoute("POST", "/api/view/:id/stop", (_req, res, params) => {
+addRoute("POST", "/api/view/:id/stop", async (_req, res, params) => {
   const v = viewProcesses.get(params.id);
   if (!v) return sendJson(res, 404, { ok: false, error: "not found" });
-  v.child.kill();
-  viewProcesses.delete(params.id);
-  sendJson(res, 200, { ok: true });
+  if (v.child.exitCode !== null || v.child.signalCode !== null) {
+    viewProcesses.delete(params.id);
+    return sendJson(res, 200, { ok: true });
+  }
+  v.stopRequested = true;
+  terminateProcessTree(v.child);
+  await Promise.race([
+    new Promise<void>(resolvePromise => v.child.once("exit", () => resolvePromise())),
+    new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2000)),
+  ]);
+  const stopped = v.child.exitCode !== null || v.child.signalCode !== null;
+  if (stopped) viewProcesses.delete(params.id);
+  sendJson(res, stopped ? 200 : 500, { ok: stopped, error: stopped ? undefined : "harbor view não confirmou encerramento" });
 });
 
 // ---------- analyze ----------
@@ -486,7 +542,11 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     });
   }
 
-  const args = ["analyze", String(trialPath), "--model", resolvedModel];
+  const operationId = body.operationId;
+  assertOperationId(operationId);
+  const harborJobName = `harbor-eval-kit-analysis-${operationId.replaceAll("-", "").toLowerCase()}`;
+  const args = ["analyze", String(trialPath), "--model", resolvedModel,
+    "--jobs-dir", analysisJobsDir, "--job-name", harborJobName];
   if (session) { if (frozen?.rubricPath) args.push("--rubric", frozen.rubricPath); }
   else if (rubricId && rubricId !== "__default__") {
     const rubrics = readRegistry<RubricEntry>("rubrics");
@@ -505,22 +565,51 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   await withAnalysisTarget(String(trialPath), async () => {
     const secretsEnv = loadSecretsEnv();
     const inputs = freezeAnalysisInputs(args);
-    const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000 });
-    const response = {
-      ok: result.code === 0,
-      stdout: redactOutput(result.stdout, secretsEnv),
-      stderr: redactOutput(result.stderr, secretsEnv),
-      judgeModel: resolvedModel,
-      validationMode,
-      analysis: result.code === 0 ? resolveAnalysisJson(String(trialPath), result.stdout) : null,
-    };
-    if (body.experimentId) appendExperimentAnalysis(analysisJobsDir, String(body.experimentId), body.jobName, {
-      ...JSON.parse(redactOutput(JSON.stringify(response), secretsEnv)), createdAt: new Date().toISOString(), judgeId, rubricId, analysisSessionId: session?.id, analysisBatchId: body.analysisBatchId, analysisBatchSize: body.analysisBatchSize, analysisBatchIndex: body.analysisBatchIndex,
-      // Exact prompt/rubric used at invocation, not mutable registry references alone.
-      rubric: inputs.rubric,
-      prompt: inputs.prompt,
-    });
-    sendJson(res, result.code === 0 ? 200 : 500, response);
+    createOperation({ id: operationId, type: "analyze", targetPath: resolve(String(trialPath)),
+      jobsDir: resolve(analysisJobsDir), harborJobName }, secretsEnv);
+    activeOperationIds.add(operationId);
+    updateOperation(operationId, { status: "running" }, secretsEnv);
+    try {
+      const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000,
+        onOutput: (channel, text) => appendOperationLog(operationId, channel, text, secretsEnv) });
+      const artifact = result.code === 0
+        ? resolveAnalysisArtifact(String(trialPath), analysisJobsDir, harborJobName)
+        : null;
+      const artifactError = result.code === 0 && !artifact
+        ? "Harbor analyze terminou sem um analysis.json canônico válido"
+        : undefined;
+      const safeStdout = redactOutput(result.stdout, secretsEnv);
+      const safeStderr = redactOutput(result.stderr, secretsEnv);
+      const responseError = artifactError || (result.code === 0 ? undefined
+        : safeStderr || `Harbor analyze terminou com código ${result.code}`);
+      const response = {
+        ok: result.code === 0 && !!artifact,
+        operationId,
+        stdout: safeStdout,
+        stderr: safeStderr,
+        error: responseError,
+        judgeModel: resolvedModel,
+        validationMode,
+        analysis: artifact?.analysis ?? null,
+      };
+      const artifactPath = artifact?.artifactPath;
+      if (body.experimentId) appendExperimentAnalysis(analysisJobsDir, String(body.experimentId), body.jobName, {
+        ...JSON.parse(redactOutput(JSON.stringify(response), secretsEnv)), createdAt: new Date().toISOString(), operationId, judgeId, rubricId, analysisSessionId: session?.id, analysisBatchId: body.analysisBatchId, analysisBatchSize: body.analysisBatchSize, analysisBatchIndex: body.analysisBatchIndex,
+        // Exact prompt/rubric used at invocation, not mutable registry references alone.
+        rubric: inputs.rubric,
+        prompt: inputs.prompt,
+      });
+      updateOperation(operationId, { status: response.ok ? "succeeded" : "failed",
+        finishedAt: new Date().toISOString(), artifactPath,
+        error: response.ok ? undefined : responseError,
+        result: response }, secretsEnv);
+      sendJson(res, response.ok ? 200 : 500, response);
+    } catch (error) {
+      updateOperation(operationId, { status: "failed", finishedAt: new Date().toISOString(), error: (error as Error).message }, secretsEnv);
+      throw error;
+    } finally {
+      activeOperationIds.delete(operationId);
+    }
   });
 });
 

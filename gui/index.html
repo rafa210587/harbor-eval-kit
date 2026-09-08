@@ -32,7 +32,7 @@
   <button data-tab="skills">Skills</button>
   <button data-tab="skillsets">Conjuntos de skills</button>
   <button data-tab="criteria">Critérios</button>
-  <button data-tab="rubrics">Rubrics do juiz</button>
+  <button data-tab="rubrics">Conjuntos de critérios</button>
   <button data-tab="judges">Juízes</button>
   <span class="nav-divider" aria-hidden="true"></span>
   <span class="nav-group">Ambiente e ajuda</span>
@@ -43,12 +43,14 @@
   <button data-tab="trajectories">Trajetórias</button>
   <button data-tab="analyze">Análise avulsa</button>
 </nav>
-<!-- Shared by the Agents and Judges forms: the --agent values the installed Harbor accepts,
-     fetched once from /api/harbor-agents (server-side list, mirrors `harbor run --help`). -->
+<!-- Shared by the Agents and Judges forms: the --agent values registered by Harbor 0.22.0,
+     fetched once from /api/harbor-agents (server-side list, mirrors AgentFactory). -->
 <datalist id="harbor-agents-list"></datalist>
-<p class="hint" style="text-align:center;padding:6px 16px 0;">Primeira comparação: escolha uma task e um agente em Começar. <code>oracle</code>/<code>nop</code> permitem validar o fluxo sem modelo nem credencial; agentes pagos exigem Credenciais e Modelos. Skills, critérios, rubrics e juiz são opcionais.</p>
+<p class="hint" style="text-align:center;padding:6px 16px 0;">Primeira comparação: escolha uma task e um agente em Começar. <code>oracle</code>/<code>nop</code> permitem validar o fluxo sem modelo nem credencial; agentes pagos exigem Credenciais e Modelos. Skills, critérios, conjuntos de critérios e juiz são opcionais.</p>
 
 <main>
+
+  <aside id="operation-activity" hidden aria-live="polite"></aside>
 
   <section id="tab-start" class="tab active">
     <div class="hero panel">
@@ -173,9 +175,10 @@
            synchronous (one POST that only answers at the end) -- this reads the job's own log
            files from the jobs dir in parallel, so a multi-minute run stops looking frozen. -->
       <div id="compare-live" hidden style="margin-top:10px;">
-        <label>Log ao vivo <span class="hint" style="display:inline;margin:0;">— o que o <code>harbor</code> está escrevendo agora. Atualiza a cada 2s; a aba "Logs" mostra o mesmo, inclusive depois que a run termina.</span></label>
+        <label>Log ao vivo <span class="hint" style="display:inline;margin:0;">— começa pela saída capturada do processo e atualiza a cada 2s. Quando há um job real, passa a acompanhar seus arquivos; a aba "Logs" lê somente esses arquivos persistidos. Dry run pode terminar sem criar um job.</span></label>
         <pre id="compare-live-log" class="output" style="max-height:260px;overflow:auto;"></pre>
       </div>
+      <h3 id="compare-results-label" hidden>Resultados salvos</h3>
       <div id="compare-post-actions" hidden style="margin-top:10px;">
         <button class="secondary" type="button" id="compare-view-btn">Ver trajetórias</button>
         <a class="button secondary" id="compare-download-csv" download>Baixar CSV</a>
@@ -187,21 +190,22 @@
       <div id="compare-analyze-panel" hidden style="margin-top:16px;">
         <h3 class="step">4. Analisar com juiz (opcional, por resultado)</h3>
         <p class="hint">O reward acima já é a comparação real. Use isto só quando quiser desempatar candidatos que empataram no reward, ou auditar se algum "hackeou" o teste — não precisa rodar em tudo.</p>
-        <label for="compare-judge-picker">Juiz <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes; a escolha pré-marca seus rubrics.</span></label>
+        <label for="compare-judge-picker">Juiz <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes; a escolha pré-marca seus conjuntos de critérios.</span></label>
         <select id="compare-judge-picker"></select>
-        <p class="hint persistent-hint" id="compare-judge-missing" hidden style="color:var(--warn);">⚠ Você já tem rubrics cadastrados, mas nenhum <strong>juiz</strong>. Falta só esse passo: abra <strong>Juízes</strong> e escolha um modelo da lista curada; se a lista estiver vazia, cadastre o modelo antes.</p>
-        <label id="compare-rubric-picker-label">Rubrics</label>
-        <p id="compare-rubric-picker-help" class="hint">Finalidade: escolher os critérios desta análise. Marque um ou mais; cada rubric gera uma chamada separada por resultado. Padrão: nenhum, que usa reward_hacking + task_specification do Harbor; opcional.</p>
+        <p class="hint persistent-hint" id="compare-judge-missing" hidden style="color:var(--warn);">⚠ Você já tem conjuntos de critérios cadastrados, mas nenhum <strong>juiz</strong>. Falta só esse passo: abra <strong>Juízes</strong> e escolha um modelo da lista curada; se a lista estiver vazia, cadastre o modelo antes.</p>
+        <label id="compare-rubric-picker-label">Conjuntos de critérios</label>
+        <p id="compare-rubric-picker-help" class="hint">Finalidade: escolher os grupos de perguntas desta análise. O juiz pré-marca seus padrões, mas você pode alterá-los aqui; cada conjunto gera uma chamada separada por resultado. Padrão: nenhum, que usa reward_hacking + task_specification do Harbor; opcional.</p>
         <div class="checkbox-group" id="compare-rubric-picker" role="group" aria-labelledby="compare-rubric-picker-label" aria-describedby="compare-rubric-picker-help"></div>
 
         <div class="checkbox-inline" style="margin-top:8px;">
           <input type="checkbox" id="analyze-validation-mode">
           <label class="persistent-hint" for="analyze-validation-mode">Modo validação — permitir um modelo <strong>fora</strong> da lista curada high-tier (ex.: um DeepSeek barato) só para testar o pipeline do juiz. O veredito sai marcado como não válido e <strong>não deve</strong> ser usado como avaliação real.</label>
         </div>
-        <p class="hint">"Analisar" (na tabela acima) roda só aquela linha. "Analisar todas" roda o mesmo Judge + Rubrics marcados aqui em toda linha com <code>ok</code> na tabela, uma de cada vez.</p>
+        <p class="hint">"Analisar" (na tabela acima) roda só aquela linha. "Analisar todas" congela o mesmo juiz e os conjuntos marcados numa sessão e os aplica a toda linha com <code>ok</code>, uma de cada vez.</p>
         <button class="secondary" type="button" id="compare-analyze-all-btn">Analisar todas</button>
         <button class="secondary" type="button" id="compare-sort-btn">Ordenar por avaliação</button>
         <p id="compare-analysis-progress" class="hint status-line" role="status" aria-live="polite"></p>
+        <a class="operation-jump" href="#operation-activity">Ver operações e logs desta página</a>
         <div id="compare-analysis-results" style="margin-top:10px;"></div>
       </div>
       </div>
@@ -220,7 +224,7 @@
           <div><label for="f-label-apelido">Nome do perfil</label><input id="f-label-apelido" type="text" name="label" placeholder="Claude Code — padrão" required></div>
           <div><label for="f-harbor-agent-value">Adaptador do Harbor</label><input id="f-harbor-agent-value" type="text" name="agentValue" placeholder="claude-code" list="harbor-agents-list" required></div>
         </div>
-        <p class="hint">Comece a digitar para ver os <strong id="harbor-agents-count">…</strong> adapters que o Harbor instalado aceita (o campo continua livre — dá pra passar um import path customizado). <strong>Model-agnostic</strong> (marcados na lista, ex.: <code>mini-swe-agent</code>, <code>terminus</code>, <code>aider</code>) aceitam o formato genérico <code>provider/modelo</code>; a compatibilidade concreta ainda depende do adapter e do provider. Os demais (<code>claude-code</code>, <code>codex</code>, <code>gemini-cli</code>…) são CLIs de um fornecedor específico e falam a API dele. <code>oracle</code> e <code>nop</code> não gastam API — bons pra testar o kit.</p>
+        <p class="hint">Comece a digitar para ver os <strong id="harbor-agents-count">…</strong> adapters registrados pelo Harbor 0.22.0 (o campo continua livre — dá pra passar um import path customizado). <strong>Model-agnostic</strong> (marcados na lista, ex.: <code>mini-swe-agent</code>, <code>terminus-2</code>, <code>aider</code>) aceitam o formato genérico <code>provider/modelo</code>; a compatibilidade concreta ainda depende do adapter e do provider. Os demais (<code>claude-code</code>, <code>codex</code>, <code>gemini-cli</code>…) são CLIs de um fornecedor específico e falam a API dele. <code>oracle</code> e <code>nop</code> não gastam API — bons pra testar o kit.</p>
 
         <label for="agent-model-select">Modelo padrão (opcional)</label>
         <select name="modelId" id="agent-model-select"><option value="">— nenhum (usa o padrão do Harbor) —</option></select>
@@ -268,7 +272,7 @@ Você é [especialização, ex.: "engenheiro backend Python sênior"] responsáv
   <section id="tab-criteria" class="tab">
     <div class="panel">
       <h2>Critérios do juiz</h2>
-      <p class="hint">Um critério é uma pergunta que um juiz responde PASS/FAIL/N-A sobre uma execução. Cadastre uma vez e reaproveite em vários rubrics.</p>
+      <p class="hint">Um critério é uma pergunta que um juiz responde PASS/FAIL/N-A sobre uma execução. Cadastre uma vez e reaproveite em vários conjuntos de critérios.</p>
       <form id="criteria-form">
         <input type="hidden" name="id">
         <label for="f-name-identificador-curto-sem-espaco">Nome (identificador curto, sem espaço)</label>
@@ -293,16 +297,16 @@ NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente n
   <!-- ================= JUDGE RUBRICS ================= -->
   <section id="tab-rubrics" class="tab">
     <div class="panel">
-      <h2>Rubrics do juiz</h2>
-      <p class="hint">Um rubric agrupa critérios num pacote para o painel Analisar de Novo experimento ou para Análise avulsa.</p>
+      <h2>Conjuntos de critérios</h2>
+      <p class="hint">Um conjunto agrupa perguntas de avaliação para reutilizar com um juiz em Novo experimento, numa task ou em Análise avulsa. No Harbor, esse pacote é chamado de <code>rubric</code>.</p>
       <form id="rubrics-form">
         <input type="hidden" name="id">
         <label for="f-label-3">Nome</label>
         <input id="f-label-3" type="text" name="label" placeholder="Python Quality" required>
         <label id="rubric-criterion-picker-label">Critérios incluídos</label>
-        <p id="rubric-criterion-picker-help" class="hint">Finalidade: definir quais perguntas PASS/FAIL/N-A fazem parte deste rubric. Padrão: nenhum; opcional, mas um rubric vazio não pode ser usado para analisar.</p>
+        <p id="rubric-criterion-picker-help" class="hint">Finalidade: definir quais perguntas PASS/FAIL/N-A fazem parte deste conjunto. Padrão: nenhum; opcional durante o cadastro, mas um conjunto vazio não pode ser usado para analisar.</p>
         <div class="checkbox-group" id="rubric-criterion-picker" role="group" aria-labelledby="rubric-criterion-picker-label" aria-describedby="rubric-criterion-picker-help"><span class="muted">cadastre critérios primeiro, na aba "Critérios"</span></div>
-        <button class="primary" type="submit">Adicionar rubric</button>
+        <button class="primary" type="submit">Adicionar conjunto de critérios</button>
         <button class="secondary cancel-edit" type="button" hidden>Cancelar edição</button>
       </form>
       <div id="rubrics-list" style="margin-top:14px;"></div>
@@ -313,7 +317,7 @@ NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente n
   <section id="tab-judges" class="tab">
     <div class="panel">
       <h2>Juízes</h2>
-      <p class="hint">Um juiz é o perfil que avalia resultados: adaptador, modelo, instruções e rubrics padrão. Reaproveite-o em Novo experimento, Análise avulsa e no padrão de uma task.</p>
+      <p class="hint">Um juiz é o perfil que avalia resultados: adaptador, modelo, instruções e conjuntos de critérios padrão. Reaproveite-o em Novo experimento, Análise avulsa e no padrão de uma task.</p>
       <p class="hint"><strong>Sobre "skills":</strong> diferente do Agent, não dá pra anexar uma skill (SKILL.md) de verdade ao Judge — conferido no código do Harbor instalado (<code>harbor/analyze/analyzer.py</code>): o <code>harbor analyze</code> monta o agente avaliador sem nunca setar <code>.skills</code>, e o comando <code>analyze</code> não tem flag <code>--skill</code> (diferente do <code>harbor run</code>, que tem). O que dá pra fazer de verdade é reescrever as instruções do juiz por completo (abaixo) — é a única alavanca que o Harbor expõe pra moldar como ele avalia.</p>
       <form id="judges-form">
         <input type="hidden" name="id">
@@ -330,6 +334,10 @@ NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente n
           <input type="checkbox" id="judge-validation-mode">
           <label for="judge-validation-mode">Modo validação — mostrar <strong>todos</strong> os models, inclusive fora da lista curada. Só pra confirmar que o pipeline do juiz roda (ex.: com um DeepSeek barato). Um Judge salvo assim só funciona em análises que também marquem "Modo validação", e o veredito sai carimbado como não-válido.</label>
         </div>
+
+        <h3 class="step" id="judge-default-rubrics-heading">Conjuntos de critérios padrão</h3>
+        <p id="judge-default-rubrics-help" class="hint">Finalidade: definir a seleção inicial quando este juiz for escolhido. Em Novo experimento e Análise avulsa, você pode alterá-la antes de rodar; a task também pode ter sua própria seleção. Ao iniciar um lote, a sessão congela a escolha final. Padrão: nenhum, que usa os critérios nativos do Harbor; opcional e permite vários.</p>
+        <div class="checkbox-group" id="judge-default-rubrics" role="group" aria-labelledby="judge-default-rubrics-heading" aria-describedby="judge-default-rubrics-help"><span class="muted">cadastre conjuntos primeiro, na aba "Conjuntos de critérios"</span></div>
 
         <label for="f-instrucoes-do-juiz-opcional-substitui-o-">Instruções do juiz (opcional — substitui o texto padrão do Harbor por completo)</label>
         <textarea id="f-instrucoes-do-juiz-opcional-substitui-o-" name="promptTemplate">
@@ -355,10 +363,6 @@ Do not modify any files under {trial_path}.
 Guidance:
 {criteria_guidance}</textarea>
         <p class="hint">Este é o texto padrão real do Harbor (<code>harbor/analyze/prompts/analyze.txt</code> do pacote instalado) — edite pra apertar o rigor, focar em algo específico, mudar o tom, etc. <code>{trial_path}</code>, <code>{task_section}</code> e <code>{criteria_guidance}</code> são preenchidos pelo Harbor automaticamente — mantenha esses três marcadores em algum lugar do texto, senão o juiz não recebe o caminho do trial nem a orientação dos critérios. Limpar o campo inteiro volta a usar o padrão do Harbor (não grava <code>--prompt</code> nenhum).</p>
-
-        <label id="judge-default-rubrics-label">Rubrics padrão do juiz</label>
-        <p id="judge-default-rubrics-help" class="hint">Finalidade: pré-marcar estes rubrics quando o juiz for escolhido em Novo experimento, Análise avulsa ou numa task. Padrão: nenhum; opcional e permite vários.</p>
-        <div class="checkbox-group" id="judge-default-rubrics" role="group" aria-labelledby="judge-default-rubrics-label" aria-describedby="judge-default-rubrics-help"><span class="muted">cadastre rubrics primeiro, na aba "Rubrics do juiz"</span></div>
 
         <label for="f-notes-opcional-4">Notas (opcional)</label>
         <input id="f-notes-opcional-4" type="text" name="notes">
@@ -513,7 +517,7 @@ Por que é ruim: explique a consequência concreta.
       <form id="task-form">
         <div class="row-inline">
           <div><label for="f-name-org-name-ou-so-o-nome">Nome (org/nome ou só nome)</label><input id="f-name-org-name-ou-so-o-nome" type="text" name="name" placeholder="my-task" required></div>
-          <div><label for="f-org-se-o-nome-nao-tiver-org">Org (se o nome não tiver org/)</label><input id="f-org-se-o-nome-nao-tiver-org" type="text" name="org" placeholder="harbor-eval-kit"></div>
+          <div><label for="f-org-se-o-nome-nao-tiver-org">Organização (se o nome não tiver org/)</label><input id="f-org-se-o-nome-nao-tiver-org" type="text" name="org" value="harbor-eval-kit" placeholder="harbor-eval-kit"></div>
         </div>
         <p class="hint">Vira o nome da pasta da task (dentro do Output dir) e o identificador que aparece na lista abaixo e no seletor de task da aba Compare. "Org" é só um prefixo/namespace (ex.: <code>minha-org/minha-task</code>) — pode deixar em branco se o Name já tiver a barra.</p>
 
@@ -538,14 +542,14 @@ Por que é ruim: explique a consequência concreta.
       <pre id="task-output" class="output"></pre>
     </div>
     <div class="panel">
-      <h2>Existing tasks under evals/</h2>
+      <h2>Tasks existentes em evals/ e datasets/</h2>
       <p class="hint">Clique numa task pra editar o conteúdo abaixo — instrução, Dockerfile, solução de referência e o teste que decide o reward.</p>
       <button class="secondary" id="task-refresh">Atualizar</button>
       <div id="task-list" style="margin-top:10px;"></div>
     </div>
 
     <div class="panel" id="task-editor-panel" hidden>
-      <h2>Editing: <span id="task-editor-path"></span></h2>
+      <h2>Editando: <span id="task-editor-path"></span></h2>
       <p class="hint">Esses 4 arquivos ficam dentro da pasta da task. Salvar aqui grava direto no disco — não precisa abrir editor nenhum.</p>
 
       <label for="task-editor-instruction">Instruction.md <span class="hint" style="display:inline;margin:0;">— o que o agent vai ler e tentar resolver.</span></label>
@@ -560,14 +564,14 @@ Por que é ruim: explique a consequência concreta.
       <label for="task-editor-test">tests/test.sh <span class="hint" style="display:inline;margin:0;">— O TESTE em si. Precisa escrever 0/1 (ou fração) em /logs/verifier/reward.txt.</span></label>
       <textarea id="task-editor-test" placeholder="#!/bin/bash&#10;mkdir -p /logs/verifier&#10;..."></textarea>
 
-      <label for="task-editor-judge-picker">Juiz padrão desta task (opcional) <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes; a escolha pré-marca seus rubrics.</span></label>
+      <label for="task-editor-judge-picker">Juiz padrão desta task (opcional) <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes; a escolha pré-marca seus conjuntos de critérios.</span></label>
       <select id="task-editor-judge-picker"><option value="">— nenhum —</option></select>
-      <label id="task-editor-rubric-picker-label">Rubrics padrão desta task</label>
-      <p id="task-editor-rubric-picker-help" class="hint">Finalidade: pré-marcar rubrics no painel Analisar quando esta task for usada. Padrão: nenhum; opcional e permite vários.</p>
-      <div class="checkbox-group" id="task-editor-rubric-picker" role="group" aria-labelledby="task-editor-rubric-picker-label" aria-describedby="task-editor-rubric-picker-help"><span class="muted">cadastre rubrics primeiro, na aba "Rubrics do juiz"</span></div>
+      <label id="task-editor-rubric-picker-label">Conjuntos de critérios padrão desta task</label>
+      <p id="task-editor-rubric-picker-help" class="hint">Finalidade: substituir a pré-seleção do juiz quando esta task for usada no painel Analisar. Você ainda pode alterar a escolha antes de rodar. Padrão: nenhum; opcional e permite vários.</p>
+      <div class="checkbox-group" id="task-editor-rubric-picker" role="group" aria-labelledby="task-editor-rubric-picker-label" aria-describedby="task-editor-rubric-picker-help"><span class="muted">cadastre conjuntos primeiro, na aba "Conjuntos de critérios"</span></div>
 
       <button class="primary" type="button" id="task-editor-save">Salvar arquivos</button>
-      <button class="secondary" type="button" id="task-editor-close">Close</button>
+      <button class="secondary" type="button" id="task-editor-close">Fechar</button>
       <p class="hint status-line" id="task-editor-status" aria-live="polite"></p>
     </div>
   </section>
@@ -578,7 +582,7 @@ Por que é ruim: explique a consequência concreta.
       <h2>Datasets</h2>
       <p class="hint"><strong>O que é:</strong> um pacote publicado de tasks prontas. <strong>Quando usar:</strong> para avaliar candidatos num benchmark conhecido. <strong>Quando pular:</strong> ao usar apenas tasks próprias.</p>
       <p class="hint"><strong>Como usar:</strong> 1) baixe um dataset pelo nome (form abaixo); 2) as tasks dele aparecem sozinhas em <code>datasets/&lt;nome&gt;/&lt;task&gt;/</code> — o mesmo escaneamento que lista suas tasks próprias (aba Tasks) também lista essas, e elas entram automaticamente no seletor de task da aba Compare. Não existe um "modo dataset" separado: depois de baixado, uma task de dataset se comporta exatamente como uma task sua.</p>
-      <button class="secondary" id="dataset-list-btn">List registry datasets</button>
+      <button class="secondary" id="dataset-list-btn">Ver catálogo de datasets</button>
       <p class="hint">Este botão só imprime um link pro Hub do Harbor (catálogo de datasets publicados) — nesta versão do Harbor o CLI ainda não lista os nomes disponíveis diretamente no terminal, então é preciso abrir esse link no navegador pra descobrir o nome exato do dataset que você quer baixar. Limitação do `harbor dataset list` em si, não desta UI.</p>
       <form id="dataset-download-form" style="margin-top:14px;">
         <div class="row-inline">
@@ -586,7 +590,7 @@ Por que é ruim: explique a consequência concreta.
           <div><label for="f-output-dir-2">Pasta de saída</label><input id="f-output-dir-2" type="text" name="outputDir" value="datasets"></div>
         </div>
         <p class="hint">O nome vem do link do Hub acima (não tem preenchimento automático — copie o nome exato de lá). "Output dir" é a pasta onde as tasks baixadas vão ficar; o padrão "datasets" é o que a aba Tasks/Compare já sabe escanear — só troque se tiver um motivo específico pra organizar em outro lugar.</p>
-        <button class="primary" type="submit">Download</button>
+        <button class="primary" type="submit">Baixar dataset</button>
       </form>
       <pre id="dataset-output" class="output"></pre>
       <div id="dataset-discovered" style="margin-top:10px;"></div>
@@ -597,7 +601,7 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-config-bundle" class="tab">
     <div class="panel">
       <h2>Config Bundle — compartilhar configuração de avaliação entre máquinas</h2>
-      <p class="hint"><strong>O que é:</strong> Agents, Models, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em <code>~/.harbor-eval-kit/</code>, por máquina — sem isto, um time não consegue versionar essa configuração em git, revisar em PR, nem garantir que todo mundo está comparando com o mesmo Judge/Rubric. <strong>Secrets nunca entram aqui</strong> — um Model é só um rótulo + <code>provider/modelo</code>, nunca uma chave.</p>
+      <p class="hint"><strong>O que é:</strong> Agentes, Modelos, Skills, Conjuntos de skills, Critérios, Conjuntos de critérios e Juízes vivem em <code>~/.harbor-eval-kit/</code>, por máquina — sem isto, um time não consegue versionar essa configuração em git, revisar em PR, nem garantir que todos usam as mesmas definições. <strong>Credenciais nunca entram aqui</strong> — um Modelo é só um rótulo + <code>provider/modelo</code>, nunca uma chave.</p>
       <p class="hint"><strong>Como usar:</strong> "Exportar" baixa um <code>.json</code> com tudo — commite esse arquivo no repo do time. Quem for aplicar clica "Importar" e escolhe o arquivo. É <strong>idempotente por id</strong>: importar o mesmo bundle de novo atualiza em vez de duplicar, e um item que só existe localmente (não veio do bundle) nunca é apagado.</p>
       <button class="primary" type="button" id="config-export-btn">Exportar bundle (.json)</button>
       <div style="margin-top:14px;">
@@ -633,16 +637,16 @@ Por que é ruim: explique a consequência concreta.
   <section id="tab-trajectories" class="tab">
     <div class="panel">
       <h2>Visualizador de trajetórias</h2>
-      <p class="hint"><strong>O que é:</strong> um segundo servidor web (do próprio Harbor, não desta GUI) que abre numa aba nova e mostra, passo a passo, tudo que o agent fez dentro do container numa run: comandos executados, arquivos lidos/editados, saída de cada ferramenta, a resposta do modelo em cada turno. É a evidência bruta por trás do número de reward. <strong>Quando usar:</strong> depois de rodar uma comparação (aba 10), quando o reward sozinho não explica o suficiente — reward baixo e você quer ver onde o agent travou, reward alto e você quer confirmar que não foi um atalho/gambiarra, ou só quer entender o estilo de trabalho de um agent específico. É complementar ao Analyze (aba Analyze/painel do Compare): Analyze dá um veredito resumido de um LLM juiz; aqui você vê a trajetória inteira com os próprios olhos, sem intermediário.</p>
-      <p class="hint"><strong>Como usar:</strong> aponte pro mesmo "Jobs dir" que você usou na run do Compare (o botão "Ver trajetórias" que aparece ali já faz isso sozinho, sem precisar vir nesta aba) e clique "Start viewer" — abre um link pra uma aba nova. É um processo de vida longa (fica rodando escutando numa porta) até você clicar "Stop" na lista abaixo ou fechar o `gui-server`.</p>
+      <p class="hint"><strong>O que é:</strong> um segundo servidor web (do próprio Harbor, não desta GUI) que abre numa aba nova e mostra, passo a passo, tudo que o agent fez dentro do container numa run: comandos executados, arquivos lidos/editados, saída de cada ferramenta, a resposta do modelo em cada turno. É a evidência bruta por trás do número de reward. <strong>Quando usar:</strong> depois de rodar uma comparação em Novo experimento, quando o reward sozinho não explica o suficiente — reward baixo e você quer ver onde o agent travou, reward alto e você quer confirmar que não foi um atalho/gambiarra, ou só quer entender o estilo de trabalho de um agent específico. É complementar à análise por juiz (Análise avulsa ou painel de resultados): o juiz dá um veredito resumido; aqui você vê a trajetória inteira com os próprios olhos, sem intermediário.</p>
+      <p class="hint"><strong>Como usar:</strong> aponte para a mesma pasta de jobs usada no experimento (o botão "Ver trajetórias" já traz esse caminho) e clique "Iniciar visualizador". A preparação mostra tempo, estado e log; a URL só é aberta depois que o Harbor informa um endereço HTTP local válido. O processo continua ativo até você clicar "Parar".</p>
       <form id="view-form">
         <label for="f-jobs-dir-8">Jobs dir</label>
         <input id="f-jobs-dir-8" type="text" name="jobsDir" value="jobs" required>
         <button class="primary" type="submit">Iniciar visualizador</button>
       </form>
       <div id="view-output" class="hint status-line" aria-live="polite" style="margin-top:8px;"></div>
-      <h2 style="margin-top:18px;">Running viewers</h2>
-      <p class="hint">Cada linha aqui é um `harbor view` ainda rodando — clique "Stop" quando terminar de olhar (senão fica consumindo uma porta indefinidamente). Esta lista só existe em memória: um restart do `gui-server` esquece os viewers que estavam rodando (eles continuam de pé como processo, só a lista que some — pare manualmente pelo gerenciador de tarefas se precisar).</p>
+      <h2 style="margin-top:18px;">Visualizadores ativos</h2>
+      <p class="hint">Cada linha é um <code>harbor view</code> ainda rodando. Clique "Parar" quando terminar para liberar a porta. Falhas ao iniciar ou parar permanecem visíveis com a mensagem real.</p>
       <div id="view-list"></div>
     </div>
   </section>
@@ -650,15 +654,18 @@ Por que é ruim: explique a consequência concreta.
   <!-- ================= ANALYZE ================= -->
   <section id="tab-analyze" class="tab">
     <div class="panel">
-      <h2>Análise avulsa por rubric</h2>
+      <h2>Análise avulsa por conjuntos de critérios</h2>
       <p class="hint">Pede para um juiz ler a trajetória de um job concluído e emitir PASS/FAIL por critério. Use para uma inspeção ad hoc; no fluxo normal, prefira Analisar junto aos resultados de Novo experimento.</p>
       <form id="analyze-form">
         <label for="f-job-or-trial-path">Caminho do job ou trial</label>
         <input id="f-job-or-trial-path" type="text" name="path" placeholder=".\jobs\cmp__agent-oracle__skill-none" required>
-        <div class="row-inline">
-          <div><label for="analyze-judge-picker">Juiz <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes</span></label><select name="judgeId" id="analyze-judge-picker"></select></div>
-          <div><label for="analyze-rubric-select">Rubric</label><select name="rubricId" id="analyze-rubric-select"><option value="__default__">— padrão do Harbor (reward_hacking + task_specification) —</option></select></div>
-        </div>
+        <label for="analyze-jobs-dir">Pasta de trabalho da análise</label>
+        <input id="analyze-jobs-dir" type="text" name="jobsDir" value="jobs" required>
+        <label for="analyze-judge-picker">Juiz <span class="hint" style="display:inline;margin:0;">— cadastrado em Juízes; ao escolher, os conjuntos padrão dele são pré-marcados.</span></label>
+        <select name="judgeId" id="analyze-judge-picker" required></select>
+        <label id="analyze-rubric-picker-label">Conjuntos de critérios</label>
+        <p id="analyze-rubric-picker-help" class="hint persistent-hint">Finalidade: escolher os grupos usados nesta inspeção. Padrões do juiz são apenas uma pré-seleção editável. Cada conjunto marcado gera uma chamada paga separada ao modelo juiz; sem marcação, usa reward_hacking + task_specification do Harbor.</p>
+        <div class="checkbox-group" id="analyze-rubric-picker" role="group" aria-labelledby="analyze-rubric-picker-label" aria-describedby="analyze-rubric-picker-help"></div>
         <div class="checkbox-inline">
           <input type="checkbox" id="analyze-standalone-validation-mode" name="validationMode">
           <label for="analyze-standalone-validation-mode">Modo validação — necessário quando o juiz usa modelo fora da lista curada. O veredito sai marcado como não válido.</label>
@@ -666,6 +673,7 @@ Por que é ruim: explique a consequência concreta.
         <button class="primary" type="submit">Analisar</button>
       </form>
       <div id="analyze-output" class="analysis-output" aria-live="polite"></div>
+      <a class="operation-jump" href="#operation-activity">Ver operações e logs desta página</a>
     </div>
   </section>
 

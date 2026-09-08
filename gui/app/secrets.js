@@ -4,6 +4,13 @@ import { state, onRefresh, refreshAll, PROVIDERS, guessProviderKey, findProvider
 import { tabRefreshers } from "./core.js";
 import { describeField } from "./field-help.js";
 import { runDeleteAction } from "./ui-actions.js";
+import { normalizeDiscoveredModels, registerDiscoveredModels } from "./provider-domain.js";
+
+function currentSecretResult(envKey) {
+  return [...document.querySelectorAll("#secrets-list .row")]
+    .find((row) => row.querySelector(".row-title")?.textContent === envKey)
+    ?.querySelector(".secret-test-result");
+}
 
 // ================= SECRETS =================
 function renderSecretsList() {
@@ -59,7 +66,12 @@ function renderSecretsList() {
         resultEl.textContent = "Consultando o catálogo do provider; nenhuma completion será enviada…";
         try {
           const response = await api("GET", `/api/providers/${encodeURIComponent(provider.id)}/models?envKey=${encodeURIComponent(n)}`);
-          renderDiscoveredModels(resultEl, n, provider, response.models || response.discoveredModels || response || []);
+          if (response.ok === false) throw new Error(response.error || "Provider não retornou o catálogo");
+          resultEl.textContent = "Consulta concluída; nenhuma completion enviada.";
+          const discovered = Array.isArray(response)
+            ? response
+            : response.models || response.discoveredModels || [];
+          renderDiscoveredModels(resultEl, n, provider, discovered);
         } catch (err) { resultEl.textContent = `Erro ao descobrir modelos: ${err.message}`; }
         finally { discoverBtn.disabled = false; }
       };
@@ -98,13 +110,18 @@ function renderSecretTestResult(resultEl, envKey, res) {
 }
 
 function renderDiscoveredModels(resultEl, envKey, provider, discoveredModels) {
-  const discovered = Array.isArray(discoveredModels) ? discoveredModels : [];
+  const discovered = normalizeDiscoveredModels(discoveredModels, provider?.id);
+  if (!discovered.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "O provider não retornou modelos; você pode cadastrar um identificador manualmente em Modelos.";
+    resultEl.appendChild(empty);
+  }
   if (discovered.length) {
     const existingValues = new Set(state.models.map((m) => m.value));
     const pickerId = `discovered-${envKey}-${Date.now()}`;
     const helpId = `${pickerId}-help`;
     const items = discovered.map((m) => {
-      const value = m.includes("/") ? m : (provider ? `${provider.id}/${m}` : m);
+      const value = m;
       const already = existingValues.has(value);
       return `<label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" value="${escapeHtml(value)}" aria-describedby="${helpId}" ${already ? "disabled checked" : ""}> ${escapeHtml(value)}${already ? " (já cadastrado)" : ""}</label>`;
     }).join("");
@@ -114,14 +131,25 @@ function renderDiscoveredModels(resultEl, envKey, provider, discoveredModels) {
     box.innerHTML = `<p id="${helpId}" class="hint">Finalidade: escolher quais modelos descobertos cadastrar. Exemplo: marque somente os que pretende avaliar. Padrão: nenhum; opcional.</p>
       <div id="${pickerId}" role="group" aria-describedby="${helpId}" style="display:flex;flex-direction:column;gap:4px;">${items}</div>
       <button class="secondary" type="button" style="margin-top:8px;">Cadastrar marcados</button>`;
-    box.querySelector("button").addEventListener("click", async () => {
-      const toAdd = $$(`#${pickerId} input:checked:not(:disabled)`);
-      for (const cb of toAdd) {
-        const value = cb.value;
-        await api("POST", "/api/models", { label: value, value });
-      }
-      await refreshAll();
-      box.innerHTML = `<p class="hint" style="color:var(--ok);">${toAdd.length} model(s) cadastrado(s).</p>`;
+    const registerBtn = box.querySelector("button");
+    registerBtn.addEventListener("click", async () => {
+      const values = $$(`#${pickerId} input:checked:not(:disabled)`).map((checkbox) => checkbox.value);
+      await registerDiscoveredModels(values, {
+        api,
+        refreshAll,
+        setLocked: (locked) => {
+          registerBtn.disabled = locked;
+          registerBtn.textContent = locked ? "Cadastrando…" : "Cadastrar marcados";
+        },
+        setStatus: (message) => {
+          // refreshAll replaces the row; resolve the live status node so the
+          // success/error response remains visible after the refresh.
+          const liveResult = currentSecretResult(envKey) || resultEl;
+          liveResult.textContent = message;
+          liveResult.className = "secret-test-result status-line";
+          liveResult.style.color = message.startsWith("Erro") ? "var(--err)" : "";
+        },
+      });
     });
     resultEl.appendChild(box);
   }

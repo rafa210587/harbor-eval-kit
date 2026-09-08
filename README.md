@@ -13,7 +13,7 @@ O runtime local é **Podman somente**. O kit não instala nem chama Docker Engin
 |---|---|
 | executa agent, task e verifier | monta o experimento e congela seus inputs |
 | grava trials, trajetória e `result.json` | compara candidatos e preserva o histórico |
-| fornece adapters e `harbor analyze` | gerencia perfis, modelos, skills, rubrics e judges |
+| fornece adapters e `harbor analyze` | gerencia perfis, modelos, skills, conjuntos de critérios e juízes |
 | calcula reward, tokens e custo reportado | mostra logs, resultados e guarda prévia de gasto |
 
 O desenho experimental é:
@@ -22,7 +22,7 @@ O desenho experimental é:
 Task × Agent × Model × Skill Set × tentativas
                        │
                        ├── reward determinístico do tests/test.sh
-                       └── Judge × Rubric opcional, depois da execução
+                       └── Juiz × conjunto de critérios opcional, depois da execução
 ```
 
 Compare modelos mantendo agent, task e skills iguais; compare agents mantendo o restante
@@ -34,7 +34,8 @@ ranking.
 
 O estado atual é **piloto local validado**, com escopo explícito: Windows, Podman 6.0.2,
 Harbor 0.22.0, um serviço Linux `main`, rede pública e imagens base já presentes. A validação
-real desta rodada está em [Validação da plataforma](./docs/VALIDACAO_PLATAFORMA_2026-09-07.md)
+real mais recente está em [Jornadas reais da UI](./docs/JORNADAS_REAIS_UI_2026-09-07.md),
+com o histórico anterior em [Validação da plataforma](./docs/VALIDACAO_PLATAFORMA_2026-09-07.md)
 e a auditoria de entrega em [Auditoria de entrega](./docs/AUDITORIA_ENTREGA_2026-09-07.md).
 Isso não constitui certificação para macOS/Linux nem prontidão para implantação corporativa.
 AWS continua somente no plano; não há deploy, autenticação multiusuário, RBAC ou infraestrutura
@@ -149,16 +150,17 @@ credencial faz uma chamada real e exige um modelo explícito do provider escolhi
 
 - **Começar** explica o próximo passo e aponta para o primeiro experimento.
 - **Novo experimento** cria candidatos, mostra a prévia/diferenças e reabre o histórico.
-- **Catálogo** mantém Modelos, Agentes, Skills, Conjuntos de skills, Tasks, Critérios, Rubrics e Juízes.
+- **Catálogo** mantém Modelos, Agentes, Skills, Conjuntos de skills, Tasks, Critérios, Conjuntos de critérios e Juízes.
 - **Ambiente e ajuda** reúne Credenciais, Configuração, Datasets, Logs, Trajetórias e Análise avulsa.
 
 Cada campo informa finalidade, exemplo, padrão e quando pode ser ignorado. Operações longas
 bloqueiam repetição, mostram tempo e log. Avisos de gasto e validação permanecem visíveis no
 modo compacto.
 
-O catálogo `HARBOR_AGENTS` espelha os valores aceitos por `harbor run --help` e alimenta a GUI
-por uma rota única. Adapters model agnostic, como `mini-swe-agent`, permitem variar provider e
-modelo mantendo o agent fixo. `oracle` e `nop` não gastam API.
+O catálogo `HARBOR_AGENTS` espelha os adapters registrados pelo `AgentFactory` do Harbor 0.22.0
+e alimenta a GUI por uma rota única. O campo continua aceitando import paths customizados e
+atalhos ACP. Adapters model agnostic, como `mini-swe-agent` e `terminus-2`, permitem variar
+provider e modelo mantendo o agent fixo. `oracle` e `nop` não gastam API.
 
 ## CLI de comparação
 
@@ -195,6 +197,12 @@ Cleanup e cancelamento preservam qualquer recurso cuja propriedade seja ambígua
 O julgamento também cria um ambiente; seu bootstrap isolado aplica o mesmo controle sem
 alterar o Harbor instalado. Essa integração exige o contrato exato do Harbor 0.22.0.
 
+Os diretórios dos candidatos usam um nome curto no formato `prefixo-runId-cN`. O agente,
+modelo e conjunto de skills completos continuam no `experiment.json`, onde a GUI e a CLI os
+exibem; eles não precisam caber no nome do diretório. O planejamento recusa previamente um
+caminho de job ou de artefatos que possa exceder o limite conservador do Windows e informa para
+encurtar `jobs-dir` ou o nome da task.
+
 ## LiteLLM
 
 O SDK LiteLLM já é dependência de alguns adapters e do teste de credencial. O proxy opcional
@@ -211,6 +219,13 @@ efeito colateral de testes. Veja [LiteLLM](./docs/LITELLM.md).
 - custo e tokens somente do `result.json` do Harbor; ausente continua “não reportado”;
 - limpeza por manifest, prefixo, label e identidade; `--dry-run` lista o conjunto exato;
 - nenhum `--no-verify`, Docker install, prune global ou remoção de dependência preexistente.
+
+Exportações de configuração e relatórios são fail-closed: antes de gerar a resposta ou gravar
+um arquivo, o kit inspeciona campos e textos aninhados em busca de credenciais conhecidas,
+nomes de arquivos sensíveis e padrões de chave. Se houver suspeita, a operação falha sem
+entregar bytes; credenciais também não entram no bundle. CSV ainda neutraliza valores que
+poderiam ser interpretados como fórmulas. Consulte a seção de [Config Bundle e exportação](./DOCUMENTACAO.md#1010-d-config-bundle--compartilhar-configuração-entre-máquinas)
+para o contrato e as limitações.
 
 Rode a suíte completa antes de entregar uma mudança:
 

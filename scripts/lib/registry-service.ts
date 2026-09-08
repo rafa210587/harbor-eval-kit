@@ -1,6 +1,6 @@
 // Shared registry mutation boundary for HTTP and future CLI callers.
 import { newId, readRegistry, writeRegistry } from "./paths.ts";
-import { assertSafeId, REGISTRY_NAMES, validateRegistrySnapshot } from "./registry-validation.ts";
+import { assertSafeId, REGISTRY_NAMES, registryReferencesTo, validateRegistrySnapshot } from "./registry-validation.ts";
 import type { RegistryItem, RegistrySnapshot } from "./registry-validation.ts";
 import type { RegistryName } from "./types.ts";
 
@@ -42,6 +42,8 @@ export function deleteRegistryEntry(name: RegistryName, id: string): void {
   assertSafeId(id);
   const snapshot = readRegistrySnapshot();
   if (!snapshot[name]?.some(item => item.id === id)) throw new RegistryNotFoundError();
+  const references = registryReferencesTo(snapshot, name, id);
+  if (references.length) throw new Error(`item ainda referenciado por ${references.join(", ")}`);
   snapshot[name] = snapshot[name]!.filter(item => item.id !== id);
   persist(name, snapshot);
 }

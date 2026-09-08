@@ -48,8 +48,9 @@ function Install {
   if ($LASTEXITCODE -ne 0 -or -not $uvBin) { throw "uv did not report its tool bin directory" }
   $env:PATH = "$uvBin$([IO.Path]::PathSeparator)$env:PATH"
   if (-not (Has "harbor")) {
-    # Pinned, not "latest" -- same reasoning as harbor-eval.sh: this kit encodes one Harbor
-    # release's CLI/output behaviour. Keep in lockstep with TESTED_HARBOR_VERSION in
+    # Pinned, not "latest" -- same reasoning as harbor-eval.sh: this kit reads Analyze
+    # artifacts, AgentFactory registrations and result.json fields for this release.
+    # Keep in lockstep with TESTED_HARBOR_VERSION in
     # scripts/lib/catalog.ts (a test enforces that they match).
     uv tool install "harbor==0.22.0"
     if ($LASTEXITCODE -ne 0) { throw "Harbor installation failed" }

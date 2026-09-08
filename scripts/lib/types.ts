@@ -51,6 +51,8 @@ export interface ExecOptions {
    * long-running compare can't be stopped from outside it.
    */
   onSpawn?: (child: import("node:child_process").ChildProcess) => void;
+  /** Receives already-redacted output chunks while the child is running. */
+  onOutput?: (stream: "stdout" | "stderr", text: string) => void;
 }
 
 export interface ExecResult {

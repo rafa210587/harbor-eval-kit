@@ -29,7 +29,7 @@ export async function refreshTaskList() {
   const tasks = await api("GET", "/api/tasks");
 
   const list = $("#task-list");
-  list.innerHTML = tasks.length ? "" : '<p class="muted">No tasks found under evals/ or datasets/.</p>';
+  list.innerHTML = tasks.length ? "" : '<p class="muted">Nenhuma task encontrada em evals/ ou datasets/.</p>';
   for (const t of tasks) {
     const row = document.createElement("div");
     row.className = "row";
@@ -39,7 +39,7 @@ export async function refreshTaskList() {
     badge.textContent = t.stub ? "task.toml ausente/incompleto" : "task.toml detectado · conteúdo não validado";
     row.querySelector(".row-actions").appendChild(badge);
     const editBtn = document.createElement("button");
-    editBtn.textContent = "Edit files";
+    editBtn.textContent = "Editar arquivos";
     editBtn.onclick = () => openTaskEditor(t.path);
     row.querySelector(".row-actions").appendChild(editBtn);
     list.appendChild(row);
@@ -134,7 +134,7 @@ async function openTaskEditor(path) {
     $("#task-editor-status").textContent = "";
   } catch (err) {
     if (!taskEditorGuard.isCurrent(token)) return;
-    $("#task-editor-status").textContent = "Error: " + err.message;
+    $("#task-editor-status").textContent = "Erro: " + err.message;
   }
   panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -170,7 +170,7 @@ $("#task-editor-save").addEventListener("click", async () => {
   } catch (err) {
     if ($("#task-editor-panel").dataset.path !== path) return;
     $("#task-editor-status").textContent = filesSaved
-      ? "Os arquivos foram salvos, mas o padrão de juiz/rubrics falhou: " + err.message
+      ? "Os arquivos foram salvos, mas o padrão de juiz/conjuntos de critérios falhou: " + err.message
       : "Erro ao salvar: " + err.message;
   } finally {
     if ($("#task-editor-panel").dataset.path === path) button.disabled = false;

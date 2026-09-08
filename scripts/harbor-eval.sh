@@ -89,8 +89,8 @@ install() {
   install_uv
   add_uv_tool_bin
   if ! have harbor; then
-    # Pinned, not "latest": this kit parses `harbor analyze` stdout, mirrors `harbor run --help`'s
-    # adapter list, and reads result.json field names -- all of which are one release's behaviour
+    # Pinned, not "latest": this kit reads Analyze artifacts, mirrors Harbor's
+    # AgentFactory adapter list, and reads result.json fields for this release.
     # and all of which fail silently when it changes. Keep in lockstep with
     # TESTED_HARBOR_VERSION in scripts/lib/catalog.ts (a test enforces that they match).
     uv tool install "harbor==0.22.0"

@@ -42,6 +42,10 @@ export function createStreamingRedactor(values: string[], emit: (text: string) =
           start = pending.lastIndexOf(secret, cutoff - 1);
         }
       }
+      // JavaScript offsets are UTF-16 code units. Keep a surrogate pair together when the
+      // secret look-behind would otherwise cut an already UTF-8-decoded character in half.
+      if (cutoff > 0 && cutoff < pending.length
+          && /[\uD800-\uDBFF]/.test(pending[cutoff - 1]) && /[\uDC00-\uDFFF]/.test(pending[cutoff])) cutoff--;
       if (cutoff) {
         emit(redactKnownValues(pending.slice(0, cutoff), secrets));
         pending = pending.slice(cutoff);
@@ -127,7 +131,10 @@ function withTelemetryDisabled(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  * code page, same unconditional-fix pattern as withTelemetryDisabled above.
  */
 function withPythonUtf8(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (env.PYTHONIOENCODING === undefined) env.PYTHONIOENCODING = "utf-8";
+  // stdio alone does not affect Path.read_text(): on Windows it otherwise decodes
+  // UTF-8 task instructions as cp1252, changing the actual prompt sent to the model.
+  env.PYTHONIOENCODING = "utf-8";
+  env.PYTHONUTF8 = "1";
   return env;
 }
 
@@ -177,10 +184,12 @@ export function execCommand(
     let stderr = "";
     const stdoutRedactor = createStreamingRedactor(opts.redactValues ?? [], text => {
       stdout += text;
+      opts.onOutput?.("stdout", text);
       if (opts.echo) process.stdout.write(text);
     });
     const stderrRedactor = createStreamingRedactor(opts.redactValues ?? [], text => {
       stderr += text;
+      opts.onOutput?.("stderr", text);
       if (opts.echo) process.stderr.write(text);
     });
     let timedOut = false;
@@ -218,10 +227,12 @@ export function execCommand(
       if (timer) clearTimeout(timer);
       stdoutRedactor.end();
       stderrRedactor.end();
+      const errorText = redactKnownValues(String(err), opts.redactValues ?? []);
+      opts.onOutput?.("stderr", errorText);
       resolvePromise({
         code: 1,
         stdout,
-        stderr: stderr + String(err),
+        stderr: stderr + errorText,
         durationSec: (Date.now() - start) / 1000,
       });
     });
@@ -287,7 +298,7 @@ export function stopContainersForJob(
 }
 export function isHarborAvailable(): boolean {
   try {
-    execFileSync("harbor", ["--version"], { stdio: "ignore", env: { ...process.env, HARBOR_TELEMETRY: "disabled", PYTHONIOENCODING: "utf-8" } });
+    execFileSync("harbor", ["--version"], { stdio: "ignore", env: withPythonUtf8(withTelemetryDisabled({ ...process.env })) });
     return true;
   } catch {
     return false;

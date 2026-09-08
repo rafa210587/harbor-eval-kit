@@ -1,8 +1,9 @@
-// The judging side: Criteria, Judge Rubrics and Judges.
+// The judging side: criteria, reusable criterion sets (Harbor rubrics) and judges.
 import { $, $$, api, escapeHtml, makeRow, checkboxGroup } from "./core.js";
 import { wireEditableForm } from "./forms.js";
 import { state, onRefresh, refreshAll } from "./state.js";
 import { judgeNeedsValidation } from "./compare-domain.js";
+import { defaultCriterionSetIds } from "./judging-domain.js";
 
 // ================= CRITERIA =================
 const criteriaForm = $("#criteria-form");
@@ -33,11 +34,11 @@ function renderCriteriaList() {
   }
 }
 
-// ================= JUDGE RUBRICS =================
+// ================= CRITERION SETS (Harbor rubrics) =================
 const rubricsForm = $("#rubrics-form");
 rubricsForm.dataset.apiPath = "/api/rubrics";
 const rubricsEdit = wireEditableForm(rubricsForm, {
-  addLabel: "Adicionar rubric",
+  addLabel: "Adicionar conjunto de critérios",
   onSubmit: (form) => ({
     label: form.label.value,
     criterionIds: $$('input[name=criterionIds]:checked', form).map((i) => i.value),
@@ -55,7 +56,7 @@ rubricsForm.addEventListener("reset-extra", () => renderRubricCriterionPicker())
 
 function renderRubricsList() {
   const list = $("#rubrics-list");
-  list.innerHTML = state.rubrics.length ? "" : '<p class="muted">Nothing registered yet.</p>';
+  list.innerHTML = state.rubrics.length ? "" : '<p class="muted">Nenhum conjunto de critérios cadastrado.</p>';
   for (const item of state.rubrics) {
     const names = (item.criterionIds || []).map((id) => state.criteria.find((c) => c.id === id)?.name || "?").join(", ");
     list.appendChild(makeRow({
@@ -124,7 +125,8 @@ function renderJudgesList() {
     const bits = [`agent: ${item.agentValue}`];
     bits.push(modelLabel ? `model: ${modelLabel}` : "model: (nenhum — não roda até cadastrar um)");
     if (item.promptTemplate && item.promptTemplate.trim()) bits.push("+instruções custom");
-    if (item.defaultRubricIds && item.defaultRubricIds.length) bits.push(`+${item.defaultRubricIds.length} rubric(s)`);
+    const defaultNames = (item.defaultRubricIds || []).map((id) => state.rubrics.find((rubric) => rubric.id === id)?.label || id);
+    if (defaultNames.length) bits.push(`conjuntos padrão: ${defaultNames.join(", ")}`);
     if (item.notes) bits.push(item.notes);
     list.appendChild(makeRow({
       title: item.label,
@@ -159,15 +161,9 @@ function renderJudgePickers() {
     const sel = $(`#${id}`);
     if (sel) sel.innerHTML = placeholder + opts;
   }
-  // Standalone Analyze tab stays single-rubric (ad-hoc use); Compare and the task pinning
-  // support N rubrics (see renderComparRubricPicker / renderTaskRubricPicker below).
-  const rubricOpts = '<option value="__default__">— padrão do Harbor (reward_hacking + task_specification) —</option>' +
-    state.rubrics.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.label)}</option>`).join("");
-  const analyzeSel = $("#analyze-rubric-select");
-  if (analyzeSel) analyzeSel.innerHTML = rubricOpts;
-
   renderComparRubricPicker();
   renderTaskRubricPicker();
+  renderStandaloneRubricPicker();
 }
 
 export function renderComparRubricPicker(checkedIds = []) {
@@ -178,13 +174,18 @@ export function renderTaskRubricPicker(checkedIds = []) {
   checkboxGroup($("#task-editor-rubric-picker"), state.rubrics, { name: "task-rubric", checkedIds });
 }
 
+export function renderStandaloneRubricPicker(checkedIds = []) {
+  checkboxGroup($("#analyze-rubric-picker"), state.rubrics, { name: "standalone-rubric", checkedIds });
+}
+
 $("#compare-judge-picker").addEventListener("change", () => {
-  const judge = state.judges.find((j) => j.id === $("#compare-judge-picker").value);
-  renderComparRubricPicker(judge?.defaultRubricIds || []);
+  renderComparRubricPicker(defaultCriterionSetIds(state.judges, $("#compare-judge-picker").value));
 });
 $("#task-editor-judge-picker").addEventListener("change", () => {
-  const judge = state.judges.find((j) => j.id === $("#task-editor-judge-picker").value);
-  renderTaskRubricPicker(judge?.defaultRubricIds || []);
+  renderTaskRubricPicker(defaultCriterionSetIds(state.judges, $("#task-editor-judge-picker").value));
+});
+$("#analyze-judge-picker").addEventListener("change", () => {
+  renderStandaloneRubricPicker(defaultCriterionSetIds(state.judges, $("#analyze-judge-picker").value));
 });
 
 

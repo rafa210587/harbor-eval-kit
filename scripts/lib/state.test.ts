@@ -100,7 +100,7 @@ describe("docs name their canonical sources instead of copying fragile counts", 
   test("o README aponta o catálogo único de adapters", () => {
     const readme = readFileSync(join(import.meta.dirname, "..", "..", "README.md"), "utf-8");
     assert.ok(HARBOR_AGENTS.length > 0, "catálogo de adapters não pode estar vazio");
-    assert.match(readme, /catálogo `HARBOR_AGENTS` espelha os valores aceitos/);
+    assert.match(readme, /catálogo `HARBOR_AGENTS` espelha os adapters registrados/);
   });
 
   test("o README aponta o checklist histórico sem duplicar sua contagem", () => {

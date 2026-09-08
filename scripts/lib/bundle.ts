@@ -2,6 +2,7 @@ import { readRegistry, writeRegistry, getRegistryPath } from "./paths.ts";
 import { REGISTRY_NAMES, validateRegistryEntry, validateRegistrySnapshot } from "./registry-validation.ts";
 import type { RegistryItem, RegistrySnapshot } from "./registry-validation.ts";
 import type { RegistryName } from "./types.ts";
+import { assertSafeExport } from "./export-safety.ts";
 
 export const BUNDLE_REGISTRIES = REGISTRY_NAMES;
 export type BundleRegistryName = RegistryName;
@@ -14,6 +15,7 @@ export function exportConfigBundle(): ConfigBundle {
   const registries: RegistrySnapshot = {};
   for (const name of BUNDLE_REGISTRIES) registries[name] = readRegistry<RegistryItem>(name);
   validateRegistrySnapshot(registries);
+  assertSafeExport(registries);
   return { version: 1, exportedAt: new Date().toISOString(), registries };
 }
 export interface ImportSummary {

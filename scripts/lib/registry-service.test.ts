@@ -30,9 +30,9 @@ test("invalid update cannot replace valid stored data", () => isolated(() => {
 test("references block invalid creation, updates and deletion until unlinked", () => isolated(() => {
   const model = createRegistryEntry("models", { label: "M", value: "p/m" });
   const agent = createRegistryEntry("agents", { label: "A", agentValue: "oracle", modelId: model.id });
-  assert.throws(() => createRegistryEntry("agents", { label: "Bad", agentValue: "oracle", modelId: "missing" }));
-  assert.throws(() => updateRegistryEntry("agents", agent.id, { modelId: "missing" }));
-  assert.throws(() => deleteRegistryEntry("models", model.id), /referência inexistente/);
+  assert.throws(() => createRegistryEntry("agents", { label: "Bad", agentValue: "oracle", modelId: "missing" }), /referência inexistente/);
+  assert.throws(() => updateRegistryEntry("agents", agent.id, { modelId: "missing" }), /referência inexistente/);
+  assert.throws(() => deleteRegistryEntry("models", model.id), /item ainda referenciado por agents\.modelId → models/);
   assert.equal(readRegistry("models").length, 1);
   assert.deepEqual(readRegistry("agents"), [agent]);
   updateRegistryEntry("agents", agent.id, { modelId: "" });

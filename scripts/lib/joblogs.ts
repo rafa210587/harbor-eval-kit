@@ -18,9 +18,11 @@ export interface JobLogListing {
 
 // Harbor's useful textual artifacts have stable names. Keep arbitrary configuration and
 // credential files out of the read surface even when a caller supplies a custom jobs dir.
-const KNOWN_TEXT_LOG = /^(?:agent-)?(?:stdout|stderr|test-stdout|reward)(?:\.txt)?$/i;
-function isLogFileName(name: string): boolean {
-  return name.toLowerCase().endsWith(".log") || KNOWN_TEXT_LOG.test(name);
+const KNOWN_TEXT_LOG = /^(?:agent-)?(?:stdout|stderr|test-stdout|test-output|reward|exception)(?:\.txt)?$/i;
+function isLogFileName(name: string, relativePath = name): boolean {
+  const normalized = relativePath.replaceAll("\\", "/");
+  return name.toLowerCase().endsWith(".log") || KNOWN_TEXT_LOG.test(name)
+    || /(?:^|\/)agent\/[^/]+\.txt$/i.test(normalized);
 }
 
 /**
@@ -72,7 +74,7 @@ export function listJobLogFiles(jobsDir: string, job: string): string[] {
       const abs = join(dir, e.name);
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
       if (e.isDirectory()) walk(abs, rel, depth + 1);
-      else if (e.isFile() && isLogFileName(e.name)) {
+      else if (e.isFile() && isLogFileName(e.name, rel)) {
         try {
           out.push({ rel, mtimeMs: statSync(abs).mtimeMs });
         } catch { /* file vanished mid-scan (harbor rotating artifacts) -- skip it */ }
@@ -91,35 +93,28 @@ export interface LogTail {
   truncated: boolean;
 }
 
-/**
- * Reads a log file from `offset` to EOF. Both path segments are guarded with
- * safeJoinUnderDir, so a crafted `job`/`file` can never escape the jobs dir. A file that
- * shrank since the last poll (harbor rewrote it) resets the offset to 0 instead of returning
- * garbage.
- */
-export function tailJobLog(jobsDir: string, job: string, file: string, offset: number, secrets: Record<string, string> = {}): LogTail | null {
-  const jobDir = safeJoinUnderDir(jobsDir, job);
-  if (!jobDir) return null;
-  const fileName = file.split(/[\\/]/).at(-1) ?? "";
-  if (!isLogFileName(fileName)) return null;
-  const target = safeJoinUnderDir(jobDir, file);
-  if (!target || !existsSync(target)) return null;
+function completeUtf8End(buffer: Buffer, start: number, end: number): number {
+  if (end <= start) return end;
+  let lead = end - 1;
+  while (lead >= start && (buffer[lead] & 0xc0) === 0x80) lead--;
+  if (lead < start) return start;
+  const byte = buffer[lead];
+  const expected = byte < 0x80 ? 1 : byte >= 0xc2 && byte <= 0xdf ? 2
+    : byte >= 0xe0 && byte <= 0xef ? 3 : byte >= 0xf0 && byte <= 0xf4 ? 4 : 1;
+  return end - lead < expected ? lead : end;
+}
+
+/** Incremental byte-offset tail for trusted text paths. Never advances past partial UTF-8. */
+export function tailTextFile(target: string, offset: number, secrets: Record<string, string> = {}, maxBytes = 200_000): LogTail | null {
+  if (!existsSync(target)) return null;
   let info;
-  try {
-    info = statSync(target);
-  } catch {
-    return null;
-  }
+  try { info = statSync(target); } catch { return null; }
   if (!info.isFile()) return null;
   const size = info.size;
-  const MAX_BYTES = 200_000;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("offset do log deve ser inteiro não negativo");
   let start = offset > size ? 0 : offset;
   let truncated = false;
-  if (size - start > MAX_BYTES) {
-    start = size - MAX_BYTES;
-    truncated = true;
-  }
+  if (size - start > maxBytes) { start = size - maxBytes; truncated = true; }
   const fd = openSync(target, "r");
   try {
     const values = [...new Set(Object.values(secrets).filter(Boolean).flatMap(value => [value, JSON.stringify(value).slice(1, -1)]))].map(value => Buffer.from(value));
@@ -132,19 +127,31 @@ export function tailJobLog(jobsDir: string, job: string, file: string, offset: n
     const source = buf.subarray(0, read), safe = Buffer.from(source);
     let end = read;
     for (const value of values) {
-      // Mask in bytes so raw Harbor offsets remain valid after replacement. Reading context
-      // before the offset catches keys split by the 200 KB window or a previous poll.
       let match = source.indexOf(value);
       while (match !== -1) { safe.fill(42, match, match + value.length); match = source.indexOf(value, match + 1); }
-      // An append may have written only a prefix of a key. Hold it until the next poll.
       for (let n = Math.min(value.length - 1, read); n > 0; n--) {
         if (source.subarray(read - n).equals(value.subarray(0, n))) { end = Math.min(end, read - n); break; }
       }
     }
-    const contentStart = start - contextStart;
-    end = Math.max(contentStart, end);
+    let contentStart = start - contextStart;
+    while (contentStart < end && (safe[contentStart] & 0xc0) === 0x80) contentStart++;
+    end = completeUtf8End(safe, contentStart, Math.max(contentStart, end));
     return { content: safe.subarray(contentStart, end).toString("utf-8"), nextOffset: contextStart + end, size, truncated };
-  } finally {
-    closeSync(fd);
-  }
+  } finally { closeSync(fd); }
+}
+
+/**
+ * Reads a log file from `offset` to EOF. Both path segments are guarded with
+ * safeJoinUnderDir, so a crafted `job`/`file` can never escape the jobs dir. A file that
+ * shrank since the last poll (harbor rewrote it) resets the offset to 0 instead of returning
+ * garbage.
+ */
+export function tailJobLog(jobsDir: string, job: string, file: string, offset: number, secrets: Record<string, string> = {}): LogTail | null {
+  const jobDir = safeJoinUnderDir(jobsDir, job);
+  if (!jobDir) return null;
+  const fileName = file.split(/[\\/]/).at(-1) ?? "";
+  if (!isLogFileName(fileName, file)) return null;
+  const target = safeJoinUnderDir(jobDir, file);
+  if (!target || !existsSync(target)) return null;
+  return tailTextFile(target, offset, secrets);
 }

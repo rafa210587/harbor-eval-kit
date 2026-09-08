@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createExperimentPlan, cliCandidates, resolveRegisteredCandidates, estimateExperiment, guardExperiment, parseExperimentExtra } from "./experiment-plan.ts";
+import { createExperimentPlan, cliCandidates, resolveRegisteredCandidates, estimateExperiment, guardExperiment, parseExperimentExtra, MAX_JOB_PATH_LENGTH } from "./experiment-plan.ts";
 import { runExperiment } from "./experiment-runner.ts";
 import { readExperiment, prepareExperiment, appendExperimentAnalysis, experimentDirectory } from "./experiment-store.ts";
 import { normalizeAnalysis } from "./results.ts";
@@ -30,6 +30,48 @@ test("new executions and duplicate profiles have different job identities", () =
   assert.notEqual(a.candidates[0].jobName, a.candidates[1].jobName);
   assert.notEqual(a.candidates[0].jobName, b.candidates[0].jobName);
   assert.equal(a.candidates[0].profileId, "a");
+}));
+
+test("generated job names stay short while the plan retains long candidate metadata", () => fixture((root, task) => {
+  const longCandidate = {
+    agent: `agent-${"x".repeat(140)}`,
+    model: `provider/${"model-".repeat(35)}`,
+    label: "long candidate",
+    skillset: { label: `skill-${"s".repeat(140)}`, paths: [] },
+    skills: [],
+  };
+  const runId = "80c5f48e-b827-4759-878f-0bd2da19d3d8";
+  const plan = createExperimentPlan({
+    path: task,
+    jobsDir: join(root, "jobs"),
+    jobPrefix: "a-very-long-project-prefix-that-is-readable",
+    runId,
+  }, [longCandidate]);
+  const candidate = plan.candidates[0];
+  assert.ok(candidate.jobName.length < 70);
+  assert.equal(candidate.jobName, `a-very-long-proj-${runId}-c1`);
+  assert.equal(candidate.model, longCandidate.model);
+  assert.equal(candidate.skillset.label, longCandidate.skillset.label);
+  assert.ok(join(plan.jobsDir, candidate.jobName).length <= MAX_JOB_PATH_LENGTH);
+}));
+
+test("a jobs-dir that would exceed the Windows path budget fails before trial preparation", () => fixture((root, task) => {
+  const longJobsDir = join(root, "jobs-" + "deep-".repeat(55));
+  assert.throws(() => createExperimentPlan({ path: task, jobsDir: longJobsDir }, cliCandidates([combo])), /caminho .* excede.*encurte jobs-dir/i);
+}));
+
+test("a long task name is rejected against the full trial artifact path", () => fixture((root) => {
+  const longTask = join(root, `task-${"deep-".repeat(35)}`);
+  mkdirSync(longTask);
+  writeFileSync(join(longTask, "task.toml"), '[task]\nname="long/task"\n');
+  assert.throws(() => createExperimentPlan({ path: longTask, jobsDir: join(root, "jobs") }, cliCandidates([combo])), /caminho de trial\/artefatos excede.*encurte jobs-dir ou task/i);
+}));
+
+test("custom maximum-length run ids use a bounded collision-resistant suffix", () => fixture((root, task) => {
+  const first = createExperimentPlan({ path: task, jobsDir: join(root, "jobs"), runId: "r" + "a".repeat(127) }, cliCandidates([combo]));
+  const second = createExperimentPlan({ path: task, jobsDir: join(root, "jobs"), runId: "r" + "b".repeat(127) }, cliCandidates([combo]));
+  assert.ok(first.candidates[0].jobName.length <= 70);
+  assert.notEqual(first.candidates[0].jobName, second.candidates[0].jobName);
 }));
 
 test("preview and run share explicit-empty model semantics and reject missing references", () => {
@@ -112,7 +154,7 @@ test("runner executes snapshot with secrets only in env; saved reports rehydrate
   assert.equal(result.rows[0].costUsd, undefined);
   assert.equal(readExperiment(plan.jobsDir, plan.id).status, "finished");
   const analysis = normalizeAnalysis({ checks: { clean: { outcome: "pass" } }, cost_usd: 0.1 });
-  appendExperimentAnalysis(plan.jobsDir, plan.id, result.rows[0].jobName, { analysis, analysisBatchId: "batch", validationMode: false });
+  appendExperimentAnalysis(plan.jobsDir, plan.id, result.rows[0].jobName, { analysis, analysisBatchId: "batch", validationMode: false }, { PROVIDER_AUTH: credential });
   const reopened = readExperiment(plan.jobsDir, plan.id);
   assert.equal(reopened.rows[0].passRate, 1);
   assert.equal(reopened.rows[0].judgeCostUsd, 0.1);

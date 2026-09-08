@@ -1,5 +1,5 @@
 // Logs tab: incremental tail of the log files harbor writes into the jobs dir.
-import { $, api, escapeHtml, tabRefreshers, onTabSwitch } from "./core.js";
+import { $, api, escapeHtml, tabRefreshers, onTabSwitch, activateTab } from "./core.js";
 import { createLogReadGuard } from "./log-domain.js";
 
 // ================= LOGS =================
@@ -40,7 +40,7 @@ async function refreshLogJobs() {
   const picker = $("#logs-job-picker");
   const previous = changedDirectory ? "" : picker.value;
   picker.innerHTML = jobs.length
-    ? jobs.map((j) => `<option value="${escapeHtml(j.name)}">${j.running ? "▶ " : ""}${escapeHtml(j.name)}</option>`).join("")
+    ? jobs.map((j) => `<option value="${escapeHtml(j.name)}">${j.running ? "Sem finalização registrada · " : ""}${escapeHtml(j.name)}</option>`).join("")
     : '<option value="">— nenhuma run neste jobs dir ainda —</option>';
   if (previous && jobs.some((j) => j.name === previous)) picker.value = previous;
   if (jobsDir !== logsState.jobsDir || picker.value !== logsState.job) await refreshLogFiles();
@@ -63,7 +63,10 @@ async function refreshLogFiles() {
   let files = [];
   try {
     files = await api("GET", `/api/logs/files?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}`);
-  } catch { files = []; }
+  } catch (err) {
+    if (request === filesRequest) $("#logs-status").textContent = `Erro ao listar arquivos: ${err.message}`;
+    return;
+  }
   if (request !== filesRequest || jobsDir !== ($("#logs-jobs-dir").value || "jobs") || job !== $("#logs-job-picker").value) return;
   picker.innerHTML = files.length
     ? files.map((f) => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join("")
@@ -78,6 +81,19 @@ async function refreshLogFiles() {
   logsState.file = picker.value;
   tailGuard.select(selectedContext());
   await pollLogTail(true);
+}
+
+export async function openOperationLog(jobsDir, job) {
+  $("#logs-jobs-dir").value = jobsDir || "jobs";
+  activateTab("logs");
+  await refreshLogJobs();
+  const picker = $("#logs-job-picker");
+  if (![...picker.options].some((option) => option.value === job)) {
+    $("#logs-status").textContent = `O job ${job} ainda não apareceu em ${jobsDir || "jobs"}. Tente atualizar em instantes.`;
+    return;
+  }
+  picker.value = job;
+  await refreshLogFiles();
 }
 
 async function pollLogTail(reset) {
@@ -135,3 +151,7 @@ function setLogsPolling(on) {
 tabRefreshers.logs = refreshLogJobs;
 // Polling runs only while the Logs tab is the visible one.
 onTabSwitch((tab) => setLogsPolling(tab === "logs"));
+document.addEventListener("hek:open-operation-log", (event) => {
+  const { jobsDir, job } = event.detail || {};
+  if (job) void openOperationLog(jobsDir, job);
+});

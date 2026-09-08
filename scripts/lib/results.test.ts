@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { csvEscape, normalizeAnalysis, parseResult, resolveAnalysisJson, summarizeAnalysisRecords } from "./results.ts";
+import { csvEscape, normalizeAnalysis, parseResult, resolveAnalysisArtifact, summarizeAnalysisRecords } from "./results.ts";
 
 function fixture(fn: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "hek-results-"));
@@ -100,14 +100,28 @@ test("Analyze partial costs do not masquerade as total and no checks means no pa
   assert.equal(normalizeAnalysis({}), null);
 });
 
-test("flat standalone analysis stays compatible; emitted report beats stale direct file", () => fixture(dir => {
-  const flat = { summary: "old", checks: { a: { outcome: "pass" } }, estimated_cost_usd: 0.1 };
+test("single-trial Analyze reads its flat canonical artifact and refuses invalid JSON", () => fixture(dir => {
+  const flat = { summary: "trial result", checks: { a: { outcome: "pass" } }, estimated_cost_usd: 0.1 };
+  writeFileSync(join(dir, "trial.log"), "trial marker");
   writeFileSync(join(dir, "analysis.json"), JSON.stringify(flat));
-  assert.equal(resolveAnalysisJson(dir, "")?.summary, "old");
-  assert.equal(resolveAnalysisJson(dir, "")?.results.length, 1);
-  const report = join(dir, "new report.json");
-  writeFileSync(report, JSON.stringify({ results: [{ summary: "new one" }, { summary: "new two" }] }));
-  assert.equal(resolveAnalysisJson(dir, `Report: ${report}\n`)?.results.length, 2);
-  writeFileSync(report, "broken");
-  assert.equal(resolveAnalysisJson(dir, `Report: ${report}`), null);
+  const result = resolveAnalysisArtifact(dir, join(dir, "unused-work-dir"), "unused-job")!;
+  assert.equal(result.analysis.summary, "trial result");
+  assert.equal(result.analysis.results.length, 1);
+  assert.equal(result.analysis.aggregate.costUsd, 0.1);
+  writeFileSync(join(dir, "analysis.json"), "broken");
+  assert.equal(resolveAnalysisArtifact(dir, dir, "unused-job"), null);
+}));
+
+test("Analyze resolves the canonical artifact without depending on wrapped stdout", () => fixture(dir => {
+  const inputJob = join(dir, "source-job"), jobsDir = join(dir, "jobs"), reportJob = "analysis-fixed";
+  mkdirSync(inputJob);
+  writeFileSync(join(inputJob, "analysis.json"), JSON.stringify({ summary: "stale job-level artifact" }));
+  mkdirSync(join(jobsDir, reportJob), { recursive: true });
+  writeFileSync(join(jobsDir, reportJob, "analysis.json"), JSON.stringify({ results: [{ summary: "from canonical report", checks: { a: { outcome: "pass" } } }] }));
+  assert.equal(resolveAnalysisArtifact(inputJob, jobsDir, reportJob)?.analysis.results[0].summary, "from canonical report");
+
+  const missing = resolveAnalysisArtifact(inputJob, jobsDir, "missing-report");
+  assert.equal(missing, null);
+  writeFileSync(join(jobsDir, reportJob, "analysis.json"), "not json");
+  assert.equal(resolveAnalysisArtifact(inputJob, jobsDir, reportJob), null);
 }));

@@ -134,12 +134,18 @@ describe("JUDGE_MODELS", () => {
 });
 
 describe("HARBOR_AGENTS", () => {
-  test("sem duplicatas e com os adapters que a documentação promete", () => {
+  test("espelha o AgentFactory do Harbor 0.22.0, sem duplicatas", () => {
     const values = HARBOR_AGENTS.map((a) => a.value);
     assert.equal(new Set(values).size, values.length, "há valor duplicado na lista");
-    for (const esperado of ["claude-code", "codex", "oracle", "nop", "mini-swe-agent", "terminus", "aider"]) {
-      assert.ok(values.includes(esperado), `faltou ${esperado}`);
-    }
+    const registered022 = [
+      "acp", "aider", "antigravity-cli", "antigravity-sdk", "claude-code", "cline-cli", "codex",
+      "computer-1", "copilot-cli", "cortex-code", "cursor-cli", "deerflow", "devin", "dspy-rlm",
+      "eve", "fx", "gemini-cli", "goose", "grok-build", "hermes", "junie", "kimi-cli", "kimi-code",
+      "langgraph", "mcode", "mimo", "mini-swe-agent", "nemo-agent", "nop", "openclaw", "opencode",
+      "openhands", "openhands-sdk", "oracle", "pi", "qwen-coder", "rovodev-cli", "swe-agent", "terminus-2", "trae-agent",
+      "vibe",
+    ];
+    assert.deepEqual([...values].sort(), registered022);
   });
 
   test("mini-swe-agent é model-agnostic e claude-code não", () => {
@@ -147,7 +153,7 @@ describe("HARBOR_AGENTS", () => {
     // foi validada com run real (mini-swe-agent + deepseek/deepseek-chat, reward 1.0).
     const byValue = Object.fromEntries(HARBOR_AGENTS.map((a) => [a.value, a.modelAgnostic]));
     assert.equal(byValue["mini-swe-agent"], true);
-    assert.equal(byValue["terminus"], true);
+    assert.equal(byValue["terminus-2"], true);
     assert.equal(byValue["claude-code"], false);
     assert.equal(byValue["codex"], false);
   });

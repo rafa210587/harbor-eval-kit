@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ResultRow } from "./types.ts";
+import { assertSafeExport } from "./export-safety.ts";
 
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 const number = (v: unknown): number | undefined => typeof v === "number" && Number.isFinite(v) ? v : undefined;
@@ -65,19 +66,17 @@ export function normalizeAnalysis(parsed: unknown): Record<string, any> | null {
       reportedCostUsd: costReportedTrials ? reportedCostUsd : undefined } };
 }
 
-export function parseAnalysisJson(path: string): Record<string, any> | null {
-  try { return normalizeAnalysis(JSON.parse(readFileSync(join(path, "analysis.json"), "utf8"))); }
-  catch { return null; }
-}
-
-/** Prefer the report emitted by THIS invocation over a stale analysis in the input dir. */
-export function resolveAnalysisJson(trialPath: string, stdout: string): Record<string, any> | null {
-  const match = stdout.match(/Report:\s*([^\r\n]+\.json)\s*$/m);
-  if (match) {
-    try { return normalizeAnalysis(JSON.parse(readFileSync(match[1].trim(), "utf8"))); }
-    catch { return null; }
-  }
-  return parseAnalysisJson(trialPath);
+/** Selects the canonical artifact from explicit invocation inputs; stdout formatting is irrelevant. */
+export function resolveAnalysisArtifact(inputPath: string, jobsDir: string, jobName: string):
+  { artifactPath: string; analysis: Record<string, any> } | null {
+  const artifactPath = existsSync(join(inputPath, "trial.log"))
+    ? join(inputPath, "analysis.json")
+    : join(jobsDir, jobName, "analysis.json");
+  if (!existsSync(artifactPath)) return null;
+  try {
+    const analysis = normalizeAnalysis(JSON.parse(readFileSync(artifactPath, "utf8")));
+    return analysis ? { artifactPath: resolve(artifactPath), analysis } : null;
+  } catch { return null; }
 }
 
 export function csvEscape(v: unknown): string {
@@ -104,7 +103,8 @@ export function summarizeAnalysisRecords(records: any[]): Pick<ResultRow, "passR
   };
 }
 
-export function writeReport(rows: ResultRow[], outPrefix: string): void {
+export function writeReport(rows: ResultRow[], outPrefix: string, secrets?: Record<string, string>): void {
+  assertSafeExport(rows, secrets);
   writeFileSync(`${outPrefix}.json`, JSON.stringify(rows, null, 2));
   writeFileSync(`${outPrefix}.csv`, reportCsv(rows));
 }

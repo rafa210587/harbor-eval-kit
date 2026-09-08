@@ -103,6 +103,14 @@
   .analysis-trial { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 10px; }
   .analysis-history-item + .analysis-history-item { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
   .analysis-warning { color: var(--warn); }
+  #operation-activity { margin: 0 0 14px; }
+  .operation-card { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+  .operation-log { max-height: 220px; }
+  .operation-card details { margin-top: 8px; }
+  .operation-jump { display: inline-block; font-size: 12px; margin: 4px 0 8px; }
+  #operation-activity[hidden] ~ .tab .operation-jump { display: none; }
+  .viewer-launch-card { margin-top: 10px; }
+  .viewer-start-log { max-height: 220px; }
   .analysis-check { align-items: flex-start; display: grid; gap: 8px; grid-template-columns: auto minmax(0, 1fr); margin: 8px 0; min-width: 0; }
   .outcome-pass { border-color: var(--ok); color: var(--ok); }
   .outcome-fail, .outcome-unknown { border-color: var(--err); color: var(--err); }
