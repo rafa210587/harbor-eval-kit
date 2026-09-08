@@ -1,0 +1,319 @@
+{
+  "sourceCommit": "48356f021dc5d6649bb9b36e7982b7383016b511",
+  "testedHarborVersion": "0.22.0",
+  "providers": [
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "prefixes": [
+        "anthropic/"
+      ],
+      "envKey": "ANTHROPIC_API_KEY"
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "prefixes": [
+        "openai/"
+      ],
+      "envKey": "OPENAI_API_KEY"
+    },
+    {
+      "id": "azure",
+      "label": "Azure OpenAI",
+      "prefixes": [
+        "azure/"
+      ],
+      "envKey": "AZURE_API_KEY"
+    },
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "prefixes": [
+        "deepseek/"
+      ],
+      "envKey": "DEEPSEEK_API_KEY"
+    },
+    {
+      "id": "gemini",
+      "label": "Google Gemini",
+      "prefixes": [
+        "gemini/",
+        "google/"
+      ],
+      "envKey": "GEMINI_API_KEY"
+    },
+    {
+      "id": "vertex_ai",
+      "label": "Google Vertex AI",
+      "prefixes": [
+        "vertex_ai/"
+      ],
+      "envKey": "VERTEXAI_API_KEY"
+    },
+    {
+      "id": "openrouter",
+      "label": "OpenRouter",
+      "prefixes": [
+        "openrouter/"
+      ],
+      "envKey": "OPENROUTER_API_KEY"
+    },
+    {
+      "id": "groq",
+      "label": "Groq",
+      "prefixes": [
+        "groq/"
+      ],
+      "envKey": "GROQ_API_KEY"
+    },
+    {
+      "id": "mistral",
+      "label": "Mistral",
+      "prefixes": [
+        "mistral/"
+      ],
+      "envKey": "MISTRAL_API_KEY"
+    },
+    {
+      "id": "cohere",
+      "label": "Cohere",
+      "prefixes": [
+        "cohere/"
+      ],
+      "envKey": "COHERE_API_KEY"
+    },
+    {
+      "id": "xai",
+      "label": "xAI (Grok)",
+      "prefixes": [
+        "xai/"
+      ],
+      "envKey": "XAI_API_KEY"
+    },
+    {
+      "id": "together_ai",
+      "label": "Together AI",
+      "prefixes": [
+        "together_ai/"
+      ],
+      "envKey": "TOGETHERAI_API_KEY"
+    },
+    {
+      "id": "fireworks_ai",
+      "label": "Fireworks AI",
+      "prefixes": [
+        "fireworks_ai/"
+      ],
+      "envKey": "FIREWORKS_AI_API_KEY"
+    },
+    {
+      "id": "ollama",
+      "label": "Ollama (local, sem key)",
+      "prefixes": [
+        "ollama/"
+      ],
+      "envKey": null
+    },
+    {
+      "id": "bedrock",
+      "label": "AWS Bedrock (credenciais AWS, não API key simples)",
+      "prefixes": [
+        "bedrock/"
+      ],
+      "envKey": null
+    }
+  ],
+  "harborAgents": [
+    {
+      "value": "acp",
+      "modelAgnostic": false
+    },
+    {
+      "value": "aider",
+      "modelAgnostic": true
+    },
+    {
+      "value": "antigravity-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "antigravity-sdk",
+      "modelAgnostic": false
+    },
+    {
+      "value": "claude-code",
+      "modelAgnostic": false
+    },
+    {
+      "value": "cline-cli",
+      "modelAgnostic": true
+    },
+    {
+      "value": "codex",
+      "modelAgnostic": false
+    },
+    {
+      "value": "computer-1",
+      "modelAgnostic": false
+    },
+    {
+      "value": "copilot-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "cortex-code",
+      "modelAgnostic": false
+    },
+    {
+      "value": "cursor-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "deerflow",
+      "modelAgnostic": true
+    },
+    {
+      "value": "devin",
+      "modelAgnostic": false
+    },
+    {
+      "value": "dspy-rlm",
+      "modelAgnostic": true
+    },
+    {
+      "value": "eve",
+      "modelAgnostic": false
+    },
+    {
+      "value": "fx",
+      "modelAgnostic": false
+    },
+    {
+      "value": "gemini-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "goose",
+      "modelAgnostic": true
+    },
+    {
+      "value": "grok-build",
+      "modelAgnostic": false
+    },
+    {
+      "value": "hermes",
+      "modelAgnostic": false
+    },
+    {
+      "value": "junie",
+      "modelAgnostic": false
+    },
+    {
+      "value": "kimi-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "kimi-code",
+      "modelAgnostic": false
+    },
+    {
+      "value": "langgraph",
+      "modelAgnostic": true
+    },
+    {
+      "value": "mcode",
+      "modelAgnostic": false
+    },
+    {
+      "value": "mimo",
+      "modelAgnostic": false
+    },
+    {
+      "value": "mini-swe-agent",
+      "modelAgnostic": true
+    },
+    {
+      "value": "nemo-agent",
+      "modelAgnostic": false
+    },
+    {
+      "value": "nop",
+      "modelAgnostic": false
+    },
+    {
+      "value": "openclaw",
+      "modelAgnostic": false
+    },
+    {
+      "value": "opencode",
+      "modelAgnostic": true
+    },
+    {
+      "value": "openhands",
+      "modelAgnostic": true
+    },
+    {
+      "value": "openhands-sdk",
+      "modelAgnostic": true
+    },
+    {
+      "value": "oracle",
+      "modelAgnostic": false
+    },
+    {
+      "value": "pi",
+      "modelAgnostic": false
+    },
+    {
+      "value": "qwen-coder",
+      "modelAgnostic": false
+    },
+    {
+      "value": "rovodev-cli",
+      "modelAgnostic": false
+    },
+    {
+      "value": "swe-agent",
+      "modelAgnostic": true
+    },
+    {
+      "value": "terminus-2",
+      "modelAgnostic": true
+    },
+    {
+      "value": "trae-agent",
+      "modelAgnostic": true
+    },
+    {
+      "value": "vibe",
+      "modelAgnostic": false
+    }
+  ],
+  "freeAgents": [
+    "oracle",
+    "nop"
+  ],
+  "judgeModels": [
+    {
+      "label": "DeepSeek V4 Pro",
+      "value": "deepseek/deepseek-v4-pro"
+    },
+    {
+      "label": "Claude Opus 5",
+      "value": "anthropic/claude-opus-5"
+    },
+    {
+      "label": "Claude Fable 5.1",
+      "value": "anthropic/claude-fable-5-1"
+    },
+    {
+      "label": "GPT-5.1",
+      "value": "openai/gpt-5.1"
+    },
+    {
+      "label": "Gemini 3 Pro",
+      "value": "gemini/gemini-3-pro"
+    }
+  ]
+}

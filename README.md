@@ -301,9 +301,11 @@ Sem suporte a skills, siga [Instalação manual](./docs/INSTALACAO_MANUAL.md) e
 ## Documentação
 
 Para entender ou reconstruir as capacidades, consulte a
-[baseline SDD com seis specs, planos e listas de tasks](./specs/README.md), organizada
-segundo o fluxo do Spec Kit. Ela documenta retrospectivamente a implementação e
-separa o que existe da validação pendente. Não é necessário instalar Spec Kit para usar a GUI.
+[baseline SDD com 12 capacidades, planos, tasks e contratos](./specs/README.md),
+organizada segundo o fluxo do Spec Kit. A [auditoria de suficiência](./docs/AUDITORIA_SDD_2026-09-08.md)
+identifica as lacunas das seis specs iniciais, mapeia 215 arquivos e 64 rotas e
+registra limites ainda existentes. A reconstrução independente permanece por validar.
+Não é necessário instalar Spec Kit para usar a GUI.
 
 ### Para usar a plataforma
 

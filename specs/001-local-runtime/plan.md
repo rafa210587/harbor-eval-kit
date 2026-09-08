@@ -12,6 +12,8 @@ Na implementação atual, os wrappers executam operações e gates; a decisão f
 
 ## Dados e contratos
 
+Implementar a partir de [contracts.md](contracts.md): esquema de manifesto/locks compartilhados, resolução por SO, identidade da API, limites do adapter, ordem de cleanup e auditoria. Referências a módulos são evidência, não substituem estes comportamentos.
+
 - InstallationManifest schema_version=1: host, preexisting, installed_by_kit, managed_resources e notes. Recursos incluem containers/images/volumes/networks.
 - Snapshot inicial usa criação exclusiva. Atualizações usam lock e substituição por arquivo temporário.
 - CleanupPlan contém actions(command,args) e preserved. `planCleanup` não executa comandos.

@@ -1,5 +1,8 @@
 # Plano — UI e onboarding
 
+As 16 abas, estado compartilhado, campos, apresentação e cenários de browser estão
+detalhados em [contracts.md](contracts.md).
+
 Baseline retrospectiva **2026-09-08**. Depende de 001–004. Aplicar constituição e regras de UI explicativa de AGENTS.md.
 
 ## Arquitetura e contratos

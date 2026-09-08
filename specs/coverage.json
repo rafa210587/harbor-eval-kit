@@ -1,0 +1,1576 @@
+{
+  "schemaVersion": 1,
+  "auditedSourceCommit": "48356f021dc5d6649bb9b36e7982b7383016b511",
+  "auditedAt": "2026-09-08",
+  "meaning": "Responsabilidade documental por arquivo/rota; não é prova de equivalência semântica nem percentual de reprodução.",
+  "scope": [
+    "scripts",
+    "gui",
+    "config",
+    "Harbor_install",
+    ".claude",
+    ".github",
+    ".githooks",
+    "evals",
+    ".gitattributes",
+    ".gitignore",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "exclusions": [
+    {
+      "scope": "docs/, README.md, DOCUMENTACAO.md, specs/, .specify/",
+      "reason": "Documentação, evidências e a própria auditoria; vinculadas pelo índice, não contadas como implementação."
+    },
+    {
+      "scope": "jobs/, jobs-test/, estado do usuário e segredos",
+      "reason": "Dados locais privados/gerados, não parte do clone nem inputs exportáveis."
+    }
+  ],
+  "summary": {
+    "files": 215,
+    "tests": 41,
+    "apiRoutes": 64,
+    "bySpec": {
+      "001": 28,
+      "002": 10,
+      "003": 21,
+      "004": 12,
+      "005": 14,
+      "006": 24,
+      "007": 37,
+      "008": 10,
+      "009": 25,
+      "010": 7,
+      "011": 10,
+      "012": 17
+    }
+  },
+  "modules": [
+    {
+      "path": ".claude/skills/cross-platform/SKILL.md",
+      "spec": "012",
+      "kind": "runbook"
+    },
+    {
+      "path": ".claude/skills/harbor-setup/SKILL.md",
+      "spec": "005",
+      "kind": "runbook"
+    },
+    {
+      "path": ".claude/skills/secret-guard/SKILL.md",
+      "spec": "011",
+      "kind": "runbook"
+    },
+    {
+      "path": ".claude/skills/ship-change/SKILL.md",
+      "spec": "012",
+      "kind": "runbook"
+    },
+    {
+      "path": ".gitattributes",
+      "spec": "012",
+      "kind": "configuration"
+    },
+    {
+      "path": ".githooks/pre-commit",
+      "spec": "012",
+      "kind": "configuration"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "spec": "012",
+      "kind": "configuration"
+    },
+    {
+      "path": ".gitignore",
+      "spec": "012",
+      "kind": "configuration"
+    },
+    {
+      "path": "AGENTS.md",
+      "spec": "012",
+      "kind": "runbook"
+    },
+    {
+      "path": "CLAUDE.md",
+      "spec": "005",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/cleanup-guardian.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/environment-doctor.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/eval-designer.md",
+      "spec": "007",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/eval-runner.md",
+      "spec": "003",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/harbor-installer.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/agents/result-analyzer.md",
+      "spec": "004",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/references/docker-host-por-so.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-bootstrap/SKILL.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-cleanup/SKILL.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-doctor/SKILL.md",
+      "spec": "001",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-down/SKILL.md",
+      "spec": "009",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-eval-designer/SKILL.md",
+      "spec": "007",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-eval-designer/references/exemplo-completo.md",
+      "spec": "007",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-eval-runner/SKILL.md",
+      "spec": "003",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-result-analyzer/SKILL.md",
+      "spec": "004",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-status/SKILL.md",
+      "spec": "009",
+      "kind": "runbook"
+    },
+    {
+      "path": "Harbor_install/skills/harbor-up/SKILL.md",
+      "spec": "009",
+      "kind": "runbook"
+    },
+    {
+      "path": "config/defaults.env",
+      "spec": "001",
+      "kind": "configuration"
+    },
+    {
+      "path": "config/litellm-gateway.example.json",
+      "spec": "008",
+      "kind": "configuration"
+    },
+    {
+      "path": "config/teste-live/catalogo-teste-live.json",
+      "spec": "006",
+      "kind": "configuration"
+    },
+    {
+      "path": "config/teste-live/vinculos-tasks-teste-live.json",
+      "spec": "006",
+      "kind": "configuration"
+    },
+    {
+      "path": "evals/java/README.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/java/seed-task/environment/Dockerfile",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/java/seed-task/instruction.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/java/seed-task/solution/solve.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/java/seed-task/task.toml",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/java/seed-task/tests/test.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/README.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/environment/Dockerfile",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/environment/solution.py",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/instruction.md",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/solution/solve.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/task.toml",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/tests/test.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/dificil-teste-live/tests/test_outputs.py",
+      "spec": "006",
+      "kind": "test"
+    },
+    {
+      "path": "evals/python/media-teste-live/environment/Dockerfile",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/environment/solution.py",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/instruction.md",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/solution/solve.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/task.toml",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/tests/test.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/media-teste-live/tests/test_outputs.py",
+      "spec": "006",
+      "kind": "test"
+    },
+    {
+      "path": "evals/python/seed-task/environment/Dockerfile",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/seed-task/instruction.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/seed-task/solution/solve.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/seed-task/task.toml",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/seed-task/tests/test.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/environment/Dockerfile",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/environment/solution.py",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/instruction.md",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/solution/solve.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/task.toml",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/tests/test.sh",
+      "spec": "006",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/simples-teste-live/tests/test_outputs.py",
+      "spec": "006",
+      "kind": "test"
+    },
+    {
+      "path": "evals/python/soma-fracoes/.gitignore",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/README.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/environment/Dockerfile",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/instruction.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/solution/solve.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/task.toml",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/tests/test.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/python/soma-fracoes/tests/test_outputs.py",
+      "spec": "007",
+      "kind": "test"
+    },
+    {
+      "path": "evals/typescript/README.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/typescript/seed-task/environment/Dockerfile",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/typescript/seed-task/instruction.md",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/typescript/seed-task/solution/solve.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/typescript/seed-task/task.toml",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "evals/typescript/seed-task/tests/test.sh",
+      "spec": "007",
+      "kind": "benchmark-fixture"
+    },
+    {
+      "path": "gui/app/agents.js",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/analysis-render.js",
+      "spec": "010",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/analysis-view.js",
+      "spec": "010",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-analysis-controller.js",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-analysis.js",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-domain.js",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-history.js",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-live.js",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare-render.js",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/compare.js",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/config-bundle.js",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/core.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/dataset-domain.js",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/datasets.js",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/field-help.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/forms.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/judging-domain.js",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/judging.js",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/log-domain.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/logs.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/main.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/misc.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/models-skills.js",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/operation-domain.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/operation-live.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/provider-domain.js",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/secrets.js",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/start-domain.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/start.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/state.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/task-domain.js",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/task-template.js",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/tasks.js",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/ui-actions.js",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/viewer-domain.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/app/viewer-live.js",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/index.html",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "gui/styles.css",
+      "spec": "005",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/check-imports.mjs",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/cleanup.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/compare-matrix.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/experiment-log-routes.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/experiment-routes.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/gui-lifecycle.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/gui-server.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/harbor-cli.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/harbor-eval.ps1",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/harbor-eval.sh",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/installation.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/analysis-inputs.ts",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/analysis-lock.test.ts",
+      "spec": "004",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/analysis-lock.ts",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/analysis-session.test.ts",
+      "spec": "004",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/analysis-session.ts",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/bundle.test.ts",
+      "spec": "002",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/bundle.ts",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/cancel-containers.test.ts",
+      "spec": "003",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/catalog.ts",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/cleanup.test.ts",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/cleanup.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/cost.test.ts",
+      "spec": "003",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/cost.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/exec.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/experiment-logs.test.ts",
+      "spec": "009",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/experiment-logs.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/experiment-plan.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/experiment-routes.test.ts",
+      "spec": "003",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/experiment-runner.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/experiment-store.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/experiment.test.ts",
+      "spec": "003",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/export-route-security.test.ts",
+      "spec": "010",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/export-safety.test.ts",
+      "spec": "010",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/export-safety.ts",
+      "spec": "010",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/gui-lifecycle.test.ts",
+      "spec": "009",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/gui-lifecycle.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/harbor-cli.test.ts",
+      "spec": "003",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/harbor-cli.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/harbor-python.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/harbor.test.ts",
+      "spec": "012",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/harbor.ts",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/http-body.test.ts",
+      "spec": "011",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/http-body.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/httpguard.test.ts",
+      "spec": "011",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/httpguard.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/installation.test.ts",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/installation.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/joblogs.test.ts",
+      "spec": "009",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/joblogs.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/litellm.test.ts",
+      "spec": "008",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/litellm.ts",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/live-config.test.ts",
+      "spec": "006",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/managed-runtime.test.ts",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/managed-runtime.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/materialize.ts",
+      "spec": "004",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/naming.ts",
+      "spec": "003",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/operations.test.ts",
+      "spec": "009",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/operations.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/paths.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/podman-smoke.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/podman.test.ts",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/podman.ts",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/portability.test.ts",
+      "spec": "012",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/provider-domain.test.ts",
+      "spec": "008",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/provider-probe.test.ts",
+      "spec": "008",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/provider-probe.ts",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/registry-service.test.ts",
+      "spec": "002",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/registry-service.ts",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/registry-validation.test.ts",
+      "spec": "002",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/registry-validation.ts",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/results.test.ts",
+      "spec": "010",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/results.ts",
+      "spec": "010",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/scan-secrets.test.ts",
+      "spec": "012",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/secrets.ts",
+      "spec": "011",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/state.test.ts",
+      "spec": "011",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/task-template.test.ts",
+      "spec": "007",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/tasks.test.ts",
+      "spec": "007",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/tasks.ts",
+      "spec": "007",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/types.ts",
+      "spec": "002",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/lib/ui-compare.test.ts",
+      "spec": "005",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/viewer-process.test.ts",
+      "spec": "009",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/lib/viewer-process.ts",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/harbor_eval_kit/__init__.py",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/harbor_eval_kit/cli.py",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/harbor_eval_kit/managed.py",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/harbor_eval_kit/ownership.py",
+      "spec": "001",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/harbor_eval_kit/test_cli.py",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/python/probe_provider.py",
+      "spec": "008",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/python/test_managed.py",
+      "spec": "001",
+      "kind": "test"
+    },
+    {
+      "path": "scripts/scan-secrets.sh",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/setup-hooks.ps1",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/setup-hooks.sh",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/start-gui.ps1",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/start-gui.sh",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/stop-gui.ps1",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/stop-gui.sh",
+      "spec": "009",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/test.ps1",
+      "spec": "012",
+      "kind": "implementation"
+    },
+    {
+      "path": "scripts/test.sh",
+      "spec": "012",
+      "kind": "implementation"
+    }
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/agents",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agents",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/agents/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agents/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/analysis-sessions",
+      "source": "scripts/gui-server.ts",
+      "line": 485,
+      "spec": "004"
+    },
+    {
+      "method": "POST",
+      "path": "/api/analyze",
+      "source": "scripts/gui-server.ts",
+      "line": 490,
+      "spec": "004"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compare",
+      "source": "scripts/experiment-routes.ts",
+      "line": 32,
+      "spec": "003"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compare/cancel",
+      "source": "scripts/experiment-routes.ts",
+      "line": 40,
+      "spec": "003"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compare/estimate",
+      "source": "scripts/experiment-routes.ts",
+      "line": 28,
+      "spec": "003"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/export",
+      "source": "scripts/gui-server.ts",
+      "line": 173,
+      "spec": "002"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/import",
+      "source": "scripts/gui-server.ts",
+      "line": 177,
+      "spec": "002"
+    },
+    {
+      "method": "GET",
+      "path": "/api/criteria",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/criteria",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/criteria/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/criteria/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "source": "scripts/gui-server.ts",
+      "line": 363,
+      "spec": "007"
+    },
+    {
+      "method": "POST",
+      "path": "/api/datasets/download",
+      "source": "scripts/gui-server.ts",
+      "line": 368,
+      "spec": "007"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experiments",
+      "source": "scripts/experiment-routes.ts",
+      "line": 48,
+      "spec": "003"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experiments/:id",
+      "source": "scripts/experiment-routes.ts",
+      "line": 52,
+      "spec": "003"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experiments/:id/logs/:candidateId",
+      "source": "scripts/experiment-log-routes.ts",
+      "line": 12,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experiments/:id/report",
+      "source": "scripts/experiment-routes.ts",
+      "line": 57,
+      "spec": "010"
+    },
+    {
+      "method": "GET",
+      "path": "/api/harbor-agents",
+      "source": "scripts/gui-server.ts",
+      "line": 167,
+      "spec": "008"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs",
+      "source": "scripts/gui-server.ts",
+      "line": 283,
+      "spec": "010"
+    },
+    {
+      "method": "GET",
+      "path": "/api/judge-models",
+      "source": "scripts/gui-server.ts",
+      "line": 136,
+      "spec": "004"
+    },
+    {
+      "method": "GET",
+      "path": "/api/judges",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/judges",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/judges/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/judges/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/files",
+      "source": "scripts/gui-server.ts",
+      "line": 189,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/jobs",
+      "source": "scripts/gui-server.ts",
+      "line": 183,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/tail",
+      "source": "scripts/gui-server.ts",
+      "line": 197,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/models",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/models/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/models/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/operations/:id",
+      "source": "scripts/gui-server.ts",
+      "line": 209,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers",
+      "source": "scripts/gui-server.ts",
+      "line": 160,
+      "spec": "008"
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers/:provider/models",
+      "source": "scripts/gui-server.ts",
+      "line": 234,
+      "spec": "008"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rubrics",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rubrics",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/rubrics/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/rubrics/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/secrets",
+      "source": "scripts/gui-server.ts",
+      "line": 142,
+      "spec": "008"
+    },
+    {
+      "method": "POST",
+      "path": "/api/secrets",
+      "source": "scripts/gui-server.ts",
+      "line": 146,
+      "spec": "008"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/secrets/:name",
+      "source": "scripts/gui-server.ts",
+      "line": 155,
+      "spec": "008"
+    },
+    {
+      "method": "POST",
+      "path": "/api/secrets/test",
+      "source": "scripts/gui-server.ts",
+      "line": 219,
+      "spec": "008"
+    },
+    {
+      "method": "GET",
+      "path": "/api/skills",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/skills",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/skills/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/skills/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/skillsets",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/skillsets",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/skillsets/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/skillsets/:id",
+      "source": "scripts/gui-server.ts",
+      "spec": "002",
+      "generatedFrom": "registryRoutes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/status",
+      "source": "scripts/gui-server.ts",
+      "line": 243,
+      "spec": "009"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "source": "scripts/gui-server.ts",
+      "line": 322,
+      "spec": "007"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/detail",
+      "source": "scripts/gui-server.ts",
+      "line": 326,
+      "spec": "007"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/detail",
+      "source": "scripts/gui-server.ts",
+      "line": 334,
+      "spec": "007"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/init",
+      "source": "scripts/gui-server.ts",
+      "line": 295,
+      "spec": "007"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/rubric-default",
+      "source": "scripts/gui-server.ts",
+      "line": 344,
+      "spec": "007"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/rubric-default",
+      "source": "scripts/gui-server.ts",
+      "line": 351,
+      "spec": "007"
+    },
+    {
+      "method": "GET",
+      "path": "/api/view",
+      "source": "scripts/gui-server.ts",
+      "line": 457,
+      "spec": "009"
+    },
+    {
+      "method": "POST",
+      "path": "/api/view",
+      "source": "scripts/gui-server.ts",
+      "line": 395,
+      "spec": "009"
+    },
+    {
+      "method": "POST",
+      "path": "/api/view/:id/stop",
+      "source": "scripts/gui-server.ts",
+      "line": 465,
+      "spec": "009"
+    }
+  ]
+}

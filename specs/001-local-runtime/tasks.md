@@ -12,7 +12,7 @@ Baseline retrospectiva **2026-09-08**. Todas as caixas começam vazias para reco
 - [ ] T003 Implementar instalação isolada e resolução de executáveis nos dois `scripts/harbor-eval.{sh,ps1}` (US1, FR-002/008).
 - [ ] T004 Implementar conexão e gates em `scripts/lib/podman.ts` e `scripts/installation.ts` (US2, FR-003).
 - [ ] T005 Implementar ownership no adapter Python e smoke em `scripts/lib/podman-smoke.ts` (US2, FR-004/006).
-- [ ] T006 Exigir Oracle real e gates completos antes de READY nos wrappers e skill bootstrap (US2, FR-005).
+- [ ] T006 Integrar gates nos wrappers e exigir Oracle real no runbook/skill antes de declarar READY; não atribuir certificação automática ausente aos wrappers (US2, FR-005).
 - [ ] T007 Implementar plano/verificação de cleanup em `scripts/lib/cleanup.ts` (US3, FR-007).
 
 ## Fase 3 — Validação
@@ -25,5 +25,6 @@ Baseline retrospectiva **2026-09-08**. Todas as caixas começam vazias para reco
 
 - [ ] T011 Atualizar README, DOCUMENTACAO e skill bootstrap com comandos efetivamente validados.
 - [ ] T012 Revisar diff e scanner de credenciais antes de publicar.
+- [ ] T013 Implementar e testar contratos de lock30s, ID reconciliado, API identificada, limites de topologia e ordem de exclusão em [contracts.md](contracts.md), sem executar containers no gate offline (FR-001/003/006/007).
 
 Ordem: T001 → T002 → T003/T004 → T005/T006/T007 → validação → entrega. T007 depende da propriedade definida em T005. Evidência atual e limitações estão no plano; caixas só devem ser marcadas após reconstrução e teste no novo ambiente. Nenhuma tarefa executa AWS.

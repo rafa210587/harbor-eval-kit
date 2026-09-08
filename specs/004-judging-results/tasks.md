@@ -26,5 +26,6 @@ Baseline retrospectiva **2026-09-08**. Checklist vazio para reconstrução; evid
 
 - [ ] T012 Atualizar DOCUMENTACAO, README e `Harbor_install/skills/harbor-result-analyzer/SKILL.md`.
 - [ ] T013 Revisar scanner/diff e registrar validações pendentes.
+- [ ] T014 Implementar e testar [contracts.md](contracts.md): conflitos de sessão, default explícito, UUID/batch, lock ancestral/descendente, timeout e exit0 sem artefato, com executor fake sem gasto (FR-001/003/004/007).
 
 Ordem: entidades → sessão/política → normalização/observabilidade → integração → entrega. T005/T006 podem ser desenvolvidas em arquivos separados após contrato definido. Nenhuma tarefa executa AWS.

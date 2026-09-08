@@ -10,7 +10,7 @@ Baseline retrospectiva **2026-09-08**. Checklist vazio de reconstrução; códig
 ## Fase 2 — Stories
 
 - [ ] T003 Implementar paths seguros e CRUD em `scripts/lib/paths.ts` e `registry-service.ts` (US1, FR-002/008).
-- [ ] T004 Implementar skills e extraFiles seguros em `scripts/lib/materialize.ts` (US1, FR-003).
+- [ ] T004 Implementar validação de extraFiles em `registry-validation.ts` e snapshot de skills em `experiment-store.ts`, ambos sob scripts/lib (US1, FR-003; contrato 003).
 - [ ] T005 Implementar secrets privados e redaction em `scripts/lib/secrets.ts` e `exec.ts` (US3, FR-007).
 - [ ] T006 Implementar gate compartilhado em `scripts/lib/export-safety.ts` e rotas de relatório (US2, FR-005).
 - [ ] T007 Implementar bundle e input da GUI em `scripts/lib/bundle.ts` e `gui/app/config-bundle.js` (US2, FR-004/006).

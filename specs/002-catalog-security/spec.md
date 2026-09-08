@@ -1,5 +1,8 @@
 # Catálogos, credenciais e configuração portátil
 
+Detalhes de validação, CRUD e import: [contracts.md](contracts.md). O cadastro
+não comprova disponibilidade de modelos nem força qualidade de critérios.
+
 Feature `002-catalog-security`. Baseline retrospectiva **2026-09-08**, derivada do código existente.
 
 ## Objetivo

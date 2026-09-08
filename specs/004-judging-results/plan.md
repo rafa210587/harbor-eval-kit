@@ -8,6 +8,8 @@ Baseline retrospectiva **2026-09-08**. Depende de 002 para catálogo e 003 para 
 
 ## Entidades e contratos
 
+O contrato de sessão, precedências, argv, lock e conclusão está em [contracts.md](contracts.md). Operações/viewer e normalização/reporting são aprofundados em009/010; esta feature integra esses domínios à avaliação qualitativa.
+
 JudgeEntry: id, label, agentValue, modelId opcional, promptTemplate opcional, defaultRubricIds e notes. Modelo deve resolver ModelEntry.value. Prompt admite `{trial_path}`, `{task_section}`, `{criteria_guidance}`. RubricEntry referencia criterionIds; critérios possuem name, description, guidance.
 
 AnalysisSession v1: id, createdAt, judgeId, judgeModel, agent, validationMode, prompt (string/null), rubrics [{id,content(string/null)}]. Input exige judgeId; rubricIds deve ser lista não vazia/sem duplicações, e omissão no domínio usa [__default__]. A UI resolve defaults do perfil antes de enviar; não presumir herança adicional invisível na API. validationMode omitido significa false. Política curada aplica-se quando false.

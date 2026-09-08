@@ -57,4 +57,11 @@ Como operador, quero inspecionar o conjunto exato de remoção.
 - **SC-002** Cada host declarado READY possui registro datado dos gates, smoke e Oracle naquele host.
 - **SC-003** Dry-run corresponde ao conjunto de ações calculado para o inventário inspecionado.
 
-Fontes e limites: [plan.md](plan.md). Receita de reconstrução: [tasks.md](tasks.md). FR/US são locais a esta feature.
+## Aceitação complementar da auditoria
+
+- Manifesto com ID trocado ou imagem com tag alheia adicional aborta cleanup antes da primeira remoção (FR-006/007).
+- Endpoint compatível que não se identifica como Podman ou Compose sem --wait/--pull não passa gate (FR-003).
+- Task multisserviço, rede restrita e imagem com volume anônimo são recusadas antes da criação; suporte Linux simples não deve ser apresentado como suporte irrestrito a Harbor (FR-004/006).
+- Lock abandonado expira em30s sem apagamento automático; snapshot inicial permanece intacto (FR-001/007).
+
+Fontes e limites: [plan.md](plan.md). Dados, algoritmos e erros: [contracts.md](contracts.md). Receita de reconstrução: [tasks.md](tasks.md). FR/US são locais a esta feature.

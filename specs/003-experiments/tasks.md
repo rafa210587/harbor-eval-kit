@@ -26,5 +26,6 @@ Baseline retrospectiva **2026-09-08**. Caixas vazias são receita de reconstruç
 
 - [ ] T012 Atualizar README/DOCUMENTACAO com overrides, limite pré-voo e recuperação pós-reinício.
 - [ ] T013 Revisar scanner/diff e preservar evidências sem segredos.
+- [ ] T014 Recriar os algoritmos e exemplos de [contracts.md](contracts.md), com testes independentes para limiar5/6, média ponderada/fallback, nomes70/caminhos240, snapshot parcial e dry-run com escrita sem trials (FR-004/005/006/007).
 
 Ordem: T002 → T003/T004 → T005 → T006/T007 → validação → entrega. Testes podem ser escritos com fixtures após T002, mas integração exige o runner. Evidência atual e limitações estão no plano. Nenhuma tarefa executa AWS.

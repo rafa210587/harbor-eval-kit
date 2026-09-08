@@ -57,4 +57,11 @@ Como operador, quero reabrir resultados e cancelar trabalho sob meu controle.
 - **SC-002** Edição do catálogo/fonte após prepare não altera inputs usados na run.
 - **SC-003** Histórico mantém ID/título/resultados da run sem confundir formulário atual.
 
-Detalhes em [plan.md](plan.md), receita em [tasks.md](tasks.md). Guarda de custo não é limite rígido de faturamento.
+## Aceitação complementar da auditoria
+
+- Cinco trials pagos sem histórico passam guarda de volume; seis exigem acknowledgement mesmo sem teto. Aumentar concurrency não muda o total estimado (FR-005).
+- Dry-run persiste snapshot e chama print-config, mas nunca inicia trial (FR-006/007).
+- Falha parcial de snapshot deixa record failed reservado e sem trial; reusar ID não sobrescreve evidência (FR-006).
+- Fallback de custo por modelo usa média ponderada por trials e informa desconhecidos; não confundir teto0 com bloquear todo gasto (FR-005).
+
+Detalhes em [plan.md](plan.md), algoritmos/DTOs em [contracts.md](contracts.md), receita em [tasks.md](tasks.md). Guarda de custo não é limite rígido de faturamento.

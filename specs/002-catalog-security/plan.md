@@ -1,5 +1,9 @@
 # Plano — catálogos e segurança
 
+Contrato detalhado e casos para reconstrução: [contracts.md](contracts.md).
+Providers/gateway são detalhados em [008](../008-provider-gateway/spec.md);
+transporte, caminhos e redaction em [011](../011-local-security/spec.md).
+
 Baseline retrospectiva **2026-09-08**. Depende de `001-local-runtime` para estado/execução local. Proteção de segredos é transversal desde a primeira rota.
 
 ## Arquitetura
@@ -46,7 +50,7 @@ promptTemplate admite `{trial_path}`, `{task_section}` e `{criteria_guidance}` d
 
 Suítes adicionais: `scripts/lib/provider-probe.test.ts`, `provider-domain.test.ts`, `litellm.test.ts`. Testes reais de provider/proxy ficam fora do gate offline e exigem evidência específica; manter proxy desligado nesta preparação.
 
-Implementar tipos → paths/validação → CRUD → materialização → secrets/redaction → gate export → bundle → GUI. Não copiar estado privado do desenvolvedor para fixtures.
+Implementar tipos → paths/validação → CRUD → snapshots de skills (003) → secrets/redaction → gate export → bundle → GUI. Não copiar estado privado do desenvolvedor para fixtures.
 
 Fontes adicionais: `scripts/lib/materialize.ts`, `httpguard.ts`, `http-body.ts`, `scripts/gui-server.ts` e `scripts/experiment-routes.ts`.
 

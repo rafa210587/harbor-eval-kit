@@ -8,6 +8,8 @@ Baseline retrospectiva **2026-09-08**. Depende de `001-local-runtime` e `002-cat
 
 ## Contratos e precedência
 
+Contrato detalhado em [contracts.md](contracts.md): payloads, nomes compactos, snapshots parciais, argv, fórmula de custo/limiar5 e estado durável. Estes detalhes são necessários para reconstrução equivalente.
+
 POST `/api/compare/estimate` recebe path, jobsDir opcional, jobPrefix, runId, nAttempts, concurrency, dryRun, env, extra, title, description, baselineIndex e entries. Cada entry contém agentId, modelId opcional e skillsetIds opcional. Retorna estimativa, nTasks e plan.
 
 - modelId omitido herda agent.modelId; string vazia seleciona default do Harbor.

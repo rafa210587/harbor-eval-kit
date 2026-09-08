@@ -4,6 +4,8 @@ Para instalar com Claude Code, comece por
 [Instalação com Claude e `/harbor-setup`](docs/INSTALACAO_CLAUDE.md).
 Para reconstruir ou evoluir o produto, use a
 [baseline SDD: specs, planos e tasks](specs/README.md).
+Ela inclui 12 capacidades e contratos auditados; leia também a
+[auditoria de suficiência e limitações](docs/AUDITORIA_SDD_2026-09-08.md).
 
 > Este arquivo documenta **tudo** que foi construído neste kit: como instalar do zero, por que
 > cada peça existe, como funciona por dentro, a lógica de cada decisão, o que foi desligado

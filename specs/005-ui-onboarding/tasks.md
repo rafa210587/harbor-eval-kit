@@ -2,6 +2,8 @@
 
 Baseline retrospectiva **2026-09-08**. Checklist de reconstrução intencionalmente vazio.
 
+Leia [contracts.md](contracts.md), incluindo as 16 abas e os oito cenários de aceitação.
+
 ## Fundação
 
 - [ ] T001 Concluir contratos 001–004 e ler spec/plan/constituição.

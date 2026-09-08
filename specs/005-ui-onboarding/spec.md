@@ -1,5 +1,7 @@
 # UI explicativa e instalação pelo Claude
 
+Contrato de jornadas e apresentação: [contracts.md](contracts.md).
+
 Feature `005-ui-onboarding`. Baseline retrospectiva **2026-09-08**.
 
 ## Objetivo

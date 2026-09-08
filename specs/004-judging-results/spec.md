@@ -53,4 +53,11 @@ Como operador, quero chegar aos logs e trajetórias reais. Teste independente: f
 - **SC-002** Cada análise possui ID, estado/log persistidos e saída redigida.
 - **SC-003** Análises incompletas ou de validação não viram ranking conclusivo.
 
-Contratos em [plan.md](plan.md); reconstrução em [tasks.md](tasks.md). Não há consenso automático entre juízes.
+## Aceitação complementar da auditoria
+
+- Criar sessão sem rubricIds usa padrão Harbor; seleção dos defaults de perfil ocorre explicitamente na UI, não por herança invisível no endpoint (FR-001/003).
+- Job e trial filho não podem ser analisados simultaneamente neste servidor; targets irmãos são independentes. Lock é liberado também após erro (FR-003/007).
+- Exit0 sem analysis.json canônico válido retorna falha, e experimento dry-run não pode ser enviado ao juiz (FR-005/007).
+- Sessão prevalece sobre perfil/ad hoc; judgeId ou validationMode conflitantes são recusados (FR-003/004).
+
+Contratos detalhados em [contracts.md](contracts.md), arquitetura em [plan.md](plan.md); reconstrução em [tasks.md](tasks.md). Não há consenso automático entre juízes.
