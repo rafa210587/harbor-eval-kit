@@ -26,6 +26,9 @@ export interface ExperimentPlan {
   dryRun: boolean;
   env: string;
   extra: string[];
+  title?: string;
+  description?: string;
+  baselineIndex?: number;
   candidates: Candidate[];
 }
 export function positiveInteger(raw: unknown, name: string): number {
@@ -68,7 +71,11 @@ export function parseExperimentExtra(raw: unknown): string[] {
     const value = inline.length ? inline.join("=") : tokens[++i];
     if (!value || value.startsWith("-")) throw new Error(`valor ausente para ${flag}`);
     if (flag === "--timeout-multiplier" && (!Number.isFinite(Number(value)) || Number(value) <= 0)) throw new Error("timeout-multiplier inválido");
-    if (flag !== "--timeout-multiplier" && (!value.includes("=") || /(?:api.?key|secret|token|password|credential)/i.test(value.split("=")[0]))) throw new Error("kwarg inválido ou reservado a credenciais; use Secrets");
+    if (flag !== "--timeout-multiplier") {
+      const key = value.split("=")[0];
+      if (!value.includes("=") || (key !== "max_tokens" && /(?:api.?key|secret|token|password|credential)/i.test(key))) throw new Error("kwarg inválido ou reservado a credenciais; use Secrets");
+      if (key === "max_tokens") positiveInteger(value.slice(key.length + 1), "max_tokens");
+    }
   }
   return tokens;
 }
@@ -105,16 +112,23 @@ export function cliCandidates(combos: Combo[]): Omit<Candidate, "id" | "jobName"
   return combos.map(combo => ({ ...combo, label: combo.agent, skills: combo.skillset.paths.map((path, i) => ({ id: `path-${i}`, label: basename(path), mode: "path", path: resolve(path) })) }));
 }
 
-export function createExperimentPlan(input: { path: string; jobsDir?: string; jobPrefix?: string; runId?: string; nAttempts?: unknown; concurrency?: unknown; dryRun?: boolean; env?: string; extra?: unknown }, candidates: Omit<Candidate, "id" | "jobName">[]): ExperimentPlan {
+export function createExperimentPlan(input: { path: string; jobsDir?: string; jobPrefix?: string; runId?: string; nAttempts?: unknown; concurrency?: unknown; dryRun?: boolean; env?: string; extra?: unknown; title?: unknown; description?: unknown; baselineIndex?: unknown }, candidates: Omit<Candidate, "id" | "jobName">[]): ExperimentPlan {
   if (!input.path || typeof input.path !== "string" || !candidates.length) throw new Error("path e candidatos são obrigatórios");
   const id = input.runId ?? randomUUID();
   assertSafeId(id);
+  for (const [field, limit] of [["title", 120], ["description", 1000]] as const) {
+    if (input[field] !== undefined && (typeof input[field] !== "string" || input[field].length > limit)) throw new Error(`${field} deve ser texto com até ${limit} caracteres`);
+  }
+  if (input.baselineIndex !== undefined && (!Number.isInteger(input.baselineIndex) || Number(input.baselineIndex) < 0 || Number(input.baselineIndex) >= candidates.length)) throw new Error("baselineIndex deve identificar um candidato da comparação");
   if (input.env && input.env !== "docker") throw new Error("este kit usa apenas o backend docker do Harbor conectado ao Podman");
   const prefix = `${sanitize(input.jobPrefix ?? "cmp").slice(0, 24)}-${id}`;
   const plan: ExperimentPlan = { version: 1, id, createdAt: new Date().toISOString(), taskPath: resolve(input.path), tasks: discoverExperimentTasks(input.path), jobsDir: resolve(input.jobsDir ?? "jobs"),
     nAttempts: positiveInteger(input.nAttempts ?? 1, "n-attempts"), concurrency: positiveInteger(input.concurrency ?? 1, "concurrency"), dryRun: input.dryRun === true, env: "docker", extra: parseExperimentExtra(input.extra),
     candidates: candidates.map((c, i) => ({ ...c, id: `candidate-${i + 1}`, jobName: jobName(`${prefix}-${i + 1}`, { ...c, skillset: { ...c.skillset, label: sanitize(c.skillset.label).slice(0, 32) } }) })) };
   if (!Number.isSafeInteger(plan.tasks.length * plan.nAttempts * candidates.length)) throw new Error("volume de trials excede inteiro seguro");
+  plan.title = (input.title as string | undefined)?.trim() || undefined;
+  plan.description = (input.description as string | undefined)?.trim() || undefined;
+  plan.baselineIndex = input.baselineIndex as number | undefined;
   return plan;
 }
 

@@ -8,6 +8,7 @@
 // Run: node scripts/gui-server.ts [--port 4173]
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { discoverProviderModels } from "./lib/provider-probe.ts";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -226,11 +227,20 @@ addRoute("POST", "/api/secrets/test", async (_req, res, _params, body) => {
   if (!listSecretNames().includes(name)) {
     return sendJson(res, 400, { ok: false, error: `no secret named ${name} is saved yet` });
   }
-  const result = await testProviderKey(provider.id, name);
+  const result = await testProviderKey(provider.id, name, body.model);
   sendJson(res, result.ok ? 200 : 502, result);
 });
 
 // ---------- status / doctor ----------
+
+addRoute("GET", "/api/providers/:provider/models", async (req, res, params) => {
+  const provider = PROVIDERS.find(p => p.id === params.provider);
+  if (!provider?.envKey) throw new Error("Provider sem credencial simples para descoberta");
+  const requested = new URL(req.url!, "http://localhost").searchParams.get("envKey");
+  if (requested && requested !== provider.envKey) throw new Error("Credencial não corresponde ao provider escolhido");
+  const result = await discoverProviderModels(provider.id, provider.envKey);
+  sendJson(res, result.ok ? 200 : 502, result);
+});
 
 addRoute("GET", "/api/status", async (_req, res) => {
   const harborAvailable = isHarborAvailable();
@@ -262,7 +272,7 @@ addRoute("GET", "/api/status", async (_req, res) => {
     // traffic being redirected through a proxy right now?" is answerable without reading files.
     litellmGateway: (() => {
       const cfg = getLitellmGatewayConfig();
-      return { enabled: cfg.enabled, baseUrl: cfg.enabled ? cfg.baseUrl : null, configPath: getLitellmGatewayPath() };
+      return { enabled: cfg.enabled, baseUrl: cfg.enabled ? cfg.hostBaseUrl ?? cfg.containerBaseUrl : null, configPath: getLitellmGatewayPath() };
     })(),
   });
 });

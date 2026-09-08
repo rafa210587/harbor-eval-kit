@@ -43,14 +43,23 @@ Bootstrap Harbor Framework on a Podman-only machine with minimal host mutation.
       no `harbor agent list`: verified 2026-09-06 on Harbor 0.22.0, that command does not
       exist, and `harbor adapter` only offers `init`/`review`)
     - `harbor dataset list` or the equivalent reported by `harbor --help`
-11. Validate Podman compatibility with Harbor by running an **actual minimal task**, not just
-    `podman info`, before declaring success. A task using `--env docker` needs Podman's
-    Docker-compatible endpoint, and how you reach it differs per OS — the Docker CLI/SDK's own
-    default never points at Podman on any of them.
+11. Run the read-only connection gates before any container work:
+    - `node scripts/installation.ts gate <manifest>`
+    - this selects an explicit running machine/connection, proves the API identifies itself as
+      Podman, and runs `podman compose version` with the resolved `DOCKER_HOST` scoped to that
+      child only; it never requires Docker Engine. The Compose provider itself must be present
+      and its `up --help` must expose `--wait` and `--pull`.
+12. Run `node scripts/installation.ts smoke <manifest>`. This checks build, run, exec, a
+    synthetic environment variable, two-way bind-mount I/O, volume, network, labels and
+    verified cleanup. It requires the preexisting `docker.io/library/alpine:3.20` image and
+    uses `--pull=never`; provision the base explicitly outside the smoke.
+13. Validate Podman compatibility with Harbor by running an **actual minimal oracle task**
+    before declaring success. The kit's managed environment adapter invokes Podman directly;
+    it does not depend on `docker` being installed.
     **→ `Harbor_install/references/docker-host-por-so.md`** has the exact command and value per
     OS, the rules that hold on all three, and this kit's canonical implementation to reuse
     rather than re-derive.
-12. Persist exact actions and versions, including which OS branch of step 11 was used and
+14. Persist exact actions and versions, including which OS branch of step 11 was used and
     what the resolved Docker-compatible endpoint was (or that none could be resolved).
 
 ## Java / Node / Python policy
@@ -74,9 +83,17 @@ before installation. They record Harbor only after successful installation and e
 discovery. Bash also records uv if it installs it; PowerShell requires uv to be provisioned.
 The primitive smoke uses unique names, labels, manifest reservations and audited cleanup.
 It requires an existing `docker.io/library/alpine:3.20` base image and uses `--pull=never` so
-it cannot silently create an unowned upstream image. Provision this prerequisite explicitly.
+it cannot silently create an unowned upstream image. It also proves synthetic env injection
+and host/container bind-mount writes. Provision the base prerequisite explicitly.
 
 The wrappers do not automatically execute an end-to-end Harbor task or declare READY.
 Kit-installed uv is recorded but preserved by uninstall because its full upstream installer
-footprint is not captured. Tests are offline with fake tools; no real installation validated
-these changes. Finish and record the remaining compatibility gate before claiming readiness.
+footprint is not captured. Windows validation on 2026-09-07 covered the read-only gates,
+primitive smoke and real oracle/nop tasks (reward 1/0). macOS/Linux still require real-host
+validation before their branches can be declared ready.
+
+Local runs go through `harbor_eval_kit.managed:ManagedPodmanEnvironment`. Current supported
+scope is Harbor 0.22.0, Linux container, one `main` service, public network policy and a local
+prebuilt image or Dockerfile whose base images already exist. Custom Compose/multiservice,
+restricted networking, implicit pulls and images declaring anonymous volumes are blocked before
+resource creation. Do not widen this scope from a logic test alone.

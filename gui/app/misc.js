@@ -1,6 +1,8 @@
 // Trajectories (harbor view) and the standalone Analyze tab.
 import { $, $$, api, escapeHtml, tabRefreshers } from "./core.js";
 import { state } from "./state.js";
+import { withBooleanField } from "./compare-domain.js";
+import { renderStandaloneAnalysis } from "./analysis-render.js";
 
 // ================= TRAJECTORIES =================
 $("#view-form").addEventListener("submit", async (e) => {
@@ -30,11 +32,28 @@ tabRefreshers.trajectories = refreshViewList;
 // ================= ANALYZE =================
 $("#analyze-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const data = Object.fromEntries(new FormData(e.target).entries());
+  const rawData = Object.fromEntries(new FormData(e.target).entries());
+  // FormData represents a checked checkbox as the string "on". The API deliberately requires
+  // a real boolean so validation results cannot be mistaken for a high-tier judgment.
+  const data = withBooleanField(rawData, "validationMode", $("#analyze-standalone-validation-mode").checked);
   const out = $("#analyze-output");
-  out.textContent = "Analyzing… (chamada de LLM, pode demorar)";
+  const button = e.target.querySelector('button[type="submit"]');
+  if (button.disabled) return;
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  const startedAt = Date.now();
+  const tick = setInterval(() => {
+    button.textContent = `Analisando… ${Math.round((Date.now() - startedAt) / 1000)}s`;
+    out.textContent = `Análise em andamento há ${Math.round((Date.now() - startedAt) / 1000)}s. Esta operação faz uma chamada ao modelo juiz.`;
+  }, 1000);
+  out.textContent = "Analisando… (chamada de LLM, pode demorar)";
   try {
     const res = await api("POST", "/api/analyze", data);
-    out.textContent = res.analysis ? JSON.stringify({ validationMode: !!res.validationMode, judgeModel: res.judgeModel, analysis: res.analysis }, null, 2) : (res.stdout || "") + (res.stderr || "");
+    renderStandaloneAnalysis(out, res);
   } catch (err) { out.textContent = "Error: " + err.message; }
+  finally {
+    clearInterval(tick);
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
 });

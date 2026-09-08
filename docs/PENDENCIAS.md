@@ -27,8 +27,8 @@ afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
   Tabela de resultado envolta em `.table-wrap` (scroll horizontal próprio, nunca a página).
 - **Modo compacto** — checkbox no cabeçalho (`#compact-toggle`), persiste em `localStorage`,
   esconde `.hint` exceto os marcados `.status-line` (que carregam estado, não texto didático).
-- **Navegação agrupada** — três blocos visuais no `<nav>` (Configurar / Rodar /
-  Analisar-Apoio) via `<span class="nav-divider">`.
+- **Navegação agrupada** — Jornada, Catálogo e Ambiente e ajuda; Começar orienta o primeiro uso
+  e Novo experimento separa objetivo, candidatos, task/volume e execução.
 - **Acessibilidade** — 60 pares `<label for>`/`id` associados (dos ~67 campos reais; o resto
   são labels de **grupo** — "Rubrics", "Skills incluídas" etc. — que descrevem um
   `checkbox-group` inteiro, não um único campo, então `for` apontaria pra um membro arbitrário
@@ -52,9 +52,13 @@ afeta (ver mapa em `README.md`/`DOCUMENTACAO.md` §14).
 - Retomada explícita de experimento interrompido, com validação de inputs e ownership.
   A persistência permite consulta; não equivale a reiniciar processos automaticamente.
 
-Correções da auditoria e sua verificação estão em
-[`PLANO_CORRECOES_2026-09-07.md`](PLANO_CORRECOES_2026-09-07.md). Para continuar uma sessão
-interrompida, use [`PROMPT_CONTINUACAO_CLAUDE.md`](PROMPT_CONTINUACAO_CLAUDE.md).
+O escopo mais recente está em [Plano da plataforma](PLANO_PLATAFORMA_2026-09-07.md), com
+[prompt de continuidade](PROMPT_CLAUDE_PLATAFORMA.md). A auditoria anterior em
+`PLANO_CORRECOES_2026-09-07.md` está concluída.
+
+O runtime gerenciado atual aceita tasks Linux de serviço único e rede pública. Suporte a
+Compose customizado/multisserviço e políticas de rede restrita precisa preservar ownership e
+equivalência; atualmente esses casos são recusados. Smoke real em macOS/Linux ainda é pendente.
 
 ## 🔲 Licença (decisão do dono do repo, não técnica)
 

@@ -30,11 +30,14 @@ Use for preflight, health checks, status or troubleshooting.
 - labels
 - cleanup
 
-### Docker compatibility gate
+### Podman API and Compose gate
 
-Harbor local execution is Docker-oriented. Check whether the current Harbor environment implementation can reach Podman through its expected API/CLI.
-
-Do not assume `alias docker=podman` is sufficient.
+Run `node scripts/installation.ts gate <manifest>`. It selects the effective Podman
+machine/connection, validates it with the Podman CLI, checks that the resolved API endpoint
+identifies itself as Podman, and checks the configured `podman compose` provider plus the
+`--wait`/`--pull` flags used by Harbor. Do not install Docker Engine and do not rely on
+`alias docker=podman`. A preexisting Docker Compose CLI plugin is permitted as Podman's
+provider; `podman-compose` versions without the required flags are blocked.
 
 Verify the exact operations Harbor performs by running a minimal Harbor task.
 
@@ -70,10 +73,12 @@ Every BLOCKED item must include the exact failing command and safe remediation.
 
 ## Current wrapper implementation
 
-Both wrappers call `scripts/installation.ts smoke` after the immutable installation snapshot.
+Both wrappers call `scripts/installation.ts gate` and then `smoke` after the immutable
+installation snapshot.
 Node.js 24+ and an already provisioned `docker.io/library/alpine:3.20` image are prerequisites;
 the smoke refuses an implicit base pull. Each run uses unique prefixed names and the managed
 label, records intended names before creation, and verifies cleanup. A failed smoke leaves
 its manifest reservations for inspection and cleanup. It does not remove other managed runs.
-This covers Podman primitives, not the full Docker compatibility/Harbor task gate above.
-The shared implementation has offline fake-runner coverage; real host validation is pending.
+This covers Podman primitives including env and bind I/O, not the final Harbor task gate.
+The resolver/API/Compose gate was exercised on Windows with Podman 6.0.2 on 2026-09-07;
+macOS and Linux branches remain logic-tested only.

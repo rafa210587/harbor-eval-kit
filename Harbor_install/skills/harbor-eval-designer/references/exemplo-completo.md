@@ -36,7 +36,9 @@ resposta. Dependência **de teste** se instala no `test.sh`, não aqui.
   denominador negativo — não só o caso feliz.
 - Imprime o que falhou (`FALHOU <entrada> esperado <x> obtido <y>`), o que torna o log útil na
   aba Logs e para o juiz depois.
-- Sai `0` sempre: quem comunica o resultado é o `reward.txt`, não o exit code do script.
+- Escreve `reward.txt` quando a verificação termina; uma falha do teste, caminho ou ambiente sai
+  com erro e não aprova a task. Um stub que apenas cria o arquivo ou termina sem verificar o
+  comportamento deve falhar explicitamente.
 
 **`solution/solve.sh`** — solução de referência usada pelo agent `oracle`:
 

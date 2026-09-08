@@ -13,7 +13,11 @@ export function setupExperimentHistory(onOpen) {
   async function refreshHistory() {
     try {
       const rows = await api("GET", `/api/experiments?jobsDir=${encodeURIComponent(jobsInput.value || "jobs")}`);
-      picker.innerHTML = '<option value="">— escolher experimento —</option>' + rows.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.createdAt)} · ${escapeHtml(r.status)} · ${escapeHtml(r.id)}</option>`).join("");
+      picker.innerHTML = '<option value="">— escolher experimento —</option>' + rows.map(r => {
+        const title = r.title || r.id;
+        const task = r.nTasks > 1 ? `${r.nTasks} tasks` : (r.taskPath || "task não informada");
+        return `<option value="${escapeHtml(r.id)}">${escapeHtml(title)} · ${escapeHtml(r.status)} · ${escapeHtml(task)} · ${escapeHtml(r.createdAt)}</option>`;
+      }).join("");
       status.textContent = rows.length ? `${rows.length} experimento(s) salvo(s).` : "Nenhum experimento salvo nesta pasta. Rode uma comparação primeiro.";
     } catch (err) { status.textContent = err.message; }
   }
@@ -27,7 +31,7 @@ export function setupExperimentHistory(onOpen) {
       rememberExperiment(jobsInput.value, id);
       status.textContent = record.executionUncertain
         ? "Servidor reiniciado: execução sem confirmação de atividade. Os resultados vêm do disco; confira os logs antes de agir."
-        : `Estado: ${record.status}. Reabrir consulta resultados; uma nova execução recebe outro ID.`;
+        : `Estado: ${record.status}. Este registro é imutável. Para repetir, crie um novo experimento e confira a prévia; o catálogo pode ter mudado.`;
     } catch (err) { status.textContent = err.message; }
     finally { button.disabled = false; }
   }

@@ -20,9 +20,10 @@ for a full diagnosis or troubleshooting.
 
 Report each of these as up/down/unknown, cheaply, with no side effects:
 
-1. **Podman machine** (Windows/macOS only): `podman machine list` — is the default machine's
-   `LAST UP` "Currently running"? On Linux rootless, check `podman info` succeeds instead
-   (no machine concept there).
+Run `bash scripts/harbor-eval.sh status` or `pwsh scripts/harbor-eval.ps1 status`. Both delegate
+to `scripts/harbor-cli.ts status`. The command performs only these reads:
+
+1. **Podman**: `podman info --format json`. It never starts a machine.
 2. **GUI**: `GET http://127.0.0.1:4173/api/status` — if it responds, surface its own payload
    verbatim (`harbor.version`, `podman.version`, `podman.infoOk`, `podman.dockerHost`,
    `platform`, `stateDir`) instead of re-deriving those facts yourself. If it doesn't respond,
@@ -34,7 +35,7 @@ Report each of these as up/down/unknown, cheaply, with no side effects:
    answer "is an eval running right now?" without starting anything. `GET /api/logs/files` and
    `GET /api/logs/tail` (byte-offset incremental) read the logs themselves if the user asks
    what a running job is doing — the GUI's own **Logs** tab uses these same three routes.
-5. Do **not** run `harbor run`/`harbor init --task`/any smoke test, and do not start or stop
+5. Do **not** run `harbor run`/`harbor init --task`/`installation.ts gate`/any smoke test, and do not start or stop
    anything — this is read-only. If something is down, hand off to `harbor-up` to bring it up
    or `harbor-doctor` to actually diagnose why, rather than fixing it inline here.
 

@@ -5,87 +5,21 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { getStateDir, safeJoinUnderDir } from "./paths.ts";
 import { discoverCleanupResources, planCleanup } from "./cleanup.ts";
 import type { CleanupExecutor } from "./cleanup.ts";
 import { loadInstallationManifest } from "./installation.ts";
 import type { ExecOptions, ExecResult } from "./types.ts";
-import { getLitellmGatewayConfig, litellmGatewayEnv } from "./litellm.ts";
+import { getLitellmGatewayConfig, buildLitellmRuntimeEnv, applyLitellmGatewayEnv } from "./litellm.ts";
+import { resolvePodmanConnection, validatePodmanInterfaces } from "./podman.ts";
+import { managedRunArgs, managedRuntimeEnv } from "./managed-runtime.ts";
+import { getHarborPythonPath } from "./harbor-python.ts";
 
-/**
- * On Windows, Docker Desktop's own pipe is the CLI/SDK default context even when it's
- * stopped; the Podman machine forwards its Docker-compatible API to a different, generic
- * pipe. On macOS and Linux the same class of problem can show up differently (no Docker
- * Desktop pipe to collide with, but Harbor's Docker-oriented backend still needs to be
- * pointed at Podman's actual socket rather than assuming the Docker CLI's own default).
- * Scoping DOCKER_HOST to a single spawned child (never process.env globally) routes that one
- * call to Podman without touching the caller's shell or any other tool on the host.
- */
-let cachedPodmanDockerHost: string | null | undefined; // undefined = not resolved yet this process
-
-/**
- * Resolves the DOCKER_HOST value that reaches Podman's Docker-compatible API, per platform:
- *
- * - **win32**: a fixed, well-known named pipe (`docker_engine`) that Podman machine exposes
- *   specifically for Docker-CLI/SDK compatibility, distinct from its own per-machine-named
- *   native API pipe (confirmed: `podman machine inspect` reports the native pipe as
- *   `\\.\pipe\podman-machine-default`, a different, machine-name-dependent value) -- this is
- *   the value validated by every real `harbor run` in this kit's own testing, kept hardcoded
- *   rather than "discovered" because there's nothing to discover it from.
- * - **darwin**: Podman on macOS always runs inside a VM ("podman machine"); its Docker-API
- *   socket path is host-local but machine-name-dependent, so it's resolved dynamically via
- *   `podman machine inspect`.
- * - **linux**: rootless Podman normally exposes its API socket directly (no VM/machine layer)
- *   -- `podman info` reports that socket's real path, and unlike the Windows case, the same
- *   socket already speaks the Docker-compatible dialect (Podman's API server multiplexes
- *   both under one socket on Unix). If a Podman *machine* is active instead (uncommon on
- *   Linux, but supported), the same machine-inspect path as macOS is used.
- *
- * Best-effort: returns null if `podman` isn't on PATH, no machine/socket is found, or the
- * platform is unrecognized -- callers should leave DOCKER_HOST unset in that case and let
- * Harbor's own doctor gate surface a clear error rather than silently pointing at nothing.
- * Result is memoized per process (this shells out to `podman`, and buildHarborEnv() runs on
- * every child spawn).
- */
+/** Read-only discovery. Doctor validates the API before a real smoke/run. */
 export function resolvePodmanDockerHost(): string | null {
-  if (cachedPodmanDockerHost !== undefined) return cachedPodmanDockerHost;
-
-  const run = (args: string[]): string | null => {
-    try {
-      return execFileSync("podman", args, { stdio: ["ignore", "pipe", "ignore"] })
-        .toString()
-        .trim() || null;
-    } catch {
-      return null;
-    }
-  };
-  const asUnixUrl = (path: string | null): string | null =>
-    path ? (path.startsWith("unix://") ? path : `unix://${path}`) : null;
-
-  let result: string | null = null;
-  if (process.platform === "win32") {
-    result = "npipe:////./pipe/docker_engine";
-  } else if (process.platform === "darwin") {
-    result = asUnixUrl(run(["machine", "inspect", "--format", "{{.ConnectionInfo.PodmanSocket.Path}}"]));
-  } else if (process.platform === "linux") {
-    const machinesJson = run(["machine", "list", "--format", "json"]);
-    let hasActiveMachine = false;
-    if (machinesJson) {
-      try {
-        hasActiveMachine = (JSON.parse(machinesJson) as Array<{ Running?: boolean }>).some((m) => m.Running);
-      } catch {
-        hasActiveMachine = false;
-      }
-    }
-    result = hasActiveMachine
-      ? asUnixUrl(run(["machine", "inspect", "--format", "{{.ConnectionInfo.PodmanSocket.Path}}"]))
-      : asUnixUrl(run(["info", "--format", "{{.Host.RemoteSocket.Path}}"]));
-  }
-
-  cachedPodmanDockerHost = result;
-  return result;
+  try { return resolvePodmanConnection().dockerHost; } catch { return null; }
 }
 
 /**
@@ -122,11 +56,12 @@ function withPythonUtf8(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 export function buildHarborEnv(
   extraEnv: Record<string, string> = {},
-  gateway: Record<string, string> = litellmGatewayEnv(getLitellmGatewayConfig(), extraEnv)
+  gateway?: Record<string, string>
 ): NodeJS.ProcessEnv {
-  // Gateway vars go UNDER extraEnv: an explicit per-call value always wins over the ambient
-  // gateway config, never the other way around.
-  const env: NodeJS.ProcessEnv = { ...process.env, ...gateway, ...extraEnv };
+  const cfg = gateway === undefined ? getLitellmGatewayConfig() : null;
+  const runtime = cfg ? buildLitellmRuntimeEnv(extraEnv, cfg) : applyLitellmGatewayEnv(extraEnv, gateway ?? {});
+  const env: NodeJS.ProcessEnv = { ...process.env, ...runtime };
+  if (cfg?.enabled && cfg.masterKeyEnv) delete env[cfg.masterKeyEnv];
   if (env.DOCKER_HOST === undefined) {
     const dockerHost = resolvePodmanDockerHost();
     if (dockerHost) env.DOCKER_HOST = dockerHost;
@@ -201,8 +136,21 @@ export function execCommand(
   });
 }
 
-export function execHarbor(args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
-  return execCommand("harbor", args, opts);
+export async function execHarbor(args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
+  const managedArgs = managedRunArgs(args);
+  const extraEnv = managedRuntimeEnv(args, opts.extraEnv);
+  if (["run", "analyze"].includes(args[0]) && !args.includes("--print-config")) {
+    const connection = resolvePodmanConnection();
+    await validatePodmanInterfaces(connection);
+    extraEnv.DOCKER_HOST = connection.dockerHost;
+    if (connection.connectionName) extraEnv.CONTAINER_CONNECTION = connection.connectionName;
+  }
+  if (args[0] === "analyze") {
+    const python = getHarborPythonPath();
+    if (!python) throw new Error("Python do Harbor via uv não encontrado; execute o doctor");
+    return execCommand(python, ["-m", "harbor_eval_kit.cli", ...managedArgs], { ...opts, extraEnv });
+  }
+  return execCommand("harbor", managedArgs, { ...opts, extraEnv });
 }
 
 /** Cancellation stops only manifest-owned, labeled containers with the exact trial service
@@ -223,6 +171,9 @@ export function stopContainersForJob(
     const expected = new Set(readdirSync(jobDir, { withFileTypes: true })
       .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
       .map(entry => `${entry.name.toLowerCase()}__env-main-1`));
+    for (const entry of manifest.managed_resources.containers) {
+      if (typeof entry === "object" && entry?.jobPath && resolve(entry.jobPath) === resolve(jobDir) && typeof entry.name === "string") expected.add(entry.name.toLowerCase());
+    }
     if (!expected.size) return [];
     const running = () => new Set(run("podman", ["ps", "-q", "--no-trunc"]).split(/\r?\n/).map(id => id.trim()).filter(Boolean));
     const active = running();
@@ -242,7 +193,7 @@ export function stopContainersForJob(
 }
 export function isHarborAvailable(): boolean {
   try {
-    execFileSync("harbor", ["--version"], { stdio: "ignore" });
+    execFileSync("harbor", ["--version"], { stdio: "ignore", env: { ...process.env, HARBOR_TELEMETRY: "disabled", PYTHONIOENCODING: "utf-8" } });
     return true;
   } catch {
     return false;

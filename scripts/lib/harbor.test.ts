@@ -290,34 +290,32 @@ describe("gateway LiteLLM", () => {
     assert.deepEqual(comPadrao, semGateway);
   });
 
-  test("config pela metade (sem baseUrl) não contribui nada, em vez de meio ligar", () => {
-    const meia = { enabled: true, baseUrl: null, apiKeyEnv: null, env: { OPENAI_BASE_URL: "{baseUrl}/v1" } };
-    assert.deepEqual(litellmGatewayEnv(meia, {}), {});
+  test("config ligada pela metade é recusada", () => {
+    const meia = { enabled: true, hostBaseUrl: null, env: { OPENAI_BASE_URL: "{hostBaseUrl}/v1" } };
+    assert.throws(() => litellmGatewayEnv(meia, {}), /configuração LiteLLM inválida/);
   });
 
-  test("ligado substitui {baseUrl} e {apiKey}", () => {
+  test("ligado substitui endpoint e credencial de inferência", () => {
     const cfg = {
       enabled: true,
-      baseUrl: "http://127.0.0.1:4000",
-      apiKeyEnv: "LITELLM_MASTER_KEY",
-      env: { OPENAI_BASE_URL: "{baseUrl}/v1", OPENAI_API_KEY: "{apiKey}" },
+      hostBaseUrl: "http://127.0.0.1:4000",
+      inferenceKeyEnv: "LITELLM_INFERENCE_KEY",
+      env: { OPENAI_BASE_URL: "{hostBaseUrl}/v1", OPENAI_API_KEY: "{inferenceKey}" },
     };
-    assert.deepEqual(litellmGatewayEnv(cfg, { LITELLM_MASTER_KEY: "chave-do-proxy" }), {
+    assert.deepEqual(litellmGatewayEnv(cfg, { LITELLM_INFERENCE_KEY: "chave-do-proxy" }), {
       OPENAI_BASE_URL: "http://127.0.0.1:4000/v1",
       OPENAI_API_KEY: "chave-do-proxy",
     });
   });
 
-  test("secret ausente vira string vazia, não o literal {apiKey}", () => {
-    const cfg = { enabled: true, baseUrl: "http://x", apiKeyEnv: "NAO_EXISTE", env: { K: "{apiKey}" } };
-    assert.deepEqual(litellmGatewayEnv(cfg, {}), { K: "" });
+  test("secret ausente impede redirecionamento incompleto", () => {
+    const cfg = { enabled: true, hostBaseUrl: "http://x", inferenceKeyEnv: "NAO_EXISTE", env: { K: "{inferenceKey}" } };
+    assert.throws(() => litellmGatewayEnv(cfg, {}), /credencial de inferência/);
   });
 
-  test("extraEnv explícito vence o gateway", () => {
-    // Precedência importa: um valor passado na chamada é uma decisão daquela run e não pode ser
-    // sobrescrito por configuração ambiente.
+  test("gateway vence apenas variáveis mapeadas para não misturar endpoint e chave", () => {
     const env = buildHarborEnv({ OPENAI_BASE_URL: "https://api.openai.com/v1" }, { OPENAI_BASE_URL: "http://proxy/v1" });
-    assert.equal(env.OPENAI_BASE_URL, "https://api.openai.com/v1");
+    assert.equal(env.OPENAI_BASE_URL, "http://proxy/v1");
   });
 });
 

@@ -3,15 +3,27 @@
 import { $, $$, api, escapeHtml, checkboxGroup } from "./core.js";
 import { state, onRefresh, guessProviderKey } from "./state.js";
 import { renderComparRubricPicker } from "./judging.js";
-import { analyzeCompareRow } from "./compare-analysis.js";
 import { rememberExperiment, setupExperimentHistory } from "./compare-history.js";
+import { baselineIndex, cloneCandidate, createPollingGuard, experimentDownloadUrl } from "./compare-domain.js";
+import { describeField } from "./field-help.js";
+import { renderEffectivePlan, renderResultsTable } from "./compare-render.js";
+import { startCompareLiveLog } from "./compare-live.js";
+import { setupCompareAnalysis } from "./compare-analysis-controller.js";
 
 // ================= COMPARE =================
+const MODE_HELP = {
+  models: "Finalidade: manter o mesmo agente e as mesmas skills enquanto você varia o modelo. Exemplo: DeepSeek Flash contra Pro. Padrão: Comparar modelos. Obrigatório para orientar a montagem; não altera o Harbor sozinho.",
+  agents: "Finalidade: comparar perfis de agente na mesma task. Exemplo: mini-swe-agent contra aider, com o mesmo modelo quando compatível. Padrão: nenhum preenchimento automático. Obrigatório para orientar a montagem.",
+  skills: "Finalidade: medir o efeito de skills. Exemplo: uma baseline sem skills e sua duplicata com Python engineering. Padrão: marque a linha sem skills como baseline. Obrigatório para orientar a montagem.",
+  free: "Finalidade: montar combinações com mais de uma dimensão diferente. Exemplo: agente, modelo e skills variando juntos. Padrão: nenhuma restrição adicional; confira todas as diferenças na prévia. Obrigatório para orientar a montagem.",
+};
+$("#compare-mode").addEventListener("change", (event) => { $("#compare-mode-help").textContent = MODE_HELP[event.target.value]; });
+
 function renderCompareAgentPicker() {
   const sel = $("#compare-agent-picker");
   sel.innerHTML = state.agents.length
     ? state.agents.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join("")
-    : '<option value="">nenhum agent cadastrado — vá em "Agents"</option>';
+    : '<option value="">nenhum agente cadastrado — abra Agentes</option>';
 }
 
 function updateCompareEntriesCount() {
@@ -19,7 +31,7 @@ function updateCompareEntriesCount() {
   $("#combo-counter").textContent = `${n} entrada${n === 1 ? "" : "s"} adicionada${n === 1 ? "" : "s"}.`;
 }
 
-function addCompareEntryRow(agentId) {
+function addCompareEntryRow(agentId, preset = null) {
   const agent = state.agents.find((a) => a.id === agentId);
   if (!agent) return;
 
@@ -27,6 +39,7 @@ function addCompareEntryRow(agentId) {
   row.className = "panel entry-row";
   row.dataset.agentId = agentId;
   row.style.marginBottom = "10px";
+  const rowUid = crypto.randomUUID();
 
   const modelOptions = state.models.map((m) => {
     const key = guessProviderKey(m.value);
@@ -36,40 +49,74 @@ function addCompareEntryRow(agentId) {
 
   row.innerHTML = `
     <div class="row-title">${escapeHtml(agent.label)} <span class="badge">${escapeHtml(agent.agentValue)}</span></div>
-    <label>Model <span class="hint" style="display:inline;margin:0;">— pré-preenchido com o padrão do agent, sobrescreva se quiser.</span></label>
-    <select class="entry-model"><option value="">— nenhum (usa o padrão do Harbor) —</option>${modelOptions}</select>
-    <label>Skill sets</label>
-    <div class="checkbox-group entry-skillsets"></div>
-    <button class="secondary" type="button" style="margin-top:8px;">Remover esta entrada</button>
+    <label>Modelo <span class="hint" style="display:inline;margin:0;">— pré-preenchido com o padrão do agente; altere para isolar o efeito do modelo.</span></label>
+    <select class="entry-model" aria-label="Modelo do candidato"><option value="">— nenhum (usa o padrão do Harbor) —</option>${modelOptions}</select>
+    <label id="candidate-skills-label-${rowUid}">Conjuntos de skills</label>
+    <div class="checkbox-group entry-skillsets" role="group" aria-labelledby="candidate-skills-label-${rowUid}" aria-describedby="candidate-skills-help-${rowUid}"></div>
+    <p id="candidate-skills-help-${rowUid}" class="hint">Anexa skills a este candidato. Ex.: Engenharia Python. Padrão: conjuntos do perfil; opcional.</p>
+    <div class="candidate-actions">
+      <label class="checkbox-inline"><input class="entry-baseline" type="checkbox"> Usar como baseline</label>
+      <button class="secondary duplicate-entry" type="button">Duplicar candidato</button>
+      <button class="secondary remove-entry" type="button">Remover candidato</button>
+    </div>
   `;
   checkboxGroup(row.querySelector(".entry-skillsets"), state.skillsets, {
     name: `entry-skillsets-${state.agents.indexOf(agent)}-${Date.now()}`,
-    checkedIds: agent.defaultSkillsetIds ?? [],
+    checkedIds: preset?.skillsetIds ?? agent.defaultSkillsetIds ?? [],
   });
-  row.querySelector("button").addEventListener("click", () => {
+  if (preset?.modelId !== undefined) row.querySelector(".entry-model").value = preset.modelId;
+  row.querySelector(".entry-baseline").checked = preset?.baseline === true;
+  row.querySelector(".entry-baseline").addEventListener("change", (event) => {
+    if (event.target.checked) $$(".entry-baseline").filter((input) => input !== event.target).forEach((input) => { input.checked = false; });
+    refreshCostEstimate();
+  });
+  row.querySelector(".duplicate-entry").addEventListener("click", () => {
+    const source = readEntryRow(row);
+    addCompareEntryRow(source.agentId, cloneCandidate(source));
+    refreshCostEstimate();
+  });
+  row.querySelector(".remove-entry").addEventListener("click", () => {
     row.remove();
     updateCompareEntriesCount();
     refreshCostEstimate();
   });
 
   $("#compare-entries-list").appendChild(row);
+  describeField(row.querySelector(".entry-model"), "Escolhe o modelo deste candidato. Ex.: deepseek/deepseek-chat. Padrão: modelo do perfil; deixe vazio para usar o padrão do Harbor.");
+  describeField(row.querySelector(".entry-baseline"), "Marca este candidato como referência visual. Padrão: desligado; opcional e sem significado estatístico.");
   updateCompareEntriesCount();
 }
 
 $("#compare-add-entry-btn").addEventListener("click", () => {
   const agentId = $("#compare-agent-picker").value;
-  if (!agentId) { alert("Cadastre um agent primeiro, na aba Agents."); return; }
+  if (!agentId) { alert("Cadastre um perfil primeiro em Agentes."); return; }
   addCompareEntryRow(agentId);
   refreshCostEstimate();
 });
 
 /** Reads the rows currently on screen, in the shape both the estimate and the run expect. */
-function currentEntries() {
-  return $$("#compare-entries-list > .entry-row").map((row) => ({
+function readEntryRow(row) {
+  return {
     agentId: row.dataset.agentId,
     modelId: row.querySelector(".entry-model").value,
     skillsetIds: $$("input:checked", row.querySelector(".entry-skillsets")).map((i) => i.value),
-  }));
+    baseline: row.querySelector(".entry-baseline").checked,
+  };
+}
+
+function currentEntries() {
+  return $$("#compare-entries-list > .entry-row").map(readEntryRow);
+}
+
+const estimateGuard = createPollingGuard();
+
+function requestEntries(entries) {
+  return entries.map(({ baseline: _baseline, ...entry }) => entry);
+}
+
+function renderEffectivePreview(plan) {
+  const box = $("#effective-preview");
+  if (box) renderEffectivePlan(box, plan);
 }
 
 /**
@@ -81,15 +128,22 @@ async function refreshCostEstimate() {
   if (!el) return;
   const form = $("#compare-form");
   const entries = currentEntries();
-  if (entries.length === 0) { el.textContent = "—"; el.style.color = ""; return; }
+  const token = estimateGuard.next();
+  if (entries.length === 0) { el.textContent = "—"; el.style.color = ""; renderEffectivePreview(null); return; }
   try {
     const est = await api("POST", "/api/compare/estimate", {
-      entries,
+      entries: requestEntries(entries),
       path: form.elements["path"].value,
       extra: form.elements["extra"].value,
       nAttempts: form.elements["nAttempts"].value || "1",
+      concurrency: form.elements["concurrency"].value || "1",
       jobsDir: form.elements["jobsDir"].value || "jobs",
+      title: form.elements["title"]?.value || "",
+      description: form.elements["description"]?.value || "",
+      baselineIndex: baselineIndex(entries),
     });
+    if (!estimateGuard.isCurrent(token)) return;
+    renderEffectivePreview(est.plan);
     const cap = Number(form.elements["costCapUsd"].value) || 0;
     const semHistorico = est.unknown.length
       ? ` · sem histórico para ${est.unknown.join(", ")} — o valor é um piso, não o total`
@@ -102,6 +156,7 @@ async function refreshCostEstimate() {
     el.textContent = `~$${est.estimateUsd.toFixed(4)} em ${est.totalTrials} trial(s)${semHistorico}`;
     el.style.color = cap > 0 && est.estimateUsd > cap ? "var(--warn)" : "var(--ok)";
   } catch {
+    if (!estimateGuard.isCurrent(token)) return;
     el.textContent = "Preencha uma task/dataset válido para estimar o volume e custo.";
     el.style.color = "";
   }
@@ -109,7 +164,7 @@ async function refreshCostEstimate() {
 
 // Anything that changes the size of the run re-prices it.
 $("#compare-form").addEventListener("input", (e) => {
-  if (["path", "extra", "nAttempts", "costCapUsd", "jobsDir"].includes(e.target.name) || e.target.classList.contains("entry-model")) {
+  if (["path", "extra", "nAttempts", "concurrency", "costCapUsd", "jobsDir", "title", "description"].includes(e.target.name) || e.target.classList.contains("entry-model")) {
     refreshCostEstimate();
   }
 });
@@ -117,67 +172,25 @@ $("#compare-form").addEventListener("change", (e) => {
   if (e.target.classList.contains("entry-model") || e.target.id === "compare-task-picker") refreshCostEstimate();
 });
 $("#compare-entries-list").addEventListener("change", refreshCostEstimate);
+for (const id of ["compare-title", "compare-description"]) $("#" + id).addEventListener("input", refreshCostEstimate);
+$("#compare-preview-btn").addEventListener("click", refreshCostEstimate);
 
 let lastExperimentId = null;
 let lastCompareJobsDir = null;
 let lastCompareRows = [];
+let lastComparePlan = null;
 let allowAnalysis = false;
-
-const COMPARE_COL_LABELS = {
-  jobName: "jobName", agent: "agent", model: "model", skillset: "skillset", ok: "ok",
-  nTrials: "nTrials", nErrors: "nErrors", meanReward: "meanReward", durationSec: "durationSec (s)",
-  costUsd: "custo agent (USD)", tokens: "tokens in/out", passRate: "passRate", judgeCostUsd: "custo juiz (USD)", error: "error",
-};
+let compareAnalysis;
 
 function renderCompareTable() {
-  const table = $("#compare-table");
-  const cols = ["jobName", "agent", "model", "skillset", "ok", "nTrials", "nErrors", "meanReward", "durationSec", "costUsd", "tokens", "passRate", "judgeCostUsd", "error"];
-  table.innerHTML = "";
-  const headRow = document.createElement("tr");
-  headRow.innerHTML = cols.map((c) => `<th>${COMPARE_COL_LABELS[c]}</th>`).join("") + "<th></th>";
-  table.appendChild(headRow);
-  lastCompareRows.forEach((r, idx) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = cols.map((c) => {
-      let v;
-      if (c === "passRate") v = r.passRate !== undefined ? r.passRate.toFixed(2) : "";
-      else if (c === "costUsd") v = typeof r.costUsd === "number" ? `$${r.costUsd.toFixed(4)}` : "";
-      else if (c === "judgeCostUsd") v = typeof r.judgeCostUsd === "number" ? `$${r.judgeCostUsd.toFixed(4)}` : "";
-      else if (c === "tokens") v = (r.nInputTokens ?? r.nOutputTokens) ? `${r.nInputTokens ?? "?"} / ${r.nOutputTokens ?? "?"}` : "";
-      else v = r[c];
-      return `<td>${escapeHtml(v)}</td>`;
-    }).join("");
-    const actionTd = document.createElement("td");
-    if (r.ok && allowAnalysis) {
-      const btn = document.createElement("button");
-      btn.className = "secondary";
-      btn.textContent = (r.analyses && r.analyses.length) ? "Re-analisar" : "Analisar";
-      btn.onclick = () => analyzeRow(idx);
-      actionTd.appendChild(btn);
-    }
-    tr.appendChild(actionTd);
-    table.appendChild(tr);
-  });
+  renderResultsTable($("#compare-table"), lastCompareRows, lastComparePlan, allowAnalysis, (index) => compareAnalysis.analyzeRow(index));
 }
 
-let analyzing = false;
-async function analyzeRow(idx) {
-  if (analyzing) return;
-  analyzing = true;
-  const button = $("#compare-analyze-all-btn");
-  button.disabled = true;
-  $("#compare-submit-btn").disabled = true;
-  $("#compare-sort-btn").disabled = true;
-  const startedAt = Date.now();
-  const tick = setInterval(() => { $("#compare-output").textContent = `Analisando há ${Math.round((Date.now() - startedAt) / 1000)}s…`; }, 1000);
-  try { await analyzeCompareRow(lastCompareRows[idx], lastCompareJobsDir, lastExperimentId, renderCompareTable); }
-  finally { clearInterval(tick); analyzing = false; button.disabled = false; $("#compare-submit-btn").disabled = false; $("#compare-sort-btn").disabled = false; $("#compare-output").textContent = "Análise concluída; detalhes e eventuais erros abaixo."; }
-}
-
-$("#compare-analyze-all-btn").addEventListener("click", async () => {
-  for (let i = 0; i < lastCompareRows.length; i++) {
-    if (lastCompareRows[i].ok) await analyzeRow(i);
-  }
+compareAnalysis = setupCompareAnalysis({
+  getRows: () => lastCompareRows,
+  getJobsDir: () => lastCompareJobsDir,
+  getExperimentId: () => lastExperimentId,
+  renderTable: renderCompareTable,
 });
 
 $("#compare-sort-btn").addEventListener("click", () => {
@@ -194,6 +207,16 @@ $("#compare-view-btn").addEventListener("click", async () => {
   } catch (err) { alert(err.message); }
 });
 
+function updateDownloadLinks() {
+  const visible = !!lastExperimentId && !!lastCompareJobsDir;
+  for (const [id, format] of [["compare-download-csv", "csv"], ["compare-download-json", "json"]]) {
+    const link = $(`#${id}`);
+    if (!link) continue;
+    link.hidden = !visible;
+    if (visible) link.href = experimentDownloadUrl(lastCompareJobsDir, lastExperimentId, format);
+  }
+}
+
 $("#compare-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -202,7 +225,7 @@ $("#compare-form").addEventListener("submit", async (e) => {
   const jobsDir = fd.get("jobsDir") || "jobs";
   const body = {
     path: fd.get("path"),
-    entries,
+    entries: requestEntries(entries),
     env: fd.get("env") || "docker",
     jobPrefix: fd.get("jobPrefix") || "cmp",
     jobsDir,
@@ -211,6 +234,9 @@ $("#compare-form").addEventListener("submit", async (e) => {
     dryRun: fd.get("dryRun") === "on",
     extra: fd.get("extra") || "",
     costCapUsd: fd.get("costCapUsd") || "0",
+    title: fd.get("title") || "",
+    description: fd.get("description") || "",
+    baselineIndex: baselineIndex(entries),
     // Generated here, not by the server: the browser must know this id before the POST below
     // resolves, or there would be no way to call /api/compare/cancel while it's in flight.
     runId: crypto.randomUUID(),
@@ -254,7 +280,13 @@ $("#compare-form").addEventListener("submit", async (e) => {
     }
   }, 1000);
   out.textContent = "Rodando…";
-  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir, body.runId);
+  const liveStop = body.dryRun ? null : startCompareLiveLog(jobsDir, body.runId, {
+    onRecord: (record) => {
+      lastCompareRows = record.rows;
+      lastComparePlan = record.plan;
+      renderCompareTable();
+    },
+  });
 
   try {
     // The spend guard answers 409 before spawning anything. Offer the choice here instead of
@@ -273,11 +305,18 @@ $("#compare-form").addEventListener("submit", async (e) => {
     }
     lastExperimentId = result.experimentId ?? null;
     lastCompareJobsDir = jobsDir;
-    lastCompareRows = result.rows;
+    // The canonical plan lives in the persisted record. Read it back so the final table and
+    // baseline never fall back to form values that may omit effective skills/instructions.
+    const completedRecord = await api("GET", `/api/experiments/${encodeURIComponent(result.experimentId)}?jobsDir=${encodeURIComponent(jobsDir)}`);
+    lastCompareRows = completedRecord.rows;
+    lastComparePlan = completedRecord.plan;
     allowAnalysis = !body.dryRun;
     renderCompareTable();
-    out.textContent = `Experimento ${result.experimentId}. Relatório: ${result.reportCsv}`;
-    $("#compare-post-actions").hidden = false;
+    out.textContent = body.dryRun
+      ? `Dry run ${result.experimentId} concluído: configuração validada, nenhum trial executado.`
+      : `Experimento ${result.experimentId}. Relatório: ${result.reportCsv}`;
+    $("#compare-post-actions").hidden = body.dryRun;
+    updateDownloadLinks();
     if (!body.dryRun && lastCompareRows.some((r) => r.ok)) {
       $("#compare-analyze-panel").hidden = false;
       try {
@@ -300,60 +339,38 @@ $("#compare-form").addEventListener("submit", async (e) => {
   }
 });
 
-// Follow only jobs belonging to the active experiment, never another concurrent comparison.
-function startCompareLiveLog(jobsDir, experimentId) {
-  const box = $("#compare-live");
-  const pre = $("#compare-live-log");
-  box.hidden = false;
-  pre.textContent = "";
-  let job = null;
-  let file = null;
-  let offset = 0;
-  const timer = setInterval(async () => {
-    try {
-      {
-        const record = await api("GET", `/api/experiments/${encodeURIComponent(experimentId)}?jobsDir=${encodeURIComponent(jobsDir)}`);
-        lastCompareRows = record.rows;
-        renderCompareTable();
-        const names = new Set(record.plan.candidates.map(c => c.jobName));
-        const jobs = await api("GET", `/api/logs/jobs?jobsDir=${encodeURIComponent(jobsDir)}`);
-        const ownJobs = jobs.filter(j => names.has(j.name));
-        const running = ownJobs.find(j => j.running) || ownJobs[0];
-        if (!running) return;
-        if (job !== running.name) { file = null; offset = 0; pre.textContent = ""; }
-        job = running.name;
-      }
-      if (!file) {
-        const files = await api("GET", `/api/logs/files?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}`);
-        file = files.find((f) => f.endsWith("trial.log")) || files.find((f) => f === "job.log") || files[0];
-        if (!file) return;
-      }
-      const tail = await api(
-        "GET",
-        `/api/logs/tail?jobsDir=${encodeURIComponent(jobsDir)}&job=${encodeURIComponent(job)}&file=${encodeURIComponent(file)}&offset=${offset}`
-      );
-      if (tail.content) { pre.textContent += tail.content; pre.scrollTop = pre.scrollHeight; }
-      offset = tail.nextOffset;
-    } catch { /* job dir not created yet, or file rotated -- next tick retries */ }
-  }, 2000);
-  return () => clearInterval(timer);
-}
-
-
 // Registered with the refresh cycle instead of being called by name from state.js --
 // see the note at the top of state.js.
 onRefresh(() => { renderCompareAgentPicker(); });
 
 setupExperimentHistory(record => {
-  if ($("#compare-submit-btn").disabled || analyzing) return;
+  if ($("#compare-submit-btn").disabled || compareAnalysis.isRunning()) return;
   lastExperimentId = record.plan.id;
   lastCompareJobsDir = record.plan.jobsDir;
   lastCompareRows = record.rows;
+  lastComparePlan = record.plan;
   allowAnalysis = !record.plan.dryRun && record.status !== "running";
   renderCompareTable();
-  $("#compare-post-actions").hidden = !record.rows.length;
+  renderEffectivePreview(record.plan);
+  updateDownloadLinks();
+  $("#compare-post-actions").hidden = record.plan.dryRun || !record.rows.length;
   $("#compare-analyze-panel").hidden = record.plan.dryRun || record.status === "running" || !record.rows.some(r => r.ok);
   $("#compare-output").textContent = `Experimento ${record.plan.id} · ${record.status} · ${record.rows.length}/${record.plan.candidates.length} candidatos com resultado`;
+  if (record.status === "running") startCompareLiveLog(record.plan.jobsDir, record.plan.id, {
+    reconnect: true,
+    canCancel: record.canCancel === true,
+    onRecord: (current) => {
+      lastCompareRows = current.rows;
+      lastComparePlan = current.plan;
+      renderCompareTable();
+      renderEffectivePreview(current.plan);
+    },
+    onTerminal: (current) => {
+      allowAnalysis = !current.plan.dryRun;
+      $("#compare-analyze-panel").hidden = current.plan.dryRun || !current.rows.some((row) => row.ok);
+      updateDownloadLinks();
+    },
+  });
   const target = $("#compare-analysis-results");
   target.textContent = "";
   for (const [job, analyses] of Object.entries(record.analyses || {})) {

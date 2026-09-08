@@ -26,10 +26,9 @@ $("#dataset-download-form").addEventListener("submit", async (e) => {
       const tasks = await api("GET", "/api/tasks");
       const found = tasks.filter((t) => t.source === "datasets" && t.path.includes(String(data.name).split("@")[0]));
       discovered.innerHTML = found.length
-        ? `<p class="hint">Tasks encontradas (já aparecem na aba Tasks e no Compare):</p>` +
+        ? `<p class="hint">Tasks encontradas (já aparecem em Tasks e em Novo experimento):</p>` +
           found.map((t) => `<div class="row"><span>${escapeHtml(t.path)}</span></div>`).join("")
         : '<p class="muted">Nenhuma task nova encontrada em datasets/ — confira a saída acima.</p>';
     }
   } catch (err) { out.textContent = "Error: " + err.message; }
 });
-

@@ -55,10 +55,10 @@ em **um** lugar, com o nome do SO explícito.
   conversão de caminho do MSYS).
 - **Verifique o efeito, não o código de retorno**, quando o mecanismo é dependente de SO: depois
   de parar um processo, confira se a porta ficou livre — foi assim que o bug acima apareceu.
-- **A resolução de `DOCKER_HOST` por SO** é o exemplo canônico: uma função por linguagem
-  (`resolvePodmanDockerHost` / `Resolve-PodmanDockerHost` / `resolve_podman_docker_host`),
-  cada uma ramificando explicitamente em win32/darwin/linux, e o valor resolvido aparece no
-  `/api/status` para ser auditável.
+- **A resolução de `DOCKER_HOST` por SO** é o exemplo canônico: uma fonte única em
+  `scripts/lib/podman.ts`, com `resolvePodmanConnection` injetável e ramos explícitos
+  win32/darwin/linux. Bash, PowerShell, GUI e CLI delegam ao helper Node; o valor efetivo
+  aparece no `/api/status` para ser auditável.
 - **Honestidade sobre o que foi testado onde:** este kit foi construído no Windows. Os ramos
   macOS/Linux são testados por lógica, não por execução real — e a documentação diz isso, em vez
   de fingir cobertura.

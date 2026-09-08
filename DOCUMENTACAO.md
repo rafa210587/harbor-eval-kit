@@ -53,10 +53,14 @@ outra máquina, ou entender exatamente o que aconteceu.
 
 ### 2.1 Pré-requisitos
 
-- Windows 10/11 com **WSL2** habilitado e uma distro Linux instalada (usamos Ubuntu).
-- [`uv`](https://docs.astral.sh/uv/) instalado (gerencia Python isolado e o próprio Harbor).
-- **Node.js 24+** (usamos 24.x) — roda os scripts `.ts` direto, sem `tsc`/`ts-node`.
-- **Podman** (CLI) instalado no Windows.
+- **Node.js 24+** — roda os scripts `.ts` direto, sem `tsc`/`ts-node`;
+- **Podman CLI** e API rootless ou Podman machine;
+- provider de `podman compose` com `--wait` e `--pull`;
+- [`uv`](https://docs.astral.sh/uv/) para o Harbor isolado;
+- imagens base aprovadas já presentes, pois o kit bloqueia pull implícito.
+
+O passo a passo copiável para Windows PowerShell, Windows Git Bash, macOS e Linux rootless
+está em `docs/INSTALACAO_MANUAL.md`.
 
 ### 2.2 Diagnóstico (doctor) — antes de instalar qualquer coisa
 
@@ -72,17 +76,16 @@ cd caminho\pro\harbor-eval-kit
 .\scripts\harbor-eval.ps1 doctor
 ```
 
-O doctor reporta `podman`, `uv`, `node`, `harbor` (versão ou "missing"), e valida
-`podman info`. Se a máquina Podman nunca foi criada, ele vai falhar com erro de socket morto
-— resolver com:
+O doctor reporta `podman`, `uv`, `node`, `harbor` (versão ou "missing"), seleciona a conexão
+Podman efetiva, valida API e Compose e só então roda o smoke mutável. Se a máquina Podman nunca
+foi criada, ele vai falhar antes de criar recursos — resolver no Windows/macOS com:
 ```powershell
 podman machine init
 podman machine start
 ```
 
-**Não pare no doctor básico.** Ele só confirma que o Podman responde — não que ele consegue
-fazer tudo que o Harbor precisa. Rode os smoke tests completos (ver seção 4) antes de
-declarar o ambiente pronto.
+`status` é o diagnóstico básico e somente leitura. `doctor` é deliberadamente mais profundo e
+mutável; mesmo assim, uma task oracle/nop real ainda é exigida antes de declarar READY.
 
 O smoke primitivo comum aos wrappers exige Node 24+ e a imagem base **preexistente**
 `docker.io/library/alpine:3.20`; usa `--pull=never`. Recursos novos recebem nome único, label
@@ -100,14 +103,13 @@ sequência com validação em cada passo.
 
 ### 2.4 Validar a compatibilidade de verdade (gate Podman↔Harbor)
 
-Ver seção 4 pros detalhes técnicos. Na prática:
+Ver seção 4 pros detalhes técnicos. O gate read-only é:
 ```powershell
-$env:DOCKER_HOST = "npipe:////./pipe/docker_engine"
-docker version   # deve mostrar "Podman Engine" no bloco Server
+node scripts/installation.ts gate "$HOME\.harbor-eval-kit\installation-manifest.json"
 ```
-Depois disso, uma task mínima real precisa rodar de ponta a ponta (`harbor run --agent oracle
---env docker` contra uma task de teste) antes de considerar o ambiente pronto. Esse teste já
-foi feito nesta máquina e está registrado em `~/.harbor-eval-kit/installation-manifest.json`.
+Ele não instala/chama Docker nem altera `DOCKER_HOST` na sessão. Depois disso, `doctor` roda as
+primitivas e uma task mínima real precisa passar. Em 2026-09-07, `soma-fracoes` retornou reward
+1 com oracle e 0 com nop no adapter gerenciado, sem API de modelo.
 
 ### 2.5 Persistir o manifest de instalação
 
@@ -118,10 +120,9 @@ o histórico completo de decisões desta instalação.
 
 ### 2.6 Subir a interface gráfica
 
-Use `scripts/start-gui.sh` (macOS/Linux) ou `scripts\start-gui.ps1` (Windows) — eles conferem
-se `harbor`/`podman` existem e se `podman info` responde antes de subir o servidor, e falham
-com uma mensagem clara em vez de um stack trace se algo não estiver pronto. Idempotente,
-pode rodar de novo a qualquer momento:
+Use `scripts/start-gui.sh` (macOS/Linux/Git Bash) ou `scripts\start-gui.ps1` (PowerShell). O
+lifecycle Node reconhece uma instância existente pela resposta da API e não duplica o servidor.
+Se necessário, inicia pelo nome somente a Podman machine associada à conexão configurada:
 
 ```powershell
 cd caminho\pro\harbor-eval-kit
@@ -146,29 +147,29 @@ Roda só em `127.0.0.1` — nunca acessível pela rede, nunca um servidor públi
 
 ### 2.7 Primeiro uso — caminho mínimo
 
-Comece com **Secrets → Models → Agents → Compare**, escolhendo a task executável
+Comece em **Começar** e siga **Credenciais → Modelos → Agentes → Novo experimento**, escolhendo a task executável
 `evals/python/soma-fracoes`. Para variar modelos entre providers, use um adapter compatível,
 como `mini-swe-agent`. Skills e a configuração do juiz são opcionais. As abas numeradas
 abaixo são o mapa completo de recursos; não são dez pré-requisitos obrigatórios:
 
-1. **Secrets** — cadastre a key de cada provider que for usar (dropdown já tem os 13
-   principais). Sem isso, só dá pra testar com os agents `oracle`/`nop` (gratuitos, sem LLM).
-2. **Models** — cadastre `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O badge avisa
-   se a key esperada já está em Secrets.
+1. **Credenciais** — cadastre a key de cada provider que for usar (o dropdown lista providers
+   curados). Sem isso, só dá pra testar com os agents `oracle`/`nop` (gratuitos, sem LLM).
+2. **Modelos** — cadastre `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O badge avisa
+   se a key esperada já está em Credenciais.
 3. **Skills** — escreva ou aponte pra instruções que um agent deve seguir (opcional).
 4. **Skill Sets** — agrupe Skills num pacote nomeado (opcional, só se for usar Skills).
-5. **Agents** — monte um "perfil de uso": `agentValue` do Harbor + model padrão +
+5. **Agentes** — monte um "perfil de uso": `agentValue` do Harbor + model padrão +
    instructions + default skill sets.
 6. **Criteria** — critérios de avaliação qualitativa, reutilizáveis (opcional, só necessário
    se for usar o Analyze/juiz).
 7. **Judge Rubrics** — agrupe Criteria num rubric nomeado (opcional).
 8. **Judges** — monte o "perfil de uso" do avaliador: `agentValue` + judge model (só os da
-   lista curada, cadastrado antes em Models) + instruções custom (opcional) + Judge Rubrics
+   lista curada, cadastrado antes em Modelos) + instruções custom (opcional) + Judge Rubrics
    padrão (opcional, só necessário se for usar o Analyze/juiz).
 9. **Tasks** — crie uma task real (`harbor init --task`) e preencha os 4 arquivos direto no
    editor da própria aba. **Os `evals/*/seed-task` de exemplo são stubs vazios** — não dá pra
    comparar contra eles sem preencher primeiro.
-10. **Compare** — escolha um Agent, clique "Adicionar" (repita pra cada combinação que quiser),
+10. **Novo experimento** — escolha um Agent, clique "Adicionar" (repita pra cada combinação que quiser),
     aponte pra uma Task, e rode. Reward, custo e tokens aparecem na hora; "Analisar"/"Ver
     trajetórias" ficam disponíveis depois do resultado.
 
@@ -195,54 +196,28 @@ acesso. Por isso o kit exige rodar `node scripts/gui-server.ts` localmente.
 
 ## 4. O gate de compatibilidade Podman↔Harbor (Windows, macOS, Linux)
 
-Antes de qualquer coisa, o kit valida que Podman consegue fazer tudo que o Harbor precisa:
-`run`, `exec`, bind mount, named volume, network, build, labels, cleanup. Além disso, como o
-backend local do Harbor é Docker-oriented, existe um detalhe importante e **diferente por
-sistema operacional**: sem apontar explicitamente pro endpoint certo do Podman, `harbor run
---env docker` falha com algo como "Docker daemon is not running" mesmo com Podman rodando
-perfeitamente.
+O resolver único `scripts/lib/podman.ts` lê conexões e máquinas e recusa seleção ambígua. No
+Windows ele valida o pipe `npipe:////./pipe/docker_engine` somente depois de identificar a
+máquina em execução. No macOS inspeciona a máquina selecionada pelo nome. No Linux rootless usa
+o socket retornado por `podman info`; uma machine Linux ativa segue o ramo macOS.
 
-**Windows**: o CLI/SDK Docker, por padrão, mira o pipe do Docker Desktop
-(`dockerDesktopLinuxEngine`), mesmo que ele esteja parado — não o pipe que a máquina Podman
-expõe. Correção: `DOCKER_HOST=npipe:////./pipe/docker_engine` — um pipe **fixo e
-bem-conhecido** que a máquina Podman expõe especificamente pra compatibilidade com Docker
-CLI/SDK, diferente do pipe nativo da própria API do Podman (que depende do nome da máquina,
-confirmado rodando `podman machine inspect` — reporta um pipe diferente,
-`\\.\pipe\<nome-da-maquina>`).
+Antes de criar recursos, `installation.ts gate` comprova a conexão via Podman CLI, consulta
+`/version` no endpoint e exige identidade Podman, e verifica o provider `podman compose`,
+inclusive `--wait` e `--pull`. O provider pode ser um plugin Docker Compose CLI preexistente;
+Docker Engine não é necessário nem chamado. O `DOCKER_HOST` resolvido existe só no filho.
 
-**macOS**: Podman roda sempre dentro de uma VM ("podman machine"); não existe conflito com um
-pipe do Docker Desktop, mas o socket Docker-compatível fica num caminho que depende do nome da
-máquina. Resolvido dinamicamente com
-`podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'` →
-`DOCKER_HOST=unix://<esse caminho>`.
+Depois, o smoke comprova build, run, exec, variável sintética, bind mount com leitura e escrita,
+volume, rede, labels e cleanup. A imagem Alpine precisa preexistir e o build usa `--pull=never`.
 
-**Linux**: Podman rootless nativo normalmente expõe seu próprio socket direto (sem VM) —
-`podman info --format '{{.Host.RemoteSocket.Path}}'` — e esse mesmo socket **já fala o
-dialeto Docker-compatível** (o servidor de API do Podman atende os dois formatos no mesmo
-socket em sistemas Unix), então normalmente nem precisa de correção. Se em vez disso houver
-uma "podman machine" ativa (incomum em Linux, mas suportado), usa-se a mesma resolução do
-macOS.
+Execuções passam por `execHarbor`, que converte o ambiente local no adapter
+`harbor_eval_kit.managed:ManagedPodmanEnvironment`. Ele preserva o lifecycle do Harbor, mas
+executa Podman diretamente, reserva nomes/identidades no manifest antes da criação e bloqueia
+topologias ainda sem prova: apenas Linux, um serviço `main`, rede pública e Dockerfile ou imagem
+local prebuilt são suportados nesta etapa.
 
-**Correção aplicada**: `resolvePodmanDockerHost()` em `scripts/lib/harbor.ts` detecta
-`process.platform` e resolve o valor certo por SO (memoizado por processo, já que isso
-dispara uma chamada a `podman`); é injetado **só no processo filho do `harbor`** (nunca na
-sessão do shell nem em variável de ambiente do sistema) via `buildHarborEnv()`. Escopado por
-`dockerHostFix` em `ExecOptions`, aplicado automaticamente em toda chamada feita pela GUI e
-pelo `compare-matrix.ts`. A mesma lógica existe duplicada (mantida sincronizada à mão, já que
-são linguagens diferentes) em `scripts/harbor-eval.ps1` (`Resolve-PodmanDockerHost`) e
-`scripts/harbor-eval.sh` (`resolve_podman_docker_host`), pros usos fora da GUI/TS. Docker
-Desktop, se estiver instalado (Windows/macOS), fica completamente intocado.
-
-**Honestidade sobre verificação**: os três branches (Windows, macOS, Linux) foram validados
-por leitura cuidadosa da própria documentação/comportamento do Podman e por testes reais dos
-comandos `podman info`/`podman machine inspect`/`podman machine list` — mas este
-desenvolvimento aconteceu numa máquina Windows. O branch Windows tem validação end-to-end
-completa (`harbor run` real, com reward correto, repetido várias vezes nesta sessão). Os
-branches macOS/Linux têm a lógica de resolução testada isoladamente (os comandos `podman`
-corretos, os nomes de campo certos do template Go), mas **não** uma execução ponta-a-ponta
-real de `harbor run --env docker` numa máquina macOS/Linux de verdade — se algo não bater no
-seu ambiente, `resolvePodmanDockerHost()`/`Resolve-PodmanDockerHost`/`resolve_podman_docker_host`
-são os três lugares certos pra depurar ou ajustar.
+**Validação**: no Windows com Podman 6.0.2, gate CLI/API/Compose e smoke completo passaram; a
+task real retornou oracle=1 e nop=0, com seis recursos registrados e nenhum remanescente. Os
+ramos macOS/Linux têm testes de lógica, sem execução real nesses hosts.
 
 ---
 
@@ -276,9 +251,9 @@ com PostHog que existe ali é opt-in (só ativa se você mesmo configurar sua pr
 
 ### 5.1-b Gateway LiteLLM — **encaixe preparado, desligado**
 
-O kit **já usa LiteLLM** num lugar: o botão "Test" da aba Secrets chama `litellm.completion()` e
-`litellm.get_valid_models()` no venv do próprio Harbor (seção 10.1). Isso é o SDK, dentro deste
-processo, e não precisa de encaixe nenhum.
+O kit usa LiteLLM em dois contextos distintos. O teste de credencial usa o **SDK**, dentro do
+processo de probe, e a integração preparada abaixo usa um **proxy** separado. SDK e proxy não
+são o mesmo caminho de tráfego.
 
 O que ficou **preparado e desligado** é a outra integração que se chama "LiteLLM": rodar um
 **proxy** LiteLLM e apontar os agents pra ele. Ganha-se um lugar só pra chaves, teto de gasto,
@@ -292,18 +267,21 @@ filho recebe ambiente, então o encaixe inteiro é mais um decorador ali, ao lad
 `withTelemetryDisabled` e `withPythonUtf8`.
 
 **Como ligar**: copie `config/litellm-gateway.example.json` para
-`~/.harbor-eval-kit/litellm-gateway.json` e ponha `enabled: true`. Sem esse arquivo (o padrão),
-`buildHarborEnv()` produz exatamente o mesmo ambiente de antes desta integração existir — há
-teste fixando isso. Arquivo ausente, ilegível ou malformado significam **desligado**: uma config
-quebrada nunca deve redirecionar tráfego de modelo em silêncio nem impedir uma run normal.
+`~/.harbor-eval-kit/litellm-gateway.json` e ponha `enabled: true`. Ausente ou `enabled: false`
+é no-op. Uma configuração `enabled: true` ausente, ilegível ou inválida falha com diagnóstico
+explícito; nunca redireciona tráfego em silêncio. O arquivo de configuração não pode conter
+credenciais nem variáveis de infraestrutura. Sem gateway ativo, `buildHarborEnv()` mantém o
+ambiente normal — há teste fixando isso.
 `GET /api/status` reporta `litellmGateway.enabled`, pra responder "meu tráfego está passando por
 proxy agora?" sem abrir arquivo.
 
-**O mapeamento de variáveis é declarado, não adivinhado**: o bloco `env` da config diz quais
-variáveis setar, com os placeholders `{baseUrl}` e `{apiKey}`. Este kit não sabe qual variável
-cada adapter lê, e fingir que sabe seria o tipo de chute que falha silenciosamente na run. O
-`{apiKey}` vem do secret cujo **nome** está em `apiKeyEnv` — o valor continua só no
-`secrets.env`.
+**O mapeamento de variáveis é declarado, não adivinhado**: a configuração estrita declara
+`hostBaseUrl`, `containerBaseUrl`, `inferenceKeyEnv`, `masterKeyEnv` e os nomes de ambiente do
+proxy. URLs usam placeholders de host/container quando forem diferentes. A credencial de
+inferência é resolvida pela combinação do ambiente do processo e dos extras do provider; a
+master key autentica o proxy e é excluída do ambiente do executor filho. O helper do gateway
+aplica seus nomes mapeados depois dos extras do provider, preserva extras não mapeados e não
+absorve variáveis arbitrárias do processo.
 
 **Honestidade**: nada disso foi executado contra um proxy LiteLLM real. É encaixe preparado, não
 recurso suportado — por isso vem desligado e com o mapeamento sob responsabilidade de quem
@@ -485,72 +463,55 @@ A GUI é organizada pra guiar um uso de primeira vez, mas cada aba funciona isol
 
 | # | Aba | Depende de |
 |---|-----|-----------|
-| 1 | Secrets | — |
-| 2 | Models | Secrets (badge de key) |
+| 1 | Credenciais | — |
+| 2 | Modelos | Credenciais (badge de key) |
 | 3 | Skills | — |
 | 4 | Skill Sets | Skills |
-| 5 | Agents | Models, Skill Sets |
+| 5 | Agentes | Modelos, Skill Sets |
 | 6 | Criteria | — |
 | 7 | Judge Rubrics | Criteria |
 | 8 | Judges | Models (model do juiz), Judge Rubrics (defaults) |
 | 9 | Tasks | — |
-| 10 | Compare | Agents, Tasks, Judges (opcional, pro painel Analisar) |
+| 10 | Novo experimento | Agentes, Tasks, Judges (opcional, pro painel Analisar) |
 
-`Datasets`, `Trajectories` e `Analyze` são ferramentas de apoio, sem número — usadas quando
-preciso, não fazem parte do fluxo linear.
+`Datasets`, `Trajectories` e **Análise avulsa** são áreas de apoio usadas quando preciso; não
+fazem parte do fluxo linear de **Novo experimento**.
 
 ---
 
 ## 10. Cada aba em detalhe
 
-### 10.1 Secrets
+### 10.1 Credenciais
 Cadastra chaves de provider. Dropdown com 15 providers curados (Anthropic, OpenAI, Azure,
 DeepSeek, Gemini, Vertex AI, OpenRouter, Groq, Mistral, Cohere, xAI, Together AI, Fireworks,
 Ollama, Bedrock) — escolher um preenche o `Name` certo automaticamente. A lista canônica
-(`PROVIDERS`) mora no servidor (`scripts/lib/harbor.ts`) e é buscada via `GET /api/providers`
+(`PROVIDERS`) mora no servidor (`scripts/lib/catalog.ts`) e é buscada via `GET /api/providers`
 — a GUI não mantém mais uma cópia própria, pra não ter duas listas divergindo com o tempo.
 "outro/customizado" deixa digitar qualquer nome. Ver seção 7 pra garantias de segurança.
 
-**Como usar**: escolha o provider no dropdown (ou "outro"), cole o valor da key, "Save key".
+**Como usar**: escolha o provider no dropdown (ou "outro"), cole o valor da key e clique
+**Salvar credencial**.
 A lista abaixo mostra só os *nomes* já cadastrados, nunca os valores.
 
-**Botão "Test"**: depois de salvar, faz uma chamada real — não só um "parece bem formada" —
-usando a key salva: `hi`, `max_tokens: 5`, no model mais barato que o LiteLLM souber pra
-aquele provider. Confirmado no `harbor --help` que não existe um comando `harbor` pra isso
-(nem pra listar models de um provider), então esse botão chama o LiteLLM diretamente — via um
-script Python pequeno, materializado em `~/.harbor-eval-kit/test-provider-key.py`, executado
-com o **mesmo interpretador Python de dentro do venv que `uv tool install harbor` criou**
-(localizado via `uv tool dir`, portável entre SOs — não um Python do sistema separado, já que
-o `litellm` que o script importa é uma dependência do próprio pacote `harbor`). A key é
-passada pro processo filho só via variável de ambiente, nunca por argumento de linha de
-comando (que ficaria visível pra outros processos/gerenciador de tarefas) — mesma disciplina
-de segredo usada em toda chamada a `harbor`/`podman` neste kit.
+**Botão "Testar modelo escolhido"**: depois de salvar, selecione um Model compatível já
+cadastrado e clique no botão. A chamada real usa exatamente o `provider/model` selecionado,
+com `max_tokens: 8`; salvar a credencial não faz teste automático. A rota recebe
+`POST /api/secrets/test` com `{name, model}` e executa `scripts/python/probe_provider.py`.
+A credencial entra somente por variável de ambiente, nunca por argumento ou resposta.
 
-Se o provider suportar (via `litellm.get_valid_models(check_provider_endpoint=True, ...)`,
-que faz uma chamada de verdade no catálogo do provider), o resultado também traz uma lista de
-models descobertos **ao vivo** — a GUI mostra um checklist pra cadastrar os que quiser direto
-como Models (aba 2), sem digitar `provider/modelo` à mão um por um. Nem todo provider suporta
-listagem ao vivo nesta versão do LiteLLM — lista vazia aí não significa key inválida (o botão
-já teria mostrado ✗ nesse caso), só que não tinha catálogo pra buscar.
+**Botão "Descobrir modelos"**: é uma operação separada, feita sob demanda pela rota
+`GET /api/providers/:provider/models`. Consulta o catálogo do provider e não faz completion.
+Se retornar modelos, a UI permite marcar quais cadastrar na aba Modelos; nada é cadastrado sem
+essa ação explícita. Catálogo vazio não prova nem invalida a credencial.
 
-ATENÇÃO — limitação real: o Test usa o primeiro model que o `litellm.get_valid_models()` conhece
-para aquele provider, e esse catálogo pode estar defasado em relação à API do provider. Em
-2026-09-06 o DeepSeek passou a recusar `deepseek-chat` ("The supported API model names are
-deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-flash-vision-exp, deepseek-r1") enquanto o
-LiteLLM ainda o listava — ou seja, **o Test pode falhar com uma chave boa**. Se o erro for de
-*model* e não de autenticação, a chave provavelmente está certa; confirme com um Compare.
+Testar faz uma chamada paga no modelo exato; descobrir consulta o catálogo e pode depender do
+suporte do provider. O kit não escolhe o modelo mais barato e não testa automaticamente ao
+salvar.
 
-Testado nos dois caminhos: com uma key inválida (reporta o `AuthenticationError` real vindo da
-API do provider — ex.: `DeepseekException — Authentication Fails, Your api key: ****1532 is
-invalid`, que foi como se descobriu que uma key salva tinha sido revogada no painel), e, em
-2026-09-06, com uma key **válida** de DeepSeek: retornou `ok: true`, model testado
-`deepseek/deepseek-chat` e 14 models descobertos ao vivo, que o checklist cadastrou direto na
-aba Models sem digitação manual.
-
-### 10.2 Models
+### 10.2 Modelos
 Atalho de label → `provider/modelo` (ex.: `anthropic/claude-sonnet-5`). O prefixo antes da
 `/` é a convenção que o Harbor/LiteLLM usa pra decidir qual API key ler — por isso cada model
-mostra um badge dizendo se a key esperada já está em Secrets (`guessProviderKey`).
+mostra um badge dizendo se a key esperada já está em Credenciais (`guessProviderKey`).
 
 **Como usar**: label livre + `provider/modelo` exato. O preview abaixo do campo já avisa qual
 key ele vai esperar antes mesmo de salvar.
@@ -578,15 +539,15 @@ nunca escrever fora da pasta da própria skill — testado com um caso desses de
 Agrupa uma ou mais Skills por checkbox — mesma referência por `id`, sem duplicar texto (se
 você editar uma Skill, todo Skillset que a usa já reflete a mudança).
 
-### 10.5 Agents
+### 10.5 Agentes
 Um agent aqui é um **perfil de uso**, não só o nome cru do Harbor: junta
 `agentValue` (`claude-code`, `codex`, `oracle`, `nop`, ...) + um **model padrão** + umas
 **instructions** próprias (viram uma skill implícita, sempre anexada — `resolveAgentInstructionsPath`)
-+ **default skill sets**. Isso é o que a aba Compare usa pra pré-preencher cada linha.
++ **default skill sets**. Isso é o que **Novo experimento** usa pra pré-preencher cada linha.
 
 **Valores de `agentValue` aceitos** pelo Harbor instalado: **42**, com autocomplete no próprio
 campo (`<datalist>` alimentado por `GET /api/harbor-agents`, cuja fonte é a constante
-`HARBOR_AGENTS` em `scripts/lib/harbor.ts` — espelho mantido à mão de `harbor run --help`,
+`HARBOR_AGENTS` em `scripts/lib/catalog.ts` — espelho mantido à mão de `harbor run --help`,
 porque `harbor agent list` não existe neste Harbor). O campo continua **livre**: o Harbor
 também aceita um import path customizado (`module.path:ClassName`) e atalhos ACP
 (`acp:opencode@1.3.9`), que um `<select>` fechado impediria.
@@ -618,7 +579,7 @@ Agrupa Criteria por checkbox — mesma relação Skill→Skillset. Materializado
 
 **Modo validação (escape hatch explícito do gate de model).** O dropdown de model do Judge só
 mostra a lista curada por política operacional; isso não prova a qualidade de um veredito.
-Para *conferir se o Analyze funciona nesta máquina*, existe um checkbox
+Para *conferir se a Análise avulsa funciona nesta máquina*, existe um checkbox
 "Modo validação" em dois pontos que precisam concordar: aqui, que passa a listar **todos** os
 models cadastrados (cada um fora da lista marcado com `⚠ fora da lista curada`), e no painel
 Analisar do Compare, que envia `validationMode: true` na chamada. Faltando qualquer um dos
@@ -630,11 +591,12 @@ renderizado — por centavos, em vez do custo de um Opus.
 
 Mesma relação que Agent tem com Model/Skill Set, só que do lado de quem julga: um Judge junta
 **quem executa o julgamento** (`agentValue`, o mesmo `--agent` do Harbor — por padrão
-`claude-code`), **com qual model** (dropdown filtrado só pros models cadastrados na aba 2 cujo
+`claude-code`), **com qual model** (dropdown filtrado só pros models cadastrados em **Modelos** cujo
 `provider/modelo` bate com a lista curada high-tier do kit — nunca o padrão barato do próprio
 Harbor, `claude-haiku-4-5`), **instruções customizadas** (opcional) e **quais Judge Rubrics
-marcar por padrão**. Depois de cadastrado, escolha esse Judge no painel Analisar do Compare, na
-aba Analyze, ou no pin de uma Task — em vez de escolher model/agent/rubric soltos toda run.
+marcar por padrão**. Depois de cadastrado, escolha esse Judge no painel Analisar de **Novo
+experimento**, em **Análise avulsa**, ou no pin de uma Task — em vez de escolher
+model/agent/rubric soltos toda run.
 
 **Importante — isto NÃO é uma skill de verdade.** O `harbor analyze` roda um agente Harbor real
 com acesso a arquivo (não é uma chamada de LLM crua: ele lê `result.json`,
@@ -671,7 +633,7 @@ ordem; se um passo falhar, os seguintes são pulados). Use N>0 só quando a task
 de várias etapas dependentes entre si.
 
 **Rubrics/Judge padrão da task**: o editor também tem "Judge padrão desta task" (dropdown de
-Judges — aba 8) e "Judge rubrics padrão desta task" (checkbox, pode marcar **N rubrics**, não
+Judges) e "Judge rubrics padrão desta task" (checkbox, pode marcar **N rubrics**, não
 só um; escolher um Judge pré-marca os rubrics padrão dele aqui, ainda editável). Isso não roda
 nada sozinho — é só um "lembrete pinado": quando essa task é usada numa run do Compare, o
 painel Analisar já abre com esse Judge e esses rubrics pré-selecionados, prontos pra clicar em
@@ -679,7 +641,7 @@ painel Analisar já abre com esse Judge e esses rubrics pré-selecionados, pront
 `~/.harbor-eval-kit/task-rubric-defaults.json`, indexado pelo path da task — não dentro da
 pasta da task, pra não misturar preferência de UI com o conteúdo da task em si.
 
-### 10.10 Compare — o núcleo do kit
+### 10.10 Novo experimento — o núcleo do kit
 Não é 3 checkboxes cruzados. Você escolhe um **Agent** num dropdown e clica **Adicionar** —
 isso cria uma linha na lista de entradas, já com **model** e **skill sets** pré-preenchidos
 do que está configurado nesse agent, mas **sobrescrevíveis só naquela linha**. Pode adicionar
@@ -694,7 +656,7 @@ direto de `stats.cost_usd`/`n_input_tokens`/`n_output_tokens` no `result.json` q
 Harbor grava — ver seção 11 pra detalhes de onde vem cada número.
 
 Depois do resultado: botão **Ver trajetórias** (abre `harbor view` já no jobs-dir certo) e um
-painel opcional **Analisar** por linha (ou "Analisar todas") usando um **Judge** (aba 8) +
+painel opcional **Analisar** por linha (ou "Analisar todas") usando um **Judge** +
 **um ou mais Judge Rubrics** (checkbox — cada um marcado dispara uma chamada de análise
 separada, os resultados aparecem empilhados, cada um com o custo daquela análise). Se a task
 rodada tiver Judge/rubrics pinados (seção 10.9), o painel já abre com eles pré-selecionados —
@@ -760,7 +722,7 @@ porque o footprint completo do instalador não foi inventariado. A auditoria fic
 
 ### 10.10-d Config Bundle — compartilhar configuração entre máquinas
 
-Aba **Config**. Agents, Models, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em
+Aba **Configuração**. Agentes, Modelos, Skills, Skill Sets, Criteria, Judge Rubrics e Judges vivem em
 `~/.harbor-eval-kit/`, por máquina — sem isso um time não versiona essa configuração em git nem
 revisa em PR. **Exportar** baixa um `.json` com todas as registries (`GET /api/config/export`);
 **Importar** aplica um bundle (`POST /api/config/import`, `scripts/lib/bundle.ts`).
@@ -842,10 +804,16 @@ processo de vida longa (fica escutando numa porta) até clicar "Stop" na lista a
 de viewers ativos é só em memória e não sobrevive a um restart do `gui-server` (os processos
 continuam de pé, só a lista que esquece deles — pare manualmente se precisar).
 
-### 10.13 Analyze
-Uso ad-hoc do `harbor analyze` num path específico, escolhendo um Judge (aba 8) já cadastrado —
-o fluxo normal é pelo botão "Analisar" direto na tabela de resultados do Compare (seção 10.10),
-esta aba existe pra quando você já tem um path exato em mente.
+### 10.13 Análise avulsa
+Uso ad-hoc do `harbor analyze` num path específico, escolhendo um Judge já cadastrado. No
+fluxo normal, use o botão **Analisar** direto na tabela de resultados de **Novo experimento**
+(seção 10.10); esta área existe quando você já tem um path exato em mente.
+
+O bootstrap é process-local: `execHarbor` detecta `analyze` e executa o Python do Harbor com
+`-m harbor_eval_kit.cli`. O módulo verifica o gate do Harbor **0.22.0**, valida a entrada
+`--env docker` e substitui temporariamente, apenas no registry em memória daquele processo, a
+entrada Docker pelo `ManagedPodmanEnvironment`. Ao terminar, restaura a entrada original; o
+pacote instalado do Harbor nunca é editado.
 
 ---
 
@@ -870,7 +838,7 @@ iteração exploratória. O padrão usa uma **lista curada de modelos**
 não prova de qualidade: calibre o juiz com exemplos de veredito conhecido. O modo validação
 continua explícito e marcado nos resultados. Confira os IDs reais no provider antes de usar.
 
-**Quem é o juiz é registrado como um Judge (aba 8)**, não escolhido solto toda vez: um Judge
+**Quem é o juiz é registrado como um Judge**, não escolhido solto toda vez: um Judge
 junta `--agent` (quem executa a leitura — um agente Harbor real com acesso a arquivo, não uma
 chamada de LLM crua), o judge model (da lista curada) e, opcionalmente, instruções custom que
 substituem o texto padrão do juiz por completo via `harbor analyze --prompt <arquivo>`
@@ -958,13 +926,11 @@ Harbor por baixo e compartilham planejamento, normalização e guarda. Ambas car
 - Não dá pra anexar uma skill de verdade (SKILL.md tool-acessível) a um Judge — limitação do
   próprio `harbor analyze` (sem flag `--skill`, `AgentConfig.skills` nunca setado), não desta
   GUI. O que dá pra fazer é reescrever as instruções do juiz por completo (seção 10.8).
-- A resolução de `DOCKER_HOST` pra macOS/Linux (`resolvePodmanDockerHost()`, seção 4) foi
+- A resolução de `DOCKER_HOST` pra macOS/Linux (`resolvePodmanConnection()`, seção 4) foi
   validada isoladamente (comandos `podman` certos, campos certos do template Go), mas todo o
   desenvolvimento deste kit aconteceu numa máquina Windows — só o branch Windows tem um
-  `harbor run --env docker` real, ponta-a-ponta, repetido várias vezes. Se `podman info`/
-  `podman machine inspect` reportarem algo fora do formato esperado no seu macOS/Linux, o
-  status da GUI mostra "DOCKER_HOST não resolvido" (aba de status, `/api/status`) em vez de
-  falhar silenciosamente — mas o valor resolvido em si pode precisar de ajuste manual.
+  adapter gerenciado real, ponta-a-ponta. Se `podman info`/`podman machine inspect` reportarem
+  outro formato no macOS/Linux, o gate bloqueia antes de criar recursos.
 - `durationSec` do Compare é tempo de parede da chamada inteira, não o timing fino por-trial
   que o Harbor já grava internamente (`agent_execution`/`verifier` em `TrialResult`) — este kit
   não lê esses campos hoje (seção 11, "Custo, tokens e velocidade").
@@ -978,31 +944,35 @@ Harbor por baixo e compartilham planejamento, normalização e guarda. Ambas car
 ```
 Harbor_install/skills/        skills do Claude Code p/ instalar/diagnosticar/limpar o Harbor
 Harbor_install/agents/        papéis/sub-agentes usados junto com as skills acima
-scripts/lib/*.ts              lógica compartilhada, 13 módulos (ver docs/ENGENHARIA.md §3):
+scripts/lib/*.ts              lógica compartilhada modular (ver docs/ENGENHARIA.md §3), incluindo
+                               podman, managed-runtime, gui-lifecycle e harbor-cli
                                types, catalog, paths, naming, exec, secrets, materialize,
                                joblogs, tasks, litellm, cost, bundle + harbor.ts (superfície
                                pública) -- materialização de skills/rubrics, DOCKER_HOST fix,
                                telemetria, guarda de gasto, export/import de config
 scripts/gui-server.ts         servidor HTTP + todas as rotas /api/*
 scripts/compare-matrix.ts     CLI de sweep (produto cartesiano via flags repetíveis)
-gui/index.html                markup das 15 abas (só HTML)
+scripts/harbor-cli.ts         status read-only e eval pelo executor comum
+scripts/gui-lifecycle.ts      preflight/status/stop usados pelos pares de wrappers
+gui/index.html                markup das áreas da GUI (só HTML)
 gui/styles.css                estilos
-gui/app/*.js                  14 módulos ES nativos, sem build (main, core, state, forms,
-                               models-skills, agents, judging, compare, secrets, tasks,
-                               datasets, config-bundle, logs, misc) — ver docs/ENGENHARIA.md §3
+gui/app/*.js                  módulos ES nativos, sem build; a lista acompanha a separação
+                               por responsabilidade (ver docs/ENGENHARIA.md §3)
 scripts/harbor-eval.sh/.ps1   bootstrap/doctor originais (instalação do Podman+Harbor)
 scripts/start-gui.sh/.ps1     confere harbor/podman prontos e sobe o gui-server (idempotente)
-scripts/stop-gui.sh/.ps1      para o gui-server achando quem está na porta (não toca em podman)
+scripts/stop-gui.sh/.ps1      para só o processo Node deste projeto e verifica o efeito
 scripts/test.sh/.ps1          roda a suíte inteira: node --test + scan de credenciais
 scripts/scan-secrets.sh       detector de credencial (modo --staged usado pelo pre-commit)
 scripts/setup-hooks.sh/.ps1   ativa .githooks/ neste clone (core.hooksPath)
 scripts/check-imports.mjs     checa builtins/nomes usados sem import e ciclos (backend + GUI)
-scripts/lib/*.test.ts         testes unitários (node:test, sem framework): harbor + cost + bundle
+scripts/lib/*.test.ts         testes unitários (node:test, sem framework), incluindo catálogo,
+                               probe, gateway, custo, bundle e templates
 docs/PENDENCIAS.md            próximos passos, escrito pra qualquer agente pegar (não só Claude)
+docs/INSTALACAO_MANUAL.md     instalação/operação por Windows, Git Bash, macOS e Linux rootless
 .githooks/pre-commit          bloqueia commit que contenha credencial
 .gitattributes                fixa LF nos .sh (CRLF quebraria o hook num clone Windows)
 .claude/skills/               skills de projeto: ship-change, secret-guard, cross-platform
 docs/ENGENHARIA.md            padrões de engenharia e o incidente que originou cada regra
 docs/screenshots/             imagens usadas no README.md
-~/.harbor-eval-kit/test-provider-key.py   script Python materializado pelo botão "Test" (Secrets)
+scripts/python/probe_provider.py  probe explícito de descoberta/teste de provider (Credenciais)
 ```

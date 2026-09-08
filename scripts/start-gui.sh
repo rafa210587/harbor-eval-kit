@@ -1,50 +1,37 @@
 #!/usr/bin/env bash
-# Enables and starts the Harbor Eval Kit GUI: checks Harbor/Podman are installed, makes a
-# best-effort attempt to bring the Podman machine up, then launches the local GUI server.
-# Safe to re-run any time -- every step here is a no-op if already satisfied.
+# Idempotent foreground launcher. Operational callers may background this wrapper.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-have(){ command -v "$1" >/dev/null 2>&1; }
+PORT="4173"
+args=("$@")
+i=0
+while [ "$i" -lt "$#" ]; do
+  value="${args[$i]}"
+  case "$value" in
+    --port=*) PORT="${value#--port=}" ;;
+    --port)
+      i=$((i + 1))
+      [ "$i" -lt "$#" ] || { echo "BLOCKED: --port requires a value" >&2; exit 2; }
+      PORT="${args[$i]}"
+      ;;
+  esac
+  i=$((i + 1))
+done
 
-echo "== Harbor Eval Kit -- start-gui =="
-
-if ! have node; then
-  echo "BLOCKED: node not found. Install Node.js 24+ first (needed for native TS execution)." >&2
+command -v node >/dev/null 2>&1 || { echo "BLOCKED: Node.js 24+ is required." >&2; exit 1; }
+node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)" || {
+  echo "BLOCKED: Node.js 24+ is required." >&2
   exit 1
-fi
+}
 
-node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)" || { echo "BLOCKED: Node.js 24+ required." >&2; exit 1; }
+set +e
+node "$ROOT/scripts/gui-lifecycle.ts" preflight --port "$PORT" --root "$ROOT"
+preflight_code=$?
+set -e
+if [ "$preflight_code" -eq 20 ]; then exit 0; fi
+if [ "$preflight_code" -ne 0 ]; then exit "$preflight_code"; fi
 
-if ! have harbor; then
-  echo "Harbor CLI not found. Install it with:"
-  echo '  uv tool install "harbor==0.22.0"'
-  echo "(or ask Claude Code / Codex to follow Harbor_install/skills/harbor-bootstrap/SKILL.md,"
-  echo "which does this plus the Podman compatibility check for you.)"
-  exit 1
-fi
-
-if ! have podman; then
-  echo "BLOCKED: podman not found. Install Podman first: https://podman.io/" >&2
-  exit 1
-fi
-
-# Best-effort: bring the Podman machine up if this platform uses one (Windows/macOS).
-# Rootless Podman on Linux typically has no machine to start -- ignore failures either way,
-# `podman info` below is the real gate.
-podman machine start >/dev/null 2>&1 || true
-
-if ! podman info >/dev/null 2>&1; then
-  echo "BLOCKED: 'podman info' failed. Run 'podman machine init && podman machine start' (or" >&2
-  echo "the equivalent for your platform), then re-run this script." >&2
-  exit 1
-fi
-
-echo "Harbor: $(harbor --version 2>&1 | head -n1)"
-echo "Podman: $(podman --version 2>&1 | head -n1) -- info OK"
-echo "Starting GUI at http://127.0.0.1:4173 ..."
-# cd first: the server resolves "evals", "datasets" and "jobs" relative to the process's cwd,
-# so launching this script from anywhere else (e.g. `cd /tmp && /path/to/start-gui.sh`) used to
-# silently scan the wrong directories and show an empty task list.
+echo "Starting Harbor Eval Kit GUI at http://127.0.0.1:$PORT ..."
 cd "$ROOT"
-exec node scripts/gui-server.ts "$@"
+exec node "$ROOT/scripts/gui-server.ts" "$@"

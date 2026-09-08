@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -20,13 +20,22 @@ export function smokePodman(manifestPath: string, run: CleanupExecutor): void {
   saveInstallationManifest(manifestPath, manifest);
   const temp = mkdtempSync(join(tmpdir(), 'harbor-eval-kit-doctor-'));
   try {
+    const bind = join(temp, 'bind');
+    mkdirSync(bind);
+    writeFileSync(join(bind, 'host-seed'), 'host-ok\n');
     writeFileSync(join(temp, 'Containerfile'), 'FROM docker.io/library/alpine:3.20\nRUN echo ok >/image-ok\nCMD ["sh","-lc","sleep 60"]\nLABEL io.harbor-eval-kit.managed="true"\n');
     run('podman', ['build', '--pull=never', '-t', names.images, temp]);
     const label = 'io.harbor-eval-kit.managed=true';
     run('podman', ['volume', 'create', '--label', label, names.volumes]);
     run('podman', ['network', 'create', '--label', label, names.networks]);
-    run('podman', ['run', '-d', '--name', names.containers, '--label', label, '--network', names.networks, '-v', `${names.volumes}:/managed`, names.images]);
+    run('podman', ['run', '-d', '--name', names.containers, '--label', label, '--network', names.networks, '-e', 'HARBOR_EVAL_SMOKE_MARKER=synthetic-ok', '-v', `${names.volumes}:/managed`, '-v', `${bind}:/host-bind`, names.images]);
     run('podman', ['exec', names.containers, 'test', '-f', '/image-ok']);
+    run('podman', ['exec', names.containers, 'sh', '-lc', 'test "$HARBOR_EVAL_SMOKE_MARKER" = synthetic-ok']);
+    run('podman', ['exec', names.containers, 'sh', '-lc', 'test "$(cat /host-bind/host-seed)" = host-ok']);
+    run('podman', ['exec', names.containers, 'sh', '-lc', 'echo container-ok >/host-bind/container-write']);
+    if (readFileSync(join(bind, 'container-write'), 'utf8').trim() !== 'container-ok') {
+      throw new Error('Podman bind mount did not persist a container write on the host');
+    }
     run('podman', ['exec', names.containers, 'sh', '-lc', 'echo ok >/managed/volume-ok']);
     run('podman', ['exec', names.containers, 'test', '-f', '/managed/volume-ok']);
     const owned = discoverCleanupResources(run).filter(resource => resource.names.some(name => name.includes(prefix)));

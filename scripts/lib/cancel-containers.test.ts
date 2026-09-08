@@ -42,3 +42,23 @@ test('cancel rejects traversal and missing manifests before external commands', 
     assert.equal(calls, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('cancel resolves a managed runtime namespace by its recorded job path', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'harbor-cancel-test-'));
+  try {
+    mkdirSync(join(dir, 'job'));
+    const name = 'harbor-eval-kit-random-main';
+    const manifestPath = join(dir, 'manifest.json');
+    writeFileSync(manifestPath, JSON.stringify({ schema_version: 1, preexisting: {}, installed_by_kit: {}, managed_resources: {
+      containers: [{ id: 'owned', name, jobPath: join(dir, 'job') }], images: [], volumes: [], networks: [] } }));
+    let active = true;
+    const stopped = stopContainersForJob(dir, 'job', { manifestPath, run: (_command, args) => {
+      if (args[0] === 'ps') return args.includes('-aq') || active ? 'owned' : '';
+      if (args[1] === 'inspect') return JSON.stringify([{ Id: 'owned', Name: name, Config: { Labels: { 'io.harbor-eval-kit.managed': 'true' } } }]);
+      if (args[0] === 'stop') active = false;
+      return '';
+    } });
+    assert.deepEqual(stopped, [name]);
+    assert.equal(active, false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

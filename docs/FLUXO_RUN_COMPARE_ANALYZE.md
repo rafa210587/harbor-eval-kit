@@ -11,7 +11,7 @@ as mensagens de erro reais que aparecem quando falta alguma coisa.
 
 ## 1. As três operações
 
-Primeiro experimento com LLM: **Secrets → Models → Agents → Compare**, usando
+Primeiro experimento com LLM: **Começar → Credenciais → Modelos → Agentes → Novo experimento**, usando
 `evals/python/soma-fracoes`. Skills, Criteria, Rubrics e Judges são opcionais. GUI e CLI
 persistem planos e resultados em `<jobsDir>/.experiments/<id>/`; cada execução recebe IDs
 novos, e o registro pode ser reaberto sem reaproveitar um job antigo como se fosse novo.
@@ -22,10 +22,10 @@ novos, e o registro pode ser reaberto sem reaproveitar um job antigo como se fos
 | **Compare** | N runs em sequência (uma por combinação agent+model+skillset), lado a lado na mesma tabela | N × `harbor run` |
 | **Analyze** | um juiz LLM lê uma run **já terminada** e responde PASS/FAIL/N-A por critério | `harbor analyze` |
 
-Não existe "run" isolada na GUI: **a aba Compare é como você roda**. Uma run só é uma Compare
+Não existe "run" isolada na GUI: **Novo experimento é como você roda**. Uma run só é uma Compare
 com uma linha só. O CLI (`compare-matrix.ts`) segue a mesma ideia.
 
-O argv real montado para cada linha (de `buildHarborRunArgs`, em `scripts/lib/harbor.ts`):
+O argv lógico montado para cada linha (de `buildHarborRunArgs`):
 
 ```bash
 harbor run \
@@ -34,13 +34,17 @@ harbor run \
   [--model <provider/modelo>] [--skill <pasta>]...
 ```
 
+Antes do spawn, `execHarbor` troca `--env docker` pelo adapter
+`harbor_eval_kit.managed:ManagedPodmanEnvironment`. O nome `docker` permanece como entrada
+compatível na GUI/CLI; nenhuma execução local chama Docker Engine.
+
 Repare: `--model` e `--skill` são **condicionais**. É isso que torna Model e Skill opcionais
 em vez de obrigatórios — o que a tabela abaixo detalha.
 
 ### 1.1 Nem todo agent aceita qualquer model
 
-O Harbor instalado aceita **42 valores** de `--agent`, e a diferença entre eles decide se uma
-comparação model-vs-model é possível:
+O catálogo `HARBOR_AGENTS` espelha os valores aceitos por `harbor run --help`, e a diferença
+entre eles decide se uma comparação model-vs-model é possível:
 
 - **Model-agnostic** (LiteLLM por baixo — aceitam qualquer `provider/modelo`):
   `mini-swe-agent`, `terminus`/`terminus-1`/`terminus-2`, `aider`, `opencode`, `openhands`,
@@ -52,9 +56,9 @@ comparação model-vs-model é possível:
 - **Sem custo de API**: `oracle` (aplica o `solution/solve.sh` da própria task) e `nop` (não
   faz nada).
 
-O campo `--agent value` na aba Agents tem autocomplete com os 42, marcando quais são
-model-agnostic — a fonte é `HARBOR_AGENTS` em `scripts/lib/harbor.ts`, servida por
-`GET /api/harbor-agents`. É um espelho mantido à mão de `harbor run --help` (o Harbor não expõe
+O campo `--agent value` na aba Agentes tem autocomplete vindo desse catálogo, marcando quais são
+model-agnostic — a fonte é `HARBOR_AGENTS` em `scripts/lib/catalog.ts`, servida por
+`GET /api/harbor-agents`. É um espelho mantido à mão, derivado de `harbor run --help` (o Harbor não expõe
 essa lista de forma legível por máquina — `harbor agent list` não existe), então revalide ao
 atualizar o Harbor.
 
@@ -103,48 +107,54 @@ Linha cheia = obrigatório. Linha pontilhada = opcional.
 
 Serve para validar que o kit inteiro funciona antes de envolver dinheiro.
 
-1. **Aba 9 — Tasks**: crie uma task (`harbor init --task`), preencha `instruction.md` e
+1. **Tasks**: crie uma task (`harbor init --task`), preencha `instruction.md` e
    `tests/test.sh`. Preencha também `solution/solve.sh`, porque o passo 3 depende dele.
-2. **Aba 5 — Agents**: cadastre um agent com `agentValue = oracle` e **sem model**.
+2. **Agentes**: cadastre um agent com `agentValue = oracle` e **sem model**.
    - `oracle` não chama LLM nenhuma: ele aplica a `solution/solve.sh` da própria task.
    - Serve para responder *"meu `test.sh` está correto?"* — se o oracle não tira reward 1.0,
      o problema está na sua task, não no agent.
    - (`nop` é o oposto: não faz nada, deve tirar 0.0. Confirma que o teste não passa sozinho.)
-3. **Aba 10 — Compare**: escolha a task, adicione a linha do agent `oracle`, **Rodar**.
+3. Em **Novo experimento**: escolha a task, adicione a linha do agent `oracle`, **Rodar**.
 
 Nenhum Secret, nenhum Model, nenhum Criteria, nenhum Judge foi necessário aqui.
 
 ## 5. Caminho completo — um Compare de verdade (DeepSeek vs Claude)
 
-### 5.1 Secret (aba 1) — porque sem chave não há chamada
+### 5.1 Credencial — porque sem chave não há chamada
 
-Cadastre `ANTHROPIC_API_KEY` e `DEEPSEEK_API_KEY` e clique **Test** em cada uma. O Test faz
-uma chamada real (`"hi"`, `max_tokens: 5`) — não é validação de formato.
+Cadastre `ANTHROPIC_API_KEY` e `DEEPSEEK_API_KEY` em **Credenciais**. Em **Modelos**, registre
+os valores exatos que vai usar, por exemplo `anthropic/claude-sonnet-5` e
+`deepseek/deepseek-v4-flash`. Volte a **Credenciais**, selecione cada Model compatível e clique
+**Testar modelo escolhido**. O teste faz uma chamada real (`"hi"`, `max_tokens: 8`) nesse modelo
+exato; salvar a credencial não faz teste automático.
+
+**Descobrir modelos** é uma operação separada e sob demanda. Ela consulta o catálogo do
+provider, não faz completion, e a GUI só cadastra modelos que você marcar explicitamente.
 
 Se faltar a chave do provider do model que você escolheu, a run falha **dentro do container**,
 depois de já ter subido tudo — por isso testar aqui economiza tempo.
 
-### 5.2 Models (aba 2) — porque é o que você quer comparar
+### 5.2 Modelos — porque é o que você quer comparar
 
 | Label | Value |
 |---|---|
 | `claude-sonnet-5` | `anthropic/claude-sonnet-5` |
-| `deepseek-chat` | `deepseek/deepseek-chat` |
+| `deepseek-v4-flash` | `deepseek/deepseek-v4-flash` |
 
 O prefixo antes da `/` é o que decide qual Secret será lido — convenção do LiteLLM, não uma
 escolha separada. O badge na lista mostra se a chave esperada já existe.
 
-### 5.3 Agents (aba 5) — porque é a unidade de comparação
+### 5.3 Agentes — porque é a unidade de comparação
 
 | Label | agentValue | Model padrão |
 |---|---|---|
-| `resolvedor-claude` | `claude-code` | `claude-sonnet-5` |
-| `resolvedor-deepseek` | `claude-code` | `deepseek-chat` |
+| `resolvedor-claude` | `mini-swe-agent` | `claude-sonnet-5` |
+| `resolvedor-deepseek` | `mini-swe-agent` | `deepseek-v4-flash` |
 
 Você **pode** cadastrar um agent só e sobrescrever o model direto na linha do Compare — o
 resultado é idêntico. Dois perfis só evitam repetir o override toda vez.
 
-### 5.4 Compare (aba 10)
+### 5.4 Novo experimento
 
 Task + duas linhas + `n-attempts = 3` (reduz ruído de amostra pequena) → **Rodar**.
 
@@ -166,7 +176,7 @@ O endpoint recusa qualquer model que não esteja na lista curada high-tier:
 the judge's model must be one of the curated high-tier judge models (see GET /api/judge-models)
 ```
 
-A lista (`JUDGE_MODELS` em `scripts/lib/harbor.ts`) é hoje:
+A lista (`JUDGE_MODELS` em `scripts/lib/catalog.ts`) é hoje:
 
 | Label | Value |
 |---|---|
@@ -186,7 +196,7 @@ libera o dropdown a listar todos os models cadastrados, cada um fora da lista ma
 na chamada. Sem o flag nas duas pontas o gate recusa normalmente — não existe afrouxamento
 silencioso — e a resposta sai carimbada (`validationMode: true` + aviso na tela) para que o
 veredito nunca seja confundido com avaliação real. Validado em 2026-09-06 com
-`deepseek/deepseek-chat` julgando uma run real: `clean_code: pass`, `no_prolixity: pass`,
+`deepseek/deepseek-chat` julgando uma run real (registro histórico): `clean_code: pass`, `no_prolixity: pass`,
 `analysis.json` gravado e renderizado corretamente por centavos.
 
 **Consequência prática — a cadeia inteira que um Judge exige:**
@@ -195,7 +205,7 @@ veredito nunca seja confundido com avaliação real. Validado em 2026-09-06 com
 Secret (ANTHROPIC_API_KEY)  →  Model (anthropic/claude-opus-5)  →  Judge
 ```
 
-Ou seja: você **não consegue** cadastrar um Judge útil sem antes registrar, na aba Models, um
+Ou seja: você **não consegue** cadastrar um Judge útil sem antes registrar, na aba Modelos, um
 model cujo value seja exatamente um dos quatro acima. É o erro de ordem mais comum — o dropdown
 de model do Judge aparece vazio e não fica óbvio o porquê.
 
@@ -243,7 +253,7 @@ chamada de LLM crua em cima de um resumo.
   "path": "evals/python/minha-task",
   "entries": [
     { "agentId": "<id-do-resolvedor-claude>" },
-    { "agentId": "<id-do-resolvedor-claude>", "modelId": "<id-do-deepseek-chat>" }
+    { "agentId": "<id-do-resolvedor-claude>", "modelId": "<id-do-deepseek-v4-flash>" }
   ],
   "env": "docker",
   "jobsDir": "jobs",
@@ -258,7 +268,7 @@ A segunda entrada mostra o override: mesmo agent, model diferente, só naquela l
 
 ```json
 {
-  "path": "jobs/cmp__agent-claude-code__model-deepseek-deepseek-chat__skill-none/<trial>",
+  "path": "jobs/cmp__agent-claude-code__model-deepseek-deepseek-v4-flash__skill-none/<trial>",
   "judgeId": "<id-do-judge>",
   "rubricId": "<id-do-rubric>"
 }
@@ -272,20 +282,20 @@ A segunda entrada mostra o override: mesmo agent, model diferente, só naquela l
 ```powershell
 node .\scripts\compare-matrix.ts `
   --path .\evals\python\minha-task `
-  --agent claude-code `
-  --model anthropic/claude-sonnet-5 --model deepseek/deepseek-chat
+  --agent mini-swe-agent `
+  --model anthropic/claude-sonnet-5 --model deepseek/deepseek-v4-flash
 ```
 
 ## 8. Erros reais e o que significa cada um
 
 | Mensagem | Causa | Onde resolver |
 |---|---|---|
-| `path and at least one entry are required` | rodou o Compare sem task ou sem nenhuma linha | aba 10 |
-| `unknown agentId` | o agent foi deletado depois de montar a linha | aba 5, recadastre |
-| `no secret named X is saved yet` | clicou Test numa chave que não foi salva | aba 1 |
-| `no known provider maps to the secret name 'X'` | nome de secret customizado, fora dos 15 providers curados | aba 1 (use o dropdown) |
-| `the judge's model must be one of the curated high-tier judge models` | Judge sem model, ou com model fora da lista curada | aba 2 → cadastre um high-tier → aba 8 |
-| `rubric has no valid criteria` | rubric criado sem marcar nenhum critério válido | abas 6 e 7 |
+| `path and at least one entry are required` | rodou Novo experimento sem task ou sem nenhuma linha | Novo experimento |
+| `unknown agentId` | o agent foi deletado depois de montar a linha | Agentes, recadastre |
+| `no secret named X is saved yet` | testou um Model cuja credencial não foi salva | Credenciais |
+| `no known provider maps to the secret name 'X'` | nome de secret customizado, fora dos 15 providers curados | Credenciais (use o dropdown) |
+| `the judge's model must be one of the curated high-tier judge models` | Judge sem model, ou com model fora da lista curada | Modelos → cadastre um high-tier → Judges |
+| `rubric has no valid criteria` | rubric criado sem marcar nenhum critério válido | Criteria e Judge Rubrics |
 | `unknown rubricId` / `unknown judgeId` | cadastro deletado após ter sido pinado numa task | aba 9 (repin) |
 | `Authentication Fails, Your api key: ****NNNN is invalid` | a chave é real mas foi revogada/rotacionada no provider | painel do provider → aba 1 |
 

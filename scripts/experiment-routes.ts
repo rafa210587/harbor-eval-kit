@@ -6,6 +6,9 @@ import { createExperimentPlan, resolveRegisteredCandidates, estimateExperiment }
 import { runExperiment, type RunControl } from "./lib/experiment-runner.ts";
 import { listExperiments, readExperiment } from "./lib/experiment-store.ts";
 import { stopContainersForJob } from "./lib/exec.ts";
+import { reportCsv } from "./lib/results.ts";
+import { loadSecretsEnv } from "./lib/secrets.ts";
+import { redactOutput } from "./lib/experiment-runner.ts";
 
 type SendJson = (res: ServerResponse, status: number, data: unknown) => void;
 type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: any) => void | Promise<void>;
@@ -21,7 +24,7 @@ function planFromBody(body: any) {
 export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson): void {
   addRoute("POST", "/api/compare/estimate", (_req, res, _params, body) => {
     const plan = planFromBody(body);
-    sendJson(res, 200, { ...estimateExperiment(plan), nTasks: plan.tasks.length });
+    sendJson(res, 200, { ...estimateExperiment(plan), nTasks: plan.tasks.length, plan });
   });
   addRoute("POST", "/api/compare", async (_req, res, _params, body) => {
     const plan = planFromBody(body);
@@ -47,5 +50,14 @@ export function registerExperimentRoutes(addRoute: AddRoute, sendJson: SendJson)
     const url = new URL(req.url!, "http://localhost");
     const record = readExperiment(url.searchParams.get("jobsDir") || "jobs", params.id);
     sendJson(res, 200, { ...record, canCancel: activeRuns.has(params.id), executionUncertain: record.status === "running" && !activeRuns.has(params.id) });
+  });
+  addRoute("GET", "/api/experiments/:id/report", (req, res, params) => {
+    const url = new URL(req.url!, "http://localhost");
+    const format = url.searchParams.get("format") || "json";
+    if (!["csv", "json"].includes(format)) throw new Error("formato de exportação deve ser csv ou json");
+    const record = readExperiment(url.searchParams.get("jobsDir") || "jobs", params.id);
+    const content = format === "csv" ? reportCsv(record.rows) : JSON.stringify(record.rows, null, 2);
+    res.writeHead(200, { "Content-Type": format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="experiment-${record.plan.id}.${format}"`, "Cache-Control": "no-store" });
+    res.end(redactOutput(content, loadSecretsEnv()));
   });
 }

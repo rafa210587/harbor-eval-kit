@@ -7,7 +7,7 @@ import { state, onRefresh, refreshAll } from "./state.js";
 const agentsForm = $("#agents-form");
 agentsForm.dataset.apiPath = "/api/agents";
 const agentsEdit = wireEditableForm(agentsForm, {
-  addLabel: "Add agent",
+  addLabel: "Adicionar agente",
   onSubmit: (form) => ({
     label: form.label.value,
     agentValue: form.agentValue.value,

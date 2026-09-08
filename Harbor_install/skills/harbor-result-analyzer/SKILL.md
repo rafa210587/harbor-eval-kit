@@ -9,6 +9,12 @@ description: Compare and interpret Harbor job results, including when the option
 
 Use to compare Harbor job results.
 
+Execute Analyze through the kit's GUI or `execHarbor`, which routes its internal wrapper
+task through the managed Podman environment. In Harbor 0.22.0 the analyze CLI accepts an enum
+only; `harbor_eval_kit.cli` validates and redirects that enum inside the subprocess without
+modifying the installed package. Direct upstream `harbor analyze` bypasses this ownership
+guarantee. The preexisting Python 3.13-slim image and the doctor gates are required.
+
 ## Analysis principles
 
 Do not rank from pass rate alone.
@@ -49,6 +55,11 @@ The deterministic reward from `tests/test.sh` **is** the comparison. Only reach 
 to break a tie between candidates that all passed, or to audit whether a pass was earned or
 reward-hacked.
 
+Judge use is an explicit, paid operation. Before starting Analyze, freeze the selected judge,
+rubric, validation mode and candidate batch; lock the action against duplicate clicks and record
+the effective inputs. A judge configuration edit must preserve its selected model until the user
+changes that model deliberately. Never read judge controls again while the batch is running.
+
 The judge's model defaults to the curated list (`JUDGE_MODELS` in
 `scripts/lib/catalog.ts`). This policy does not establish judge quality: calibrate against
 known verdicts before using its ranking for a decision. Registering a Judge
@@ -74,3 +85,8 @@ pass rate. Never select only `results[0]`. `aggregate.costUsd` is available only
 trial reports cost; `reportedCostUsd` may be a partial sum and must be labelled as such.
 Preserve `validationMode`, judge model and rubric identity when presenting or exporting results.
 Missing/malformed `result.json` is an error, not a successful evaluation with empty metrics.
+
+History and exported JSON/CSV are persisted records of completed or active experiment state; they
+do not promise automatic process resume after a server restart. Reopen the saved comparison and
+inspect its result files. An active row without a confirmed Harbor process remains uncertain until
+the process identity is verified.

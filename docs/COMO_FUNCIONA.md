@@ -44,26 +44,27 @@ Pontos que valem destacar (detalhados no `DOCUMENTACAO.md` §3, §6 e §7):
 - As chaves de API só existem em `secrets.env`, fora do repositório, e só entram no ambiente
   do processo `harbor`/`podman` no exato momento da chamada — nunca voltam numa resposta HTTP.
 - Quem realmente fala com a API do provider (Anthropic, DeepSeek, ...) é o **container** onde
-  o agent está rodando, não o `gui-server.ts` — a exceção é o botão **Test** da aba Secrets,
-  que faz uma chamada mínima direto (via LiteLLM) para confirmar a chave antes de gastar uma
-  run inteira com ela.
+  o agent está rodando, não o `gui-server.ts` — a exceção é a ação **Testar modelo escolhido**
+  da aba Credenciais, que faz uma chamada mínima direta (via LiteLLM) para confirmar a chave
+  antes de gastar uma run inteira com ela.
 
 ## 2. A ordem cognitiva das abas, visualmente
 
-A numeração organiza recursos; não obriga a preencher dez abas. O primeiro fluxo é
-**Secrets → Models → Agents → Compare**, com `evals/python/soma-fracoes`. Skills e juiz
-são opcionais. O grafo abaixo mostra relações entre recursos, incluindo os opcionais:
+A navegação organiza recursos; não obriga a preencher todas as áreas. O primeiro fluxo é
+**Começar → Credenciais → Modelos → Agentes → Novo experimento**, com
+`evals/python/soma-fracoes`. Skills e juiz são opcionais. O grafo abaixo mostra relações entre
+recursos, incluindo os opcionais:
 
 ```mermaid
 flowchart LR
-    S1["1. Secrets"] --> S2["2. Models"]
+    S1["Credenciais"] --> S2["Modelos"]
     S3["3. Skills (opcional)"]
     S3 --> S4["4. Skill Sets"]
-    S2 --> S5["5. Agents"]
+    S2 --> S5["Agentes"]
     S4 --> S5
     S6["6. Criteria"] --> S7["7. Judge Rubrics"]
     S7 --> S8["8. Judges"]
-    S5 --> S10["10. Compare"]
+    S5 --> S10["Novo experimento"]
     S9["9. Tasks"] --> S10
     S8 --> S10
     S10 --> AN["Analisar (opcional)"]
@@ -111,15 +112,18 @@ ou em lote — nunca acontece automaticamente dentro do loop acima. Ver `DOCUMEN
 **Contexto.** Rafael quer saber se dá pra trocar Claude por DeepSeek (bem mais barato) nas
 tasks Python do dia a dia, sem perder qualidade — e quer isso com números, não achismo.
 
-### 4.1 — Cadastrar e testar as duas chaves (aba 1. Secrets)
+### 4.1 — Cadastrar e testar as duas chaves (aba Credenciais)
 
-1. Provider = `Anthropic` → Name preenche sozinho `ANTHROPIC_API_KEY`, cola o Value → **Save
-   key**.
-2. Provider = `DeepSeek` → Name preenche `DEEPSEEK_API_KEY`, cola o Value → **Save key**.
-3. Clica **Test** em `DEEPSEEK_API_KEY`.
+1. Em **Credenciais**, Provider = `Anthropic` → Name preenche `ANTHROPIC_API_KEY`, cole o
+   Value → **Salvar credencial**.
+2. Provider = `DeepSeek` → Name preenche `DEEPSEEK_API_KEY`, cole o Value → **Salvar credencial**.
+3. Em **Modelos**, cadastre os valores exatos que pretende usar, por exemplo
+   `anthropic/claude-sonnet-5` e `deepseek/deepseek-v4-flash`.
+4. Volte a **Credenciais**, selecione um Model compatível e clique **Testar modelo escolhido**.
+   O teste usa esse modelo; salvar a credencial não testa automaticamente.
 
 Foi exatamente aqui que aconteceu um erro real durante os testes deste kit — fica registrado
-porque é um bom exemplo do que o botão Test é *pra* pegar:
+porque é um bom exemplo do que a ação de teste é *pra* pegar:
 
 ```
 Erro: BadRequestError: litellm.BadRequestError: DeepseekException -
@@ -128,25 +132,25 @@ Erro: BadRequestError: litellm.BadRequestError: DeepseekException -
 ```
 
 A chave tinha sido revogada no painel da DeepSeek depois de salva aqui. Solução: gerar uma
-chave nova em platform.deepseek.com, colar de novo em **Value**, **Save key** (sobrescreve),
-**Test** de novo:
+chave nova em platform.deepseek.com, colar de novo em **Value**, **Salvar credencial** (sobrescreve),
+selecionar o Model desejado e testar de novo:
 
 ```
-✓ Key funciona — chamada de teste no model deepseek/deepseek-chat respondeu normalmente.
+✓ Key funciona — chamada de teste no model deepseek/deepseek-v4-flash respondeu normalmente.
 ```
 
-Repete o **Test** em `ANTHROPIC_API_KEY` e confirma o mesmo `✓`. Como as duas chaves suportam
-listagem ao vivo de modelos, a GUI mostra um checklist dos modelos descobertos — deixa
-marcado, é o próximo passo de qualquer forma.
+Repita **Testar modelo escolhido** em `ANTHROPIC_API_KEY` usando o Model cadastrado. Se quiser
+consultar o catálogo do provider, use **Descobrir modelos** separadamente e marque apenas os
+modelos que deseja cadastrar; a descoberta não faz completion e não cadastra nada sozinha.
 
-### 4.2 — Registrar os dois models (aba 2. Models)
+### 4.2 — Registrar os dois modelos (aba Modelos)
 
-Do checklist que apareceu no Test (ou cadastrando à mão):
+Cadastre à mão ou use o checklist produzido por **Descobrir modelos**:
 
 | Label | provider/model |
 |---|---|
 | `claude-sonnet-5` | `anthropic/claude-sonnet-5` |
-| `deepseek-chat` | `deepseek/deepseek-chat` |
+| `deepseek-v4-flash` | `deepseek/deepseek-v4-flash` |
 
 As duas linhas mostram o badge verde de chave configurada.
 
@@ -157,12 +161,12 @@ vão usar exatamente as mesmas instruções extras (nenhuma) — variar só o mo
 quisesse testar se uma skill de "boas práticas Python" muda o resultado, isso viraria uma
 *segunda* comparação (skill ablation, ver `docs/EXPERIMENTS.md`), não a mesma.
 
-### 4.4 — Dois perfis de Agent (aba 5. Agents)
+### 4.4 — Dois perfis de Agent (aba Agentes)
 
 | Nome | agent (Harbor) | model padrão |
 |---|---|---|
 | `resolvedor-claude` | `mini-swe-agent` | `claude-sonnet-5` |
-| `resolvedor-deepseek` | `mini-swe-agent` | `deepseek-chat` |
+| `resolvedor-deepseek` | `mini-swe-agent` | `deepseek-v4-flash` |
 
 > **Por que `mini-swe-agent` e não `claude-code`?** O Harbor instalado aceita 42 valores de
 > `--agent`, divididos em dois tipos. Os **model-agnostic** (`mini-swe-agent`, `terminus`,
@@ -171,7 +175,7 @@ quisesse testar se uma skill de "boas práticas Python" muda o resultado, isso v
 > model mantendo todo o resto igual, que é exatamente o que uma comparação model-vs-model
 > exige. Os demais são CLIs de um fornecedor específico (`claude-code`, `codex`, `gemini-cli`,
 > `cursor-cli`…) e falam a API daquele fornecedor; combiná-los com um model de outro provider
-> é problema do adapter, não algo que este kit garanta. Na aba Agents o campo
+> é problema do adapter, não algo que este kit garanta. Na aba Agentes o campo
 > `--agent value` tem autocomplete com os 42, marcando quais são model-agnostic.
 >
 > **Validado de verdade** (2026-09-06, nesta máquina): `mini-swe-agent` +
@@ -189,7 +193,7 @@ quisesse testar se uma skill de "boas práticas Python" muda o resultado, isso v
 `quality-judge`: agent = `claude-code`, model = `claude-sonnet-5` (obrigatoriamente da lista
 curada high-tier — nunca o modelo barato padrão do Harbor), rubrics padrão = `Python Quality`.
 
-### 4.7 — A task (aba 9. Tasks)
+### 4.7 — A task (aba Tasks)
 
 `harbor init --task` gera o esqueleto; Rafael edita:
 - `instruction.md`: "some duas frações e devolva o resultado simplificado".
@@ -198,7 +202,7 @@ curada high-tier — nunca o modelo barato padrão do Harbor), rubrics padrão =
 
 Task salva como `time/soma-fracoes`.
 
-### 4.8 — Rodar a comparação (aba 10. Compare)
+### 4.8 — Rodar a comparação (aba Novo experimento)
 
 1. Task: `harbor-eval-kit/soma-fracoes`.
 2. Adiciona linha com Agent `resolvedor-deepseek` (model já vem pré-preenchido).
@@ -253,7 +257,7 @@ Para isso existe o **Modo validação**, em dois lugares que se complementam:
 
 1. **Aba 8. Judges** → marque "Modo validação" e o dropdown de model passa a listar **todos**
    os models cadastrados, cada um fora da lista curada marcado com `⚠ fora da lista curada`.
-2. **Painel Analisar** (aba Compare) → marque "Modo validação" ali também, senão a chamada é
+2. **Painel Analisar** (em Novo experimento) → marque "Modo validação" ali também, senão a chamada é
    recusada com a mensagem do gate.
 
 O resultado sai carimbado: `⚠ Modo validação: julgado por deepseek/deepseek-chat, que está
@@ -281,16 +285,18 @@ errar supera o custo do token.
 
 ## 4.13 — Validação completa da UI, medida (2026-09-06)
 
-Passagem manual por **todas as 14 abas**, com o modelo mais barato do DeepSeek, para confirmar
-que a cadeia inteira funciona junta e não só cada peça isolada.
+Passagem manual pelas áreas relevantes da GUI, usando explicitamente
+`deepseek/deepseek-v4-flash`, para confirmar que a cadeia inteira funciona junta e não só cada
+peça isolada. A quantidade e a ordem visual das áreas podem mudar; o contrato abaixo é sobre
+as operações realizadas.
 
 | Etapa | Resultado |
 |---|---|
-| 1. Secrets → Test | ✅ `ANTHROPIC_API_KEY` responde `ok: true` |
+| 1. Credenciais → Testar modelo escolhido | ✅ `ANTHROPIC_API_KEY` responde `ok: true` |
 | 3. Skills | ✅ skill autorada **com arquivo extra** (`examples/bom.py`) |
 | 4. Skill Sets | ✅ agrupou a skill |
-| 5. Agents | ✅ `mini-swe-agent` + `deepseek/deepseek-v4-flash` + skill set padrão |
-| 10. Compare | ✅ skill veio **pré-marcada** na linha via agent; reward **1.0**, **$0,0029**, 10.471/1.501 tokens |
+| 5. Agentes | ✅ `mini-swe-agent` + `deepseek/deepseek-v4-flash` + skill set padrão |
+| Novo experimento | ✅ skill veio **pré-marcada** na linha via agent; reward **1.0**, **$0,0029**, 10.471/1.501 tokens |
 | Analyze | ✅ `clean_code: pass`, `no_prolixity: pass` (modo validação, 66s) |
 | Logs | ✅ popula sozinha ao trocar de aba, tail incremental |
 | Trajectories | ✅ viewer ativo listado |
@@ -298,16 +304,15 @@ que a cadeia inteira funciona junta e não só cada peça isolada.
 O nome do job registra a cadeia inteira e serve de prova de que a skill chegou na run:
 `final__agent-mini-swe-agent__model-deepseek-deepseek-v4-flash__skill-Qualidade-Python`.
 
-> **Os nomes de modelo do DeepSeek mudaram.** `deepseek-chat` — que funcionou de manhã — passou
+> **Registro histórico do catálogo.** `deepseek-chat` — que funcionou de manhã — passou
 > a ser recusado pela API deles no mesmo dia: *"The supported API model names are
-> deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-flash-vision-exp, deepseek-r1"*. O mais barato
-> hoje é **`deepseek/deepseek-v4-flash`**.
+> deepseek-v4-pro, deepseek-v4-flash, deepseek-v4-flash-vision-exp, deepseek-r1"*. Naquela
+> validação, foi usado **`deepseek/deepseek-v4-flash`**.
 >
-> Consequência prática, e uma limitação real do botão **Test**: ele usa o primeiro model que o
-> `litellm.get_valid_models()` conhece para o provider, e esse catálogo do LiteLLM ainda lista o
-> `deepseek-chat`. Então o Test pode falhar **com uma chave boa**, apenas porque o catálogo do
-> LiteLLM está defasado em relação à API do provider. Se o Test falhar com erro de *model*
-> (e não de autenticação), a chave provavelmente está certa — confirme rodando um Compare.
+> O fluxo atual não usa o primeiro modelo do catálogo: **Testar modelo escolhido** recebe o
+> `provider/model` cadastrado e faz a chamada nesse modelo. **Descobrir modelos** é separado,
+> apenas consulta o catálogo e só cadastra itens marcados explicitamente. Portanto, o episódio
+> acima documenta a UI antiga e não descreve o comportamento atual.
 
 ## 5. Onde ir a partir daqui
 

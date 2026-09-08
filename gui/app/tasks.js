@@ -3,6 +3,7 @@ import { $, $$, api, escapeHtml, checkboxGroup } from "./core.js";
 import { state, onRefresh } from "./state.js";
 import { tabRefreshers } from "./core.js";
 import { renderTaskRubricPicker } from "./judging.js";
+import { SAFE_TEST_SH_TEMPLATE } from "./task-template.js";
 
 // ================= TASKS =================
 $("#task-form").addEventListener("submit", async (e) => {
@@ -111,23 +112,7 @@ set -euo pipefail
 # Exemplo:
 # python3 processa_dados.py --input dados.csv --output resultado.json`,
 
-  testSh: `#!/bin/bash
-set -euo pipefail
-mkdir -p /logs/verifier
-
-# Dependencias de TESTE vao aqui, nao no Dockerfile (senao o agent ja roda com
-# elas instaladas, o que conta como dependencia de teste vazando pro ambiente).
-# pip install --no-cache-dir pytest==8.4.1
-
-# Rode a verificacao de verdade e capture a saida
-# pytest -q /tests/test_outputs.py > /logs/verifier/test-stdout.txt 2>&1
-STATUS=$?
-
-if [ $STATUS -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
-fi`,
+  testSh: SAFE_TEST_SH_TEMPLATE,
 };
 
 async function openTaskEditor(path) {
@@ -176,4 +161,3 @@ $("#task-editor-save").addEventListener("click", async () => {
   }
 });
 $("#task-editor-close").addEventListener("click", () => { $("#task-editor-panel").hidden = true; });
-

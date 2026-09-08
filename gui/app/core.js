@@ -1,6 +1,7 @@
 // DOM helpers, the API client, tab switching and the generic form kit every registry tab
 // reuses. No domain knowledge lives here -- if something knows what a "judge" is, it
 // belongs in a feature module, not in core.
+import { mergeHelpIds } from "./field-help.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -41,16 +42,18 @@ try {
 // Feature modules register a refresher by tab id; core does not know which tabs exist.
 export const tabRefreshers = {};
 const tabSwitchHooks = [];
+export function activateTab(tab) {
+  const btn = $(`#tabs button[data-tab="${tab}"]`);
+  const section = $(`#tab-${tab}`);
+  if (!btn || !section) return;
+  $$("#tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+  $$(".tab").forEach((s) => s.classList.toggle("active", s === section));
+  for (const hook of tabSwitchHooks) hook(tab);
+  const fn = tabRefreshers[tab];
+  if (fn) fn();
+}
 $$("#tabs button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    $$("#tabs button").forEach((b) => b.classList.remove("active"));
-    $$(".tab").forEach((s) => s.classList.remove("active"));
-    btn.classList.add("active");
-    $("#tab-" + btn.dataset.tab).classList.add("active");
-    for (const hook of tabSwitchHooks) hook(btn.dataset.tab);
-    const fn = tabRefreshers[btn.dataset.tab];
-    if (fn) fn();
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
 
 
@@ -83,11 +86,11 @@ export function makeRow(item, { title, sub, onEdit, onDelete }) {
   row.innerHTML = `<div class="row-main"><div class="row-title">${escapeHtml(title)}</div>${sub ? `<div class="row-sub">${escapeHtml(sub)}</div>` : ""}</div><div class="row-actions"></div>`;
   const actions = row.querySelector(".row-actions");
   const editBtn = document.createElement("button");
-  editBtn.textContent = "Edit";
+  editBtn.textContent = "Editar";
   editBtn.onclick = onEdit;
   actions.appendChild(editBtn);
   const delBtn = document.createElement("button");
-  delBtn.textContent = "Remove";
+  delBtn.textContent = "Remover";
   delBtn.className = "danger";
   delBtn.onclick = onDelete;
   actions.appendChild(delBtn);
@@ -114,6 +117,9 @@ export function checkboxGroup(container, items, { name, checkedIds = [] }) {
     // an imported config bundle carries whatever ids the file says, and this one lands inside
     // an HTML attribute where a bare quote would break out of it.
     label.innerHTML = `<input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(item.id)}" ${checked}> ${escapeHtml(item.label)}`;
+    const input = label.querySelector("input");
+    const describedBy = mergeHelpIds(input.getAttribute("aria-describedby"), container.getAttribute("aria-describedby"));
+    if (describedBy) input.setAttribute("aria-describedby", describedBy);
     label.dataset.searchText = item.label.toLowerCase();
     return label;
   });
@@ -133,4 +139,3 @@ export function checkboxGroup(container, items, { name, checkedIds = [] }) {
   }
   for (const label of labels) container.appendChild(label);
 }
-

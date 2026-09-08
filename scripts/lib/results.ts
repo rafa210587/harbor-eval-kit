@@ -97,6 +97,10 @@ export function summarizeAnalysisRecords(records: any[]): Pick<ResultRow, "passR
 
 export function writeReport(rows: ResultRow[], outPrefix: string): void {
   writeFileSync(`${outPrefix}.json`, JSON.stringify(rows, null, 2));
+  writeFileSync(`${outPrefix}.csv`, reportCsv(rows));
+}
+
+export function reportCsv(rows: ResultRow[]): string {
   const headers: (keyof ResultRow)[] = [
     "jobName",
     "agent",
@@ -116,5 +120,5 @@ export function writeReport(rows: ResultRow[], outPrefix: string): void {
   ];
   const lines = [headers.join(",")];
   for (const r of rows) lines.push(headers.map((h) => csvEscape(r[h])).join(","));
-  writeFileSync(`${outPrefix}.csv`, lines.join("\n") + "\n");
+  return lines.join("\n") + "\n";
 }

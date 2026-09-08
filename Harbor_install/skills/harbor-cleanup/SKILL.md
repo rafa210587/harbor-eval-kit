@@ -15,7 +15,8 @@ Node.js 24+ is required. No Python or shell-specific deletion logic is used.
    `io.harbor-eval-kit.managed=true`. All three are required. Image aliases must all use the prefix.
 3. Abort the entire operation before deletion if a related resource has ambiguous ownership.
    Legacy manifests with empty resource arrays cannot authorize labeled resources automatically.
-   Inspect and reconcile ownership manually; never invent missing installation history.
+   Inspect and reconcile ownership manually; never invent missing installation history. This also
+   preserves preexisting Harbor/Podman resources and runtime resources lacking all three proofs.
 4. The JSON dry-run lists exact command argument arrays, including `uv tool uninstall harbor`
    only when the dependency snapshot proves Harbor was absent, installed by the kit, still at
    its recorded path, and belongs to the active uv tool directory.
@@ -31,3 +32,7 @@ values are rejected. Do not remove the manifest unless the user separately reque
 
 Validated with offline fake-executor tests; no real resources were deleted. Actual Podman
 cleanup and platform-specific shell execution still require a controlled owned-resource test.
+
+The managed Harbor extension currently creates only resources proven against the exact manifest
+entry, `harbor-eval-kit-` name prefix and `io.harbor-eval-kit.managed=true` label. Cleanup must
+continue to preserve resources outside that contract, including preexisting base images.

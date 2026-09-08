@@ -7,7 +7,7 @@ import { state, onRefresh, refreshAll, keyStatusBadge, guessProviderKey } from "
 const modelsForm = $("#models-form");
 modelsForm.dataset.apiPath = "/api/models";
 const modelsEdit = wireEditableForm(modelsForm, {
-  addLabel: "Add model",
+  addLabel: "Adicionar modelo",
   onSubmit: (form) => ({ label: form.label.value, value: form.value.value }),
 });
 
@@ -85,7 +85,7 @@ $("#skill-add-blank-file-btn").addEventListener("click", () => {
 });
 
 const skillsEdit = wireEditableForm(skillsForm, {
-  addLabel: "Add skill",
+  addLabel: "Adicionar skill",
   onSubmit: (form) => ({
     label: form.label.value,
     mode: form.mode.value,
@@ -127,7 +127,7 @@ function renderSkillsList() {
 const skillsetsForm = $("#skillsets-form");
 skillsetsForm.dataset.apiPath = "/api/skillsets";
 const skillsetsEdit = wireEditableForm(skillsetsForm, {
-  addLabel: "Add skill set",
+  addLabel: "Adicionar conjunto",
   onSubmit: (form) => ({
     label: form.label.value,
     skillIds: $$('input[name=skillIds]:checked', form).map((i) => i.value),

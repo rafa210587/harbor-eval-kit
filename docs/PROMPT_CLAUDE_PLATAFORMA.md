@@ -1,62 +1,60 @@
-# Continuidade com Claude — evolução da plataforma
+# Continuidade com Claude — plataforma de avaliações
 
-Cole este prompt numa sessão aberta na raiz do repositório. O estado atual está no plano;
-não dependa da memória de uma conversa anterior.
+Cole o texto abaixo numa sessão aberta na raiz do clone. O relatório e o Git são a fonte do
+estado atual; este prompt não depende do histórico da conversa.
 
 ```text
-Continue a evolução do Harbor Eval Kit planejada em 2026-09-07.
+Continue o Harbor Eval Kit a partir do estado existente, sem reiniciar a implementação.
 
 Leia AGENTS.md, docs/ENGENHARIA.md, .claude/skills/ship-change/SKILL.md,
-docs/PLANO_PLATAFORMA_2026-09-07.md e docs/PLANO_AWS_CORPORATIVO.md.
-Inspecione git status, git log e git diff antes de editar; preserve alterações existentes.
-O commit 92deb67 encerrou a rodada anterior. PLANO_CORRECOES_2026-09-07.md e o prompt antigo
-são históricos concluídos; não reinicie aquele trabalho. Este plano é um novo pedido.
+docs/PLANO_PLATAFORMA_2026-09-07.md e docs/VALIDACAO_PLATAFORMA_2026-09-07.md.
+Inspecione git status, log e diff. Preserve alterações existentes e não faça push.
+O plano foi documentado antes das mudanças no commit 7b9a886; o usuário autorizou executar
+as correções e fazer commit local. Não peça novamente confirmação rotineira para isso.
 
-Objetivo autorizado: plataforma de eval e comparação de agents/models/skills sobre Harbor,
-fácil de pilotar pela UI. Corrigir operação/portabilidade, melhorar jornadas/design,
-revisar README/guias e validar skills de instalação com fallback manual por SO.
-Cada campo deve explicar finalidade, exemplo, padrão e quando pode ser ignorado.
-Modo compacto nunca esconde gasto, alertas, erros, estado ou marca de judge em validação.
+Objetivo: plataforma local simples de pilotar pela UI para comparar models, agents e skills
+sobre Harbor. Já foram implementados Começar, modos de experimento, baseline/duplicação,
+prévia efetiva, dicas por campo, histórico/exportação, correções do juiz, scanner fail-closed,
+operação portátil, README, manual e skills. A entrega local foi concluída; confira o relatório
+e o Git antes de decidir se existe trabalho restante.
 
-O usuário pediu ver o plano ANTES de executar melhorias. Confira se o plano já foi entregue
-na conversa; se esta sessão foi aberta para implementá-lo, prossiga nas etapas pendentes,
-sem pedir confirmações rotineiras já cobertas pelo pedido. Atualize checklist e registro
-a cada etapa, incluindo arquivos, testes, limitações e próximo passo exato.
+AWS: SOMENTE plano corporativo e menção no README. O usuário reiterou NÃO EXECUTAR AWS.
+Não provisionar, implantar ou criar infraestrutura cloud. LiteLLM proxy continua OFF;
+schema/ambiente foram preparados e testados offline. Não ativar como efeito colateral.
 
-AWS é para uso CORPORATIVO, mas nesta rodada SOMENTE plano e menção no README.
-Não provisionar recursos, escrever um deploy inteiro ou implementar multiusuário/RBAC.
-LiteLLM proxy deve continuar OFF; validar schema/env/topologia com testes locais e explicar
-como ativar/voltar no futuro. Não afirmar integração real testada sem evidência.
+Podman somente; nunca instalar Docker, fazer prune global ou remover preexistentes.
+Recursos precisam de prefixo harbor-eval-kit-, label io.harbor-eval-kit.managed=true,
+reserva no manifest e identidade conciliada. Cleanup ambíguo é recusado.
+O runtime Python está em scripts/python/harbor_eval_kit/managed.py e ownership.py.
+Suporta Harbor0.22.0, task Linux/main único, rede pública, imagem base local preexistente.
+Compose customizado, rede restrita e pulls implícitos são bloqueados explicitamente.
 
-Antes de containers, resolver ownership nas execuções normais do Harbor: nome de job não
-resolve imagens/projetos Compose. Todo recurso criado precisa prefixo, label e manifest.
-Preservar tudo preexistente. Nunca instalar Docker, fazer prune ou editar a instalação
-global do Harbor. Aplicar qualquer overlay só em snapshots, com equivalência entre candidatos.
-Doctor e oracle/nop reais precisam passar antes de declarar Podman READY.
+Analyze também cria containers: não usar o comando upstream diretamente. execHarbor lança
+python -m harbor_eval_kit.cli, que valida versão/registro e aplica o adapter somente na
+memória do subprocesso. Não alterar o pacote do Harbor instalado globalmente.
 
-Testes reais pela UI foram pedidos com os dois modelos DeepSeek mais baratos adequados
-ao coding e judge DeepSeek. O plano propõe Flash/Pro de texto estáveis, sujeito a catálogo
-e preços oficiais atuais e compatibilidade no adapter instalado. Não usar aliases antigos
-ou chamar “modelo mais barato” só porque foi o primeiro encontrado numa lista.
-Proposta econômica: 3 trials (A/B mudam modelo; C repete A com skill), concorrência 1,
-1 tentativa, depois judge Flash com rubric curto em modo validação. Ler no plano se o teto
-de gasto já foi definido; US$1 é proposta, não uma resposta do usuário. Não comprar créditos.
-Não imprimir nem copiar secrets para repo/log/argv. Chaves só no ambiente do subprocesso.
-Usar UI de verdade para testar; registrar separadamente clique, API, fixture e execução real.
-Custos finais são os reportados pelo Harbor; ausentes continuam ausentes.
+Já houve smoke real Windows e oracle=1/nop=0. Os três candidatos DeepSeek pela UI deram
+reward1, zero erros e total reportado US$0.007972688. Experimento:
+be1ad9f4-8b6f-4997-8c26-efc0eb1ed8ba, em jobs-test/platform-ui.
+A/B variam Flash/Pro; C repete Flash com uma skill. Não repetir essas chamadas sem motivo.
+O relatório discrimina julgamentos iniciais e a validação do runtime corrigido. O total
+reportado de candidatos e quatro julgamentos foi US$0.060341712. A suíte passou 163/163,
+Python 14/14, imports e scanner sem falhas. Não refaça chamadas pagas para confirmar isso.
+Juiz Flash usa validationMode=true; não vale como avaliação nem entra em ranking.
+Billing só do Harbor; ausente permanece ausente. Nunca logar secrets nem colocá-los em argv.
 
-Validação mínima: suíte offline, checker, scanner, wrappers bash/PowerShell, UI com reload,
-histórico/exportação e contratos corrigidos do Analyze. macOS/Linux precisam de smoke em
-host real; se não houver host acessível, entregar testes/runbook e marcar pendente,
-nunca converter CI offline em alegação de compatibilidade real.
+Windows usa PowerShell e Git Bash. test.ps1 seleciona Git Bash --login; não usar o bash.exe
+do WSL por acidente. Suíte offline: pwsh -NoProfile -File scripts/test.ps1.
+Python adicional: definir PYTHONPATH=<repo>/scripts/python e usar o Python do ambiente uv
+do Harbor com -m unittest discover -s scripts/python -p 'test_*.py'. Não instalar toolchain
+extra só para rodar esses testes. Import checker: node scripts/check-imports.mjs.
+Não burlar hooks com --no-verify. Registre o commit e deixe git status limpo.
 
-Ambiente desta auditoria: Windows/PowerShell; bash no PATH aponta ao WSL e pode falhar por
-permissão. Testes Node e imports passaram (121). Git Bash precisa PATH com suas ferramentas;
-a invocação sem login expôs bug do scanner que retorna 0 mesmo sem grep. Corrija fail-closed.
-Não contorne hooks com --no-verify. Use a suíte test.ps1 e, quando necessário, Git Bash
-com ambiente de login para o scanner. Leia o registro final do plano antes de repetir checks.
+macOS/Linux têm testes de lógica e runbook, mas precisam de smoke em host real antes de
+afirmar compatibilidade comprovada. Não há autenticação multiusuário, RBAC, filas distribuídas,
+auto-resume ou estatística avançada nesta rodada. Não expandir o escopo silenciosamente.
 
-Faça commits locais pequenos por etapa, com documentação na mesma mudança. Não faça push.
-Não iniciar estatística avançada, calibração, auto-resume ou infraestrutura distribuída.
-Ao parar, deixe o próximo passo concreto no plano e informe claramente o que ficou pendente.
+Se o relatório já marcar a entrega concluída e o Git contiver o commit, informe isso e
+trate apenas uma nova solicitação explícita. Se ainda faltarem checks/commit, complete-os,
+atualize relatório e plano, e informe resultado e limitações honestamente.
 ```

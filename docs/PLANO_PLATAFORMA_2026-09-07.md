@@ -2,7 +2,7 @@
 
 ## Estado e pedido
 
-**Planejamento entregue antes da implementação. Nenhuma melhoria de código desta rodada foi executada.**
+**Implementação concluída no escopo local, autorizada após a entrega do plano.** AWS permanece somente documental.
 Base da auditoria: commit `92deb67`, com árvore limpa no início. A rodada anterior está concluída
 em `PLANO_CORRECOES_2026-09-07.md`; este é um novo escopo, não a reabertura daquela entrega.
 
@@ -52,18 +52,19 @@ Referências abaixo são do commit-base; as linhas mudarão durante a implementa
 
 ## Sequência de implementação
 
-Cada etapa deve atualizar este arquivo com arquivos alterados, testes, limitações e próximo
-passo. Fazer commits pequenos por etapa, sem push e sem ignorar hooks.
+Cada etapa deve registrar arquivos alterados, testes, limitações e próximo passo. O plano
+foi commitado antes das mudanças; a implementação integrada reúne UI, runtime e documentação
+no commit de entrega, sem push e sem ignorar hooks.
 
 | Etapa | Entrega | Aceite | Estado |
 |---|---|---|---|
-| 1. Base operacional | Ownership Harbor, scanner fail-closed, executor comum, status somente leitura e start/stop com identidade | Nenhum recurso sem propriedade comprovada; nenhum processo alheio interrompido; erro nativo propagado; scanner detecta ausência de ferramentas; fixtures preservam dados preexistentes | Planejada |
-| 2. Instalação e portabilidade | Resolver único de conexão Podman; gates CLI/API/Compose; smoke completo; wrappers equivalentes | Windows/Git Bash, Windows/PowerShell, macOS e Linux têm procedimentos e testes; READY só com smoke real registrado | Planejada |
-| 3. Correções funcionais | Analyze boolean/duplicidade/lotes; edição de judge; templates; reload ativo; polling obsoleto | Mesmos inputs durante lote; verificador escreve reward correto; recarregar recupera acompanhamento real; nenhuma chamada duplicada | Planejada |
-| 4. Jornada e design | Começar, Compare guiado, prévia, ajuda por campo, resultados/histórico legíveis | Primeira comparação sem cadastros opcionais; diferenças efetivas explícitas; teclado e layout responsivo; avisos sempre visíveis | Planejada |
-| 5. LiteLLM preparado | Configuração validada, env sem colisão, topologias host/container, instruções e rollback | OFF é no-op; ON inválido bloqueia antes da chamada; testes de contrato sem gasto; proxy permanece desligado | Planejada |
-| 6. Documentação e skills | README revisado, instalação manual por SO, primeiro uso, receitas de eval, LiteLLM, skills alinhadas | Todo comando tem pré-requisito e resultado esperado; skills e manual seguem a mesma sequência; afirmações correspondem à validação | Planejada |
-| 7. Validação do produto | Suíte offline, UI real, oracle/nop, DeepSeek Compare e juiz; evidências e commit | Artefatos e custos reportados registrados; histórico/exportação conferidos; limitações por SO explícitas | Planejada |
+| 1. Base operacional | Ownership Harbor, scanner fail-closed, executor comum, status somente leitura e start/stop com identidade | Nenhum recurso sem propriedade comprovada; nenhum processo alheio interrompido; erro nativo propagado; scanner detecta ausência de ferramentas; fixtures preservam dados preexistentes | Implementada; ver registro de validação |
+| 2. Instalação e portabilidade | Resolver único de conexão Podman; gates CLI/API/Compose; smoke completo; wrappers equivalentes | Windows/Git Bash, Windows/PowerShell, macOS e Linux têm procedimentos e testes; READY só com smoke real registrado | Implementada; ver registro de validação |
+| 3. Correções funcionais | Analyze boolean/duplicidade/lotes; edição de judge; templates; reload ativo; polling obsoleto | Mesmos inputs durante lote; verificador escreve reward correto; recarregar recupera acompanhamento real; nenhuma chamada duplicada | Implementada; ver registro de validação |
+| 4. Jornada e design | Começar, Compare guiado, prévia, ajuda por campo, resultados/histórico legíveis | Primeira comparação sem cadastros opcionais; diferenças efetivas explícitas; teclado e layout responsivo; avisos sempre visíveis | Implementada; ver registro de validação |
+| 5. LiteLLM preparado | Configuração validada, env sem colisão, topologias host/container, instruções e rollback | OFF é no-op; ON inválido bloqueia antes da chamada; testes de contrato sem gasto; proxy permanece desligado | Implementada; ver registro de validação |
+| 6. Documentação e skills | README revisado, instalação manual por SO, primeiro uso, receitas de eval, LiteLLM, skills alinhadas | Todo comando tem pré-requisito e resultado esperado; skills e manual seguem a mesma sequência; afirmações correspondem à validação | Implementada; ver registro de validação |
+| 7. Validação do produto | Suíte offline, UI real, oracle/nop, DeepSeek Compare e juiz; evidências e commit | Artefatos e custos reportados registrados; histórico/exportação conferidos; limitações por SO explícitas | Implementada; ver registro de validação |
 
 A ponte de ownership e o diagnóstico das etapas 1–2 precedem o primeiro smoke com containers.
 A validação do ambiente e as correções da etapa 3 precedem chamadas pagas. O plano AWS é
@@ -182,8 +183,7 @@ rodada. Fallback/cache que mudam o experimento devem ser desligados ou declarado
 3. Pela UI: cadastrar modelos e perfil `mini-swe-agent`; escolher `soma-fracoes`, uma
    tentativa e concorrência 1; fazer dry-run. A/B variam só o modelo; C repete A com uma
    skill adicional neutra. São três trials pagos, cobrindo modelos e ablação de skills.
-4. Prever teto total conservador de **US$ 1**, ainda uma proposta (pergunta de orçamento
-   sem resposta nesta auditoria). Antes da execução, confirmar limite do adapter/provider
+4. Usar teto conservador de **US$ 1** na execução autorizada. Antes da execução, confirmar limite do adapter/provider
    e limitar passos/tokens; a guarda histórica é pré-voo, não hard cap. Não repetir runs
    indefinidamente; interromper novas chamadas quando o saldo do teto for insuficiente ou
    o gasto não puder ser acompanhado. Não comprar créditos nem ativar recarga automática.
@@ -205,29 +205,29 @@ entre agentes e casos negativos podem ser cobertos offline e com adapters sem AP
 
 | Camada | Windows | macOS | Linux |
 |---|---|---|---|
-| Lógica, imports, scanner e wrappers | Rodar PowerShell + Git Bash | CI e bash 3.2 | CI e bash |
-| Podman/Harbor reais | Host disponível, depois das correções | Host macOS necessário; Apple Silicon/amd64 explícitos | Host Linux rootless necessário |
-| UI com DeepSeek | Host de referência disponível | Smoke gratuito e UI quando houver host | Smoke gratuito e UI quando houver host |
+| Lógica, imports, scanner e wrappers | Passaram; PowerShell + Git Bash exercitados | Resolução offline; shell/host real pendentes | Resolução offline; shell/host real pendentes |
+| Podman/Harbor reais | Smoke e tasks passaram em Linux/amd64 na machine Windows | Host macOS necessário; Apple Silicon/amd64 explícitos | Host Linux rootless necessário |
+| UI com DeepSeek | Compare e Analyze passaram; ver relatório | Smoke gratuito e UI quando houver host | Smoke gratuito e UI quando houver host |
 
 Testes parametrizados de OS e CI não substituem execução real. Sem Mac/Linux acessível,
 entregar runbook e relatório de smoke reproduzível, mantendo a linha **pendente**. Não afirmar
 compatibilidade comprovada ou READY só porque a lógica passou. Builds ARM e amd64 não são
 automaticamente equivalentes; registrar arquitetura e digest.
 
-## Registro desta etapa de planejamento
+## Registro da implementação
 
-- Auditoria de código/UI, README, guias, 9 skills operacionais e referências concluída.
-  Links Markdown relativos conferidos pelos revisores, sem destino ausente encontrado.
-- UI aberta e clicada em estado temporário vazio: Secrets, Compare, Agents e Analyze.
-  Observados navegação, formulário inicial, hierarquia, textos e estados vazios. Nenhuma
-  credencial cadastrada, API paga ou container executado. Isso não é teste funcional completo.
-- O servidor isolado mostrou `spawn EPERM` ao consultar saúde no sandbox; este diagnóstico
-  indica limitação da sessão, não incompatibilidade demonstrada do Podman.
-- `pwsh -NoProfile -File scripts/test.ps1`: 121/121 testes e checker (44 TS + 16 GUI) passaram.
-  Scanner via WSL falhou com E_ACCESSDENIED. A chamada Git Bash sem login revelou o bug
-  fail-open descrito acima. Scanner completo via WSL fora do sandbox passou com exit 0
-  (somente aviso de sessão systemd); a execução lenta via Git Bash foi mantida separada.
-- Nenhuma infraestrutura AWS foi criada. Nenhuma alteração de implementação foi feita.
+O plano foi entregue e commitado em 7b9a886 antes da autorização de execução. As frentes
+operacional, UI, LiteLLM e documentação foram implementadas. O relatório
+[Validação da plataforma](VALIDACAO_PLATAFORMA_2026-09-07.md) registra comandos, execuções,
+custos e limitações. Ele é a referência para continuar, junto com git status/diff.
+
+Passaram: 163 testes da suíte, 14 testes Python, imports e scanner; smoke Podman real,
+oracle/nop, três candidatos DeepSeek pela UI, juiz e análise avulsa. A revisão real encontrou
+o caminho próprio de Analyze; ele agora recebe o ambiente gerenciado por bootstrap isolado,
+validado em smoke gratuito e duas análises pagas. Histórico, exportações e layout de 390 px
+foram conferidos. Total reportado: US$0,060341712. Os 21 recursos identificados desta rodada
+foram confirmados ausentes ao final. Mac/Linux reais e proxy real permanecem não validados.
+Não executar AWS. Não repetir chamadas pagas já concluídas.
 
 ## Fora desta rodada
 

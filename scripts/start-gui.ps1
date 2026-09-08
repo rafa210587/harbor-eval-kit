@@ -1,52 +1,26 @@
-# Enables and starts the Harbor Eval Kit GUI: checks Harbor/Podman are installed, makes a
-# best-effort attempt to bring the Podman machine up, then launches the local GUI server.
-# Safe to re-run any time -- every step here is a no-op if already satisfied.
-
+# Idempotent foreground launcher. Operational callers may background this wrapper.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-
-function Test-Command($name) {
-  return [bool](Get-Command $name -ErrorAction SilentlyContinue)
+$Port = 4173
+for ($i = 0; $i -lt $args.Count; $i++) {
+  if ($args[$i] -match '^--port=(\d+)$') { $Port = [int]$Matches[1] }
+  elseif ($args[$i] -eq "--port") {
+    if ($i + 1 -ge $args.Count) { throw "--port requires a value" }
+    $i += 1
+    $Port = [int]$args[$i]
+  }
 }
 
-Write-Host "== Harbor Eval Kit -- start-gui =="
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js 24+ is required." }
+& node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)"
+if ($LASTEXITCODE -ne 0) { throw "Node.js 24+ is required." }
 
-if (-not (Test-Command "node")) {
-  Write-Error "BLOCKED: node not found. Install Node.js 24+ first (needed for native TS execution)."
-  exit 1
-}
+& node (Join-Path $PSScriptRoot "gui-lifecycle.ts") preflight --port "$Port" --root "$Root"
+$preflightCode = $LASTEXITCODE
+if ($preflightCode -eq 20) { exit 0 }
+if ($preflightCode -ne 0) { exit $preflightCode }
 
-node -e "if (Number(process.versions.node.split('.')[0]) < 24) process.exit(1)"
-if ($LASTEXITCODE -ne 0) { throw "Node.js 24+ required." }
-
-if (-not (Test-Command "harbor")) {
-  Write-Host "Harbor CLI not found. Install it with:"
-  Write-Host '  uv tool install "harbor==0.22.0"'
-  Write-Host "(or ask Claude Code / Codex to follow Harbor_install\skills\harbor-bootstrap\SKILL.md,"
-  Write-Host "which does this plus the Podman compatibility check for you.)"
-  exit 1
-}
-
-if (-not (Test-Command "podman")) {
-  Write-Error "BLOCKED: podman not found. Install Podman first: https://podman.io/"
-  exit 1
-}
-
-# Best-effort: bring the Podman machine up. Ignore failures -- 'podman info' below is the
-# real gate (it's already running, or this platform doesn't use a machine at all).
-try { podman machine start *> $null } catch {}
-
-podman info *> $null
-if ($LASTEXITCODE -ne 0) {
-  Write-Error "BLOCKED: 'podman info' failed. Run 'podman machine init' then 'podman machine start', then re-run this script."
-  exit 1
-}
-
-Write-Host "Harbor: $((harbor --version 2>&1) | Select-Object -First 1)"
-Write-Host "Podman: $((podman --version 2>&1) | Select-Object -First 1) -- info OK"
-Write-Host "Starting GUI at http://127.0.0.1:4173 ..."
-# Set-Location first: the server resolves "evals", "datasets" and "jobs" relative to the
-# process's cwd, so launching this script from anywhere else used to silently scan the wrong
-# directories and show an empty task list. Same fix as start-gui.sh.
+Write-Host "Starting Harbor Eval Kit GUI at http://127.0.0.1:$Port ..."
 Set-Location $Root
-& node "scripts\gui-server.ts" @args
+& node (Join-Path $PSScriptRoot "gui-server.ts") @args
+exit $LASTEXITCODE

@@ -61,6 +61,8 @@ test("CLI raw model matches sanitized historical cost and ignores live cost", ()
 }));
 
 test("extra args cannot override protected dimensions or embed credentials", () => {
+  assert.deepEqual(parseExperimentExtra("--ak max_tokens=1024"), ["--ak", "max_tokens=1024"]);
+  assert.throws(() => parseExperimentExtra("--ak max_tokens=invalid"), /inteiro/);
   for (const raw of ["--n-attempts 30", "-k30", "--model=x", "--config x", "--path other", "--retry 30", "--ak api_key=value", "--print-config", "--ak 'unterminated"]) assert.throws(() => parseExperimentExtra(raw));
   assert.deepEqual(parseExperimentExtra('--ak "system_prompt=use spaces" --timeout-multiplier 1.5'), ["--ak", "system_prompt=use spaces", "--timeout-multiplier", "1.5"]);
 });

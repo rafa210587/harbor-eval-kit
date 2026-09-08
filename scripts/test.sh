@@ -11,6 +11,10 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Fail before starting a partial suite when a bootstrap tool is unavailable.
+# test.ps1 selects Git Bash with its login PATH; this wrapper covers the other shells.
+command -v node >/dev/null 2>&1 || { echo "Node.js 24+ não encontrado no PATH." >&2; exit 1; }
+
 status=0
 
 echo "== Testes unitários =="

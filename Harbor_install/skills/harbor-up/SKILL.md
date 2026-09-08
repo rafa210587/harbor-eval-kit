@@ -29,14 +29,13 @@ no smoke tests (that's `harbor-doctor`'s job).
    `Harbor_install/skills/harbor-bootstrap/SKILL.md` instead of trying to install anything
    here.
 3. Check whether a Podman machine is needed and already running:
-   - Windows/macOS: `podman machine list` — if the default machine's `LAST UP` doesn't say
-     "Currently running", run `podman machine start`.
+   - Windows/macOS: let `scripts/start-gui.*` select the machine tied to Podman's configured
+     connection. It invokes `podman machine start <exact-name>` only when `podman info` fails.
    - Linux rootless: usually no machine at all; confirm instead with `podman info`.
-4. Check whether the GUI is already up before launching anything, to avoid a crash from a
-   second process binding the same port: try `GET http://127.0.0.1:4173/api/status` (e.g.
-   `curl -sf`). If it responds, report READY with the existing URL and stop — do not start a
-   second instance.
-5. If not already up, launch it in the **background** (do not block the calling shell/agent
+4. Launch the platform wrapper. Its Node lifecycle preflight validates the Harbor Eval Kit
+   shape returned by `GET /api/status`; a valid existing instance makes the command return
+   successfully without starting a second process.
+5. Launch it in the **background** (do not block the calling shell/agent
    on a foreground process):
    - macOS/Linux: `nohup bash scripts/start-gui.sh > /tmp/harbor-eval-kit-gui.log 2>&1 &`
      (or the coding agent's own background-process facility if it has one).
@@ -46,7 +45,7 @@ no smoke tests (that's `harbor-doctor`'s job).
    - the URL (http://127.0.0.1:4173)
    - Harbor/Podman versions and `dockerHost` from the response
    - the state dir path
-7. If `podman info` still fails after step 3, or `/api/status` never comes up after step 6,
+7. If selected-connection `podman info` still fails after step 3, or `/api/status` never comes up after step 6,
    stop and hand off to `Harbor_install/skills/harbor-doctor/SKILL.md` for full diagnosis —
    don't guess further here.
 

@@ -131,7 +131,7 @@ export function listExperiments(jobsDir: string) {
   return readdirSync(root, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => {
     try {
       const r = readExperiment(jobsDir, e.name);
-      return { id: r.plan.id, createdAt: r.plan.createdAt, status: r.status, nCandidates: r.plan.candidates.length };
+      return { id: r.plan.id, createdAt: r.plan.createdAt, status: r.status, nCandidates: r.plan.candidates.length, title: r.plan.title, taskPath: r.plan.tasks.length === 1 ? r.plan.tasks[0] : r.plan.taskPath, nTasks: r.plan.tasks.length, baselineIndex: r.plan.baselineIndex };
     } catch { return { id: e.name, status: "unreadable", createdAt: "", nCandidates: 0 }; }
   }).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
 }

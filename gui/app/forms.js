@@ -5,7 +5,7 @@
 import { api } from "./core.js";
 import { refreshAll } from "./state.js";
 
-export function wireEditableForm(formEl, { onSubmit, addLabel = "Add" }) {
+export function wireEditableForm(formEl, { onSubmit, addLabel = "Adicionar" }) {
   const submitBtn = formEl.querySelector('button[type=submit]');
   const cancelBtn = formEl.querySelector('.cancel-edit');
   let editingId = null;
@@ -13,7 +13,7 @@ export function wireEditableForm(formEl, { onSubmit, addLabel = "Add" }) {
   function startEdit(id, populate) {
     editingId = id;
     populate();
-    submitBtn.textContent = "Save changes";
+    submitBtn.textContent = "Salvar alterações";
     if (cancelBtn) cancelBtn.hidden = false;
   }
   function cancelEdit() {

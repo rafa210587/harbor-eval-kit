@@ -22,9 +22,10 @@ and/or the Podman machine — with no mention of uninstalling or deleting resour
    - macOS/Linux: `bash scripts/stop-gui.sh` (default port 4173; pass a port as `$1` if the
      GUI was started with `--port` overridden).
    - Windows: `pwsh scripts/stop-gui.ps1` (same `-Port` override if needed).
-   - This finds the process bound to the GUI's port and asks it to exit (SIGTERM /
-     `Stop-Process` without `-Force`) — it does not touch any other process, and does not
-     search by process name (avoids accidentally killing an unrelated `node`).
+   - The shared Node helper enumerates processes and requires the exact absolute
+     `<project>/scripts/gui-server.ts` command plus the requested port. A foreign listener is
+     untouched. Windows invokes native `taskkill /PID <pid> /F`; macOS/Linux use SIGTERM. The helper
+     re-enumerates processes and reports success only after the exact PID disappears.
 2. Stop the Podman machine **only if the user explicitly asked for that too** — it's a shared
    resource other tools/terminals may also be using:
    - Ask first if it wasn't explicit in the request.

@@ -1,6 +1,8 @@
 jobs/
 jobs-test/
 node_modules/
+__pycache__/
+*.py[cod]
 
 # Secrets: by design these already live outside the repo, in the state dir
 # (~/.harbor-eval-kit/secrets.env -- see getStateDir() in scripts/lib/harbor.ts), never

@@ -38,6 +38,12 @@ Each Harbor task should contain, as supported by the installed Harbor version:
 zero-cost `oracle`/`nop` validation cycle that catches a broken task before any API is spent.
 Load it when you want a concrete model rather than the rules below.
 
+Treat a new verifier as failing by default until the task is exercised: run the real task with
+`oracle` and require reward `1.0`, then with `nop` and require reward `0.0`. `oracle` applies the
+task's `solution/solve.sh`; `nop` changes nothing. A stub test that passes without checking the
+requested behavior must fail explicitly rather than approving the task. This cycle is a contract
+test and does not spend model API calls.
+
 ## Rules
 
 1. Tests must grade the requirement, not implementation trivia.
@@ -48,6 +54,11 @@ Load it when you want a concrete model rather than the rules below.
 6. Keep skill-ablation tasks identical across runs.
 7. Pin base image versions.
 8. Avoid network dependency during scoring when possible.
+9. Keep the runtime contract visible in the task design: the managed extension supports Harbor
+   `0.22.0`, a single Linux `main` container with public network policy, and preexisting local
+   base images. It refuses implicit pulls, multiservice Compose and restricted network policies.
+   Resources created during a run must be recorded in the exact installation manifest and use
+   the kit prefix and label.
 
 ## Language baselines
 

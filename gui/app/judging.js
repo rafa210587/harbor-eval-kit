@@ -2,12 +2,13 @@
 import { $, $$, api, escapeHtml, makeRow, checkboxGroup } from "./core.js";
 import { wireEditableForm } from "./forms.js";
 import { state, onRefresh, refreshAll } from "./state.js";
+import { judgeNeedsValidation } from "./compare-domain.js";
 
 // ================= CRITERIA =================
 const criteriaForm = $("#criteria-form");
 criteriaForm.dataset.apiPath = "/api/criteria";
 const criteriaEdit = wireEditableForm(criteriaForm, {
-  addLabel: "Add criterion",
+  addLabel: "Adicionar critério",
   onSubmit: (form) => ({
     name: form.name.value,
     description: form.description.value,
@@ -36,7 +37,7 @@ function renderCriteriaList() {
 const rubricsForm = $("#rubrics-form");
 rubricsForm.dataset.apiPath = "/api/rubrics";
 const rubricsEdit = wireEditableForm(rubricsForm, {
-  addLabel: "Add rubric",
+  addLabel: "Adicionar rubric",
   onSubmit: (form) => ({
     label: form.label.value,
     criterionIds: $$('input[name=criterionIds]:checked', form).map((i) => i.value),
@@ -72,7 +73,7 @@ function renderRubricsList() {
 const judgesForm = $("#judges-form");
 judgesForm.dataset.apiPath = "/api/judges";
 const judgesEdit = wireEditableForm(judgesForm, {
-  addLabel: "Add judge",
+  addLabel: "Adicionar juiz",
   onSubmit: (form) => ({
     label: form.label.value,
     agentValue: form.agentValue.value,
@@ -127,6 +128,9 @@ function renderJudgesList() {
         judgesForm.agentValue.value = item.agentValue;
         judgesForm.promptTemplate.value = item.promptTemplate || "";
         judgesForm.notes.value = item.notes || "";
+        // If the saved judge uses a validation-only model, widen the list before rebuilding it.
+        // Rebuilding the curated list first used to silently clear the selected model on save.
+        $("#judge-validation-mode").checked = judgeNeedsValidation(state.models, state.judgeModels, item.modelId);
         renderJudgeModelSelect(item.modelId || "");
         renderJudgeDefaultRubricPicker(item.defaultRubricIds || []);
       }),
@@ -144,7 +148,7 @@ function renderJudgePickers() {
   const opts = state.judges.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(j.label)}</option>`).join("");
   const placeholder = state.judges.length
     ? '<option value="">— nenhum —</option>'
-    : '<option value="">— nenhum judge cadastrado — vá na aba "Judges" —</option>';
+    : '<option value="">— nenhum juiz cadastrado — abra Juízes —</option>';
   for (const id of ["compare-judge-picker", "analyze-judge-picker", "task-editor-judge-picker"]) {
     const sel = $(`#${id}`);
     if (sel) sel.innerHTML = placeholder + opts;

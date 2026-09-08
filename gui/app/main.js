@@ -5,6 +5,7 @@
 import { refreshAll, loadStatus } from "./state.js";
 import { refreshTaskList } from "./tasks.js";
 import { refreshViewList } from "./misc.js";
+import { installFieldHelp } from "./field-help.js";
 
 import "./models-skills.js";
 import "./agents.js";
@@ -14,12 +15,11 @@ import "./secrets.js";
 import "./datasets.js";
 import "./config-bundle.js";
 import "./logs.js";
+import "./start.js";
 
 // ---------- init ----------
 loadStatus();
-refreshAll();
-refreshTaskList();
-refreshViewList();
+Promise.allSettled([refreshAll(), refreshTaskList(), refreshViewList()]).finally(() => installFieldHelp());
 // The status bar reflects live podman/harbor state, so it keeps checking rather than showing
 // whatever was true when the page happened to load.
 setInterval(loadStatus, 15000);

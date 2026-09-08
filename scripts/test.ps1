@@ -8,6 +8,27 @@ Set-Location $Root
 
 $status = 0
 
+function Resolve-GitBash {
+  $candidates = @()
+  try {
+    $candidates += Get-Command bash.exe -All -ErrorAction SilentlyContinue | ForEach-Object { $_.Source }
+  } catch { }
+  $candidates += @(
+    (Join-Path ${env:ProgramFiles} "Git\bin\bash.exe"),
+    (Join-Path ${env:ProgramFiles} "Git\usr\bin\bash.exe"),
+    (Join-Path ${env:ProgramFiles(x86)} "Git\bin\bash.exe"),
+    (Join-Path ${env:LOCALAPPDATA} "Programs\Git\bin\bash.exe")
+  )
+  foreach ($candidate in $candidates | Where-Object { $_ } | Select-Object -Unique) {
+    if ((Test-Path -LiteralPath $candidate) -and $candidate -match "(?i)\\Git\\(?:bin|usr\\bin)\\bash\.exe$") {
+      return $candidate
+    }
+  }
+  throw "Git Bash não encontrado. Instale-o ou coloque Git\bin no PATH; bash.exe do WSL não atende este runner."
+}
+
+$GitBash = Resolve-GitBash
+
 Write-Host "== Testes unitários =="
 $testFiles = Get-ChildItem -Path "scripts/lib" -Filter "*.test.ts" | ForEach-Object { $_.FullName }
 node --test @testFiles
@@ -20,7 +41,7 @@ if ($LASTEXITCODE -ne 0) { $status = 1 }
 
 Write-Host ""
 Write-Host "== Scan de credenciais (versionados + novos não ignorados) =="
-bash scripts/scan-secrets.sh
+& $GitBash --login scripts/scan-secrets.sh
 if ($LASTEXITCODE -eq 0) {
   Write-Host "  ✓ nenhuma credencial encontrada"
 } else {

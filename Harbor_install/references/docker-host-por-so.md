@@ -5,9 +5,9 @@ dois, e as duas cópias já tinham começado a divergir — este arquivo é a fo
 
 ## O problema
 
-A execução local do Harbor é orientada a Docker. Podman fala o dialeto compatível, mas **como
-chegar até ele muda por SO**, e o padrão do CLI/SDK do Docker não aponta para o Podman em
-nenhum deles. Nunca assuma que `alias docker=podman` resolve.
+A execução local usa o adapter gerenciado do kit sobre Podman. A API compatível continua sendo
+necessária para o Compose, mas **como chegar até ela muda por SO**. O kit não exige nem chama o
+CLI `docker`. Nunca assuma que `alias docker=podman` resolve.
 
 Detecte o SO primeiro (`process.platform` no Node, `uname -s` num shell POSIX,
 `$IsWindows`/`$IsMacOS`/`$IsLinux` no PowerShell 7+) e siga o ramo correspondente.
@@ -18,7 +18,8 @@ O padrão do CLI/SDK do Docker aponta para o pipe do Docker Desktop **mesmo com 
 o erro resultante ("Docker daemon is not running") não tem nada a ver com o Podman, que está
 saudável.
 
-A máquina Podman expõe um pipe nomeado **fixo** para compatibilidade com o CLI/SDK do Docker:
+Depois de selecionar uma máquina em execução pela conexão efetiva de `podman system connection
+list`, o kit valida o pipe nomeado compatível:
 
 ```
 DOCKER_HOST=npipe:////./pipe/docker_engine
@@ -36,7 +37,7 @@ Não existe pipe do Docker Desktop para colidir, mas o Podman roda dentro de uma
 compatível depende do nome da máquina:
 
 ```bash
-podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'
+podman machine inspect <nome-selecionado> --format json
 # DOCKER_HOST=unix://<caminho retornado>
 ```
 
@@ -52,8 +53,8 @@ podman info --format '{{.Host.RemoteSocket.Path}}'
 Use como está. Duas checagens antes de concluir:
 
 - Resultado **vazio** significa que o caminho não foi resolvido — reporte BLOCKED, não siga.
-- Se houver uma máquina Podman ativa (incomum no Linux, mas suportado —
-  `podman machine list --format json`), aplique o mesmo tratamento do macOS.
+- Se houver uma máquina Podman ativa (incomum no Linux, mas suportado), selecione-a pela
+  conexão efetiva e passe seu nome explicitamente ao inspect, como no macOS.
 
 ## Regras que valem nos três
 
@@ -61,23 +62,24 @@ Use como está. Duas checagens antes de concluir:
    sendo executado. Nunca exporte no shell do usuário, nunca escreva em arquivo de perfil.
 2. Ao reportar BLOCKED, diga **a plataforma exata, o endpoint resolvido (ou que não resolveu) e
    o comando exato que falhou** — nunca um genérico "Docker não acessível".
-3. Valide com uma task mínima de verdade, não só com `podman info`.
+3. Antes de criar recursos, prove três interfaces: `podman --connection <nome> info`, GET
+   `/version` no socket/pipe com identidade Podman e `podman compose version` com
+   `DOCKER_HOST` escopado ao filho.
+4. Depois dos gates read-only, rode o smoke de primitivas e uma task oracle mínima real.
 
 ## Implementação canônica neste kit
 
-Mantida em sincronia em três linguagens — reutilize em vez de rederivar:
+Existe uma fonte única em `scripts/lib/podman.ts`:
 
-| Linguagem | Arquivo | Função |
-|---|---|---|
-| TypeScript | `scripts/lib/harbor.ts` | `resolvePodmanDockerHost` |
-| PowerShell | `scripts/harbor-eval.ps1` | `Resolve-PodmanDockerHost` |
-| Bash | `scripts/harbor-eval.sh` | `resolve_podman_docker_host` |
+- `resolvePodmanConnection()` resolve plataforma, conexão, máquina, URI Podman e `dockerHost`;
+- `validatePodmanInterfaces()` executa os três gates read-only;
+- os wrappers Bash e PowerShell delegam ao Node, inclusive no Git Bash sobre Windows.
 
 O valor resolvido aparece em `GET /api/status` e na barra de status da GUI, que avisa
 explicitamente quando não conseguiu resolver — em vez de falhar em silêncio.
 
 ## Honestidade sobre cobertura
 
-Este kit foi construído no Windows. Os ramos macOS e Linux são testados por lógica (comandos e
-campos de template corretos), **sem** run real em hardware. Diga isso ao reportar, em vez de
-implicar cobertura que não existe.
+O resolver e os gates CLI/API/Compose foram executados no Windows com Podman 6.0.2 em
+2026-09-07. Os ramos macOS e Linux são testados por lógica, **sem** run real em hardware.
+Diga isso ao reportar, em vez de implicar cobertura que não existe.
