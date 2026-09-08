@@ -3,7 +3,7 @@ artifacts = []
 
 [task]
 name = "harbor-eval-kit/dificil-teste-live"
-version = "1.0.0"
+version = "1.0.1"
 description = "Implementa replay de ledger transacional, atomico e idempotente"
 authors = []
 keywords = ["python", "ledger", "transacao", "teste-live"]

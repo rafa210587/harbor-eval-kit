@@ -42,7 +42,9 @@ Os IDs foram conferidos na documentação oficial de
 [Anthropic](https://platform.claude.com/docs/en/models/overview) e
 [DeepSeek](https://api-docs.deepseek.com/), em 08/09/2026. As credenciais Anthropic e
 DeepSeek já estão cadastradas nesta instalação. Não foi feita completion paga para
-comprovar saldo, quotas ou acesso atual de cada modelo. Os aliases DeepSeek podem
+comprovar saldo, quotas ou acesso atual de cada modelo na preparação inicial. Os dois
+testes reais posteriores com DeepSeek estão registrados abaixo; Anthropic segue sem
+completion de validação nesta rodada. Os aliases DeepSeek podem
 receber atualizações no provider; registrar o identificador não congela os pesos.
 
 ### Skills
@@ -53,7 +55,11 @@ receber atualizações no provider; registrar o identificador não congela os pe
   limites e invariantes, e relatar somente o que foi de fato verificado.
 
 As skills não fornecem a solução oracle, nem autorizam alterar testes protegidos ou
-reward. Não há instruções adicionais ocultas no perfil: desmarcar o conjunto na
+reward. Harbor entrega os arquivos em `/harbor/skills`, mas o adapter Mini SWE 0.22
+não os anuncia automaticamente. A revisão **1.0.1** das três tasks inclui a mesma
+instrução explícita para ler os `SKILL.md` disponíveis antes de implementar; sem
+skills, prossegue normalmente. Isso não altera os testes nem a API exigida. A leitura
+ainda precisa ser conferida na trajetória: seleção não comprova uso pelo modelo. Não há instruções adicionais ocultas no perfil: desmarcar o conjunto na
 linha do candidato produz uma baseline sem essas skills.
 
 ### Juízes e rubrica
@@ -103,9 +109,11 @@ juízes estejam calibrados ou concordem entre si.
 5. Para uma primeira rodada curta com Mini SWE, use nos argumentos avançados:
 
    ```text
-   --ak cost_limit=1.00 --ak max_tokens=4096 --ak config='{"agent":{"step_limit":40}}'
+   --ak cost_limit=1.00 --ak max_tokens=16384 --ak config='{"agent":{"step_limit":40}}'
    ```
 
+   4096 tokens provocaram truncamentos repetidos no primeiro teste real com Flash.
+   O limite maior permite mais espaço para raciocínio/saída e pode aumentar o custo.
    São limites por candidato do adapter, não defaults salvos no perfil. Use os mesmos
    limites para os quatro modelos. Uma interrupção por limite não prova incapacidade
    de resolver a task. O teto geral da GUI é uma guarda antes da execução; não limita
@@ -158,37 +166,75 @@ separados, importando a solução de uma pasta isolada; TOMLs e sintaxe Bash tam
 foram conferidos. Evidências locais: `jobs-test/teste-live-oracle-offline.json` e
 `jobs-test/teste-live-process-validation/results.json`.
 
-Gate final: `pwsh -NoProfile -File scripts/test.ps1` passou com **231/231 testes**,
+Gate da preparação inicial: `pwsh -NoProfile -File scripts/test.ps1` passou com **231/231 testes**,
 imports de **80 módulos TS e 36 módulos GUI**, sem ciclos, e scanner de credenciais
 aprovado. Log local: `jobs-test/teste-live-gates.log`. O catálogo, as tasks e os guias
 são artefatos versionáveis; cadastros da instância e evidências em `jobs-test/` são locais.
 
-**Smoke real Harbor/Podman pendente.** A prévia da instância antiga retornou o
-contrato anterior, sem o plano completo; a preparação recusou iniciar containers
-nesse estado. Portanto estes resultados são testes da lógica Python, não rewards
-medidos em containers. Após reiniciar, execute cada task com Oracle (esperado 1)
-e Nop (esperado 0), sem skills, antes de gastar com os quatro modelos.
+**Validação real pela UI em 08/09/2026:** duas execuções individuais da task
+`simples-teste-live`, com um candidato, uma tentativa e nenhuma análise de juiz.
+Resultados e limites estão na seção seguinte. Os pares Oracle/Nop em containers
+para as três tasks e as execuções reais das tasks média/difícil continuam pendentes.
 
-**Reinício necessário:** a instância encontrada em `127.0.0.1:4173` ainda usa um
-catálogo anterior, sem DeepSeek Pro na lista de juízes. Encerre essa instância e
-inicie novamente com `pwsh -NoProfile -File scripts/start-gui.ps1` (ou
-`bash scripts/start-gui.sh`). Atualizar só a página não recarrega o backend.
-O Opus já é aceito na instância anterior. Não habilite modo validação para esconder
-a necessidade de reinício caso queira um julgamento normal com Pro.
+A instância original em `127.0.0.1:4173` estava desatualizada. Os testes usaram um
+servidor atualizado, sem interromper a instância anterior. Reinicie o backend após
+atualizar o clone; recarregar só a página não atualiza suas rotas.
 
-Nenhum teste pago, ação AWS ou ativação do gateway LiteLLM faz parte desta preparação.
+O export foi renovado pela API, filtrado aos 23 registros `teste-live`, validado sem
+credenciais e conferido contra o catálogo anterior: conteúdo idêntico, apenas data
+de exportação atualizada. Os três vínculos task–juiz–rubrica foram relidos e conferem.
+As tasks e os vínculos continuam nos caminhos já documentados, sem arquivos duplicados.
+AWS e LiteLLM continuam sem ativação.
+
+## Dois testes individuais reais pela UI — 08/09/2026
+
+Ambos usaram a task simples **1.0.0** congelada no experimento, um candidato Mini
+SWE, uma tentativa, concorrência 1, duas skills selecionadas, limite de 40 passos e
+cost_limit=0.50. Foram iniciados pelo botão Executar experimento; resultados e
+verifier/test-output.txt foram conferidos na própria UI. Nenhum botão Analisar
+foi acionado: ambos os registros persistidos têm zero análises de juiz.
+
+| Modelo | max_tokens | Reward | Custo USD reportado | Tokens entrada/saída | Duração |
+|---|---:|---:|---:|---:|---:|
+| DeepSeek V4 Flash | 4096 | 0 | 0.017402976 | 9450 / 12430 | 151.264 s |
+| DeepSeek V4 Pro | 16384 | 1 | 0.094399800 | 122352 / 20793 | 405.941 s |
+
+Flash terminou com RepeatedFormatError após respostas truncadas; não substituiu o
+stub. O verificador executou cinco métodos e registrou os erros de NotImplementedError,
+sem consultar LLM. Pro implementou a solução e passou nos cinco métodos. Harbor não
+reportou exceções de infraestrutura nesses dois trials. “Concluído” descreve a execução;
+o reward distingue aprovação/reprovação. A UI mostrou “Não analisado” na coluna do juiz.
+
+Os limites diferentes e uma única tentativa impedem inferir superioridade de um modelo.
+Custo total reportado: **US$ 0.111802776**; nenhuma chamada ao juiz.
+
+IDs no histórico de `jobs/teste-live`:
+
+- Flash: `4300a3f1-d274-4397-82a1-1314d2726e40`.
+- Pro: `39665d81-efd3-4806-8544-9c18b07dd159`.
+
+Durante a run Pro, os dois SKILL.md foram encontrados em /harbor/skills. Disponibilidade
+não comprova leitura. A instrução explícita de descoberta foi acrescentada depois, na
+revisão **1.0.1**, igual nas três tasks; sua leitura pelo agente ainda não foi validada
+numa nova run. Os snapshots anteriores não foram alterados. Nenhuma solução/teste do
+avaliador foi ajustado para favorecer os modelos.
+
+O export também passou por importação em estado temporário vazio: 23 registros;
+reimportação com zero novos registros; reexportação idêntica. O estado temporário foi
+removido. O gate da rodada passou nos 247 testes e nos imports de 83 módulos TS e
+38 módulos GUI. Evidências brutas permanecem locais e não integram o catálogo exportado.
 
 ## Continuidade
 
 ```text
-Continue por docs/TESTE_LIVE.md, specs/README.md e AGENTS.md. Preserve o diff existente.
-Na instância original, os 23 itens teste-live foram importados e os 3 vínculos relidos.
-Em clone novo, use /harbor-setup, importe o bundle e aplique os vínculos deste guia.
-Não suponha que estado local ou evidências de jobs-test/ acompanhem o clone.
-Os oracles passaram offline, mas o smoke Harbor/Podman não começou porque a GUI
-ativa usa o contrato anterior da prévia. Carregue o backend atualizado, confirme
-DeepSeek Pro em /api/judge-models e execute apenas os 6 trials gratuitos oracle/nop
-(um par por task), com propriedade de recursos registrada. Não gaste API de modelo
-nem execute análises pagas nesta preparação. Confira tests, imports e scanner em
-jobs-test/teste-live-gates.log quando esse log existir no host original.
+Leia docs/TESTE_LIVE.md e AGENTS.md. O catálogo exportado contém os 23 registros
+pedidos e os vínculos das três tasks foram conferidos. Em clone novo, importe
+config/teste-live/catalogo-teste-live.json e aplique os vínculos deste guia.
+As tasks estão versionadas no repo; o export JSON não inclui seus arquivos.
+Dois testes individuais sem juiz foram executados pela UI na task simples 1.0.0.
+A revisão 1.0.1 acrescenta descoberta explícita de skills, sem mudar o verificador;
+a leitura das skills precisa ser confirmada numa próxima trajetória, antes de
+alegar efeito das skills. Não repita chamadas pagas sem necessidade/autorização.
+Oracle/Nop reais das três tasks, calibração de dificuldade, Anthropic e os juízes
+continuam pendentes. Preserve resultados locais e não publique logs/credenciais.
 ```

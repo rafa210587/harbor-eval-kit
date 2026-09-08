@@ -3,7 +3,7 @@ artifacts = []
 
 [task]
 name = "harbor-eval-kit/media-teste-live"
-version = "1.0.0"
+version = "1.0.1"
 description = "Resolve DAGs deterministicamente e diagnostica ausencias e ciclos"
 authors = []
 keywords = ["python", "dag", "teste-live"]

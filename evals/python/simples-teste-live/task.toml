@@ -3,7 +3,7 @@ artifacts = []
 
 [task]
 name = "harbor-eval-kit/simples-teste-live"
-version = "1.0.0"
+version = "1.0.1"
 description = "Normaliza e agrega itens monetarios com aritmetica decimal exata"
 authors = []
 keywords = ["python", "decimal", "teste-live"]

@@ -1,3 +1,10 @@
+## Skills opcionais
+
+Antes de implementar, se `/harbor/skills` existir, liste e leia os arquivos
+`SKILL.md` fornecidos nesse diretorio e seus subdiretorios. Siga as orientacoes
+compativeis com o contrato desta task. Se nao houver skills, continue normalmente.
+Nao altere as skills, os testes do avaliador nem os arquivos de reward.
+
 Crie `/app/solution.py` com um ledger transacional em memoria:
 
     class EventoInvalidoError(ValueError): pass
