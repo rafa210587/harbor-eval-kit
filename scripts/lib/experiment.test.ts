@@ -8,6 +8,7 @@ import { runExperiment } from "./experiment-runner.ts";
 import { readExperiment, prepareExperiment, appendExperimentAnalysis, experimentDirectory } from "./experiment-store.ts";
 import { normalizeAnalysis } from "./results.ts";
 import { buildHarborEnv } from "./exec.ts";
+import { compactJobName } from "./naming.ts";
 
 async function fixture(fn: (root: string, task: string) => unknown) {
   const root = mkdtempSync(join(tmpdir(), "harbor-eval-kit-experiment-test-"));
@@ -67,12 +68,12 @@ test("a long task name is rejected against the full trial artifact path", () => 
   assert.throws(() => createExperimentPlan({ path: longTask, jobsDir: join(root, "jobs") }, cliCandidates([combo])), /caminho de trial\/artefatos excede.*encurte jobs-dir ou task/i);
 }));
 
-test("custom maximum-length run ids use a bounded collision-resistant suffix", () => fixture((root, task) => {
-  const first = createExperimentPlan({ path: task, jobsDir: join(root, "jobs"), runId: "r" + "a".repeat(127) }, cliCandidates([combo]));
-  const second = createExperimentPlan({ path: task, jobsDir: join(root, "jobs"), runId: "r" + "b".repeat(127) }, cliCandidates([combo]));
-  assert.ok(first.candidates[0].jobName.length <= 70);
-  assert.notEqual(first.candidates[0].jobName, second.candidates[0].jobName);
-}));
+test("custom maximum-length run ids use a bounded collision-resistant suffix", () => {
+  const first = compactJobName("cmp", { runId: "r" + "a".repeat(127), candidateIndex: 1 });
+  const second = compactJobName("cmp", { runId: "r" + "b".repeat(127), candidateIndex: 1 });
+  assert.ok(first.length <= 70);
+  assert.notEqual(first, second);
+});
 
 test("preview and run share explicit-empty model semantics and reject missing references", () => {
   assert.equal(resolveRegisteredCandidates([{ agentId: "a" }], registries)[0].model, combo.model);

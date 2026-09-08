@@ -184,6 +184,13 @@ a este relatório e seu CI são verificáveis no histórico do repositório e no
 [workflow CI](https://github.com/rafa210587/harbor-eval-kit/actions/workflows/ci.yml).
 Não repetir chamadas pagas para reconfirmar esses resultados.
 
+O primeiro CI publicado (`d5171f8`) aprovou Windows, Linux e o contrato Python.
+No macOS, a fixture de ID máximo usava uma pasta temporária maior e atingiu
+corretamente o limite de caminho do experimento. O teste do hash/nome foi isolado
+na função pura; os testes de bloqueio por comprimento continuam ativos. Trata-se
+de correção da fixture, sem relaxar o guard nem alterar execução de modelos.
+O CI do commit complementar deve confirmar a mesma suíte nos três sistemas.
+
 ## Parecer e próximos investimentos
 
 **Piloto local Windows** com objetivo central exercitado. Não declarar certificação
