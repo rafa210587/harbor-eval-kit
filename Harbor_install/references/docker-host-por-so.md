@@ -37,9 +37,15 @@ Não existe pipe do Docker Desktop para colidir, mas o Podman roda dentro de uma
 compatível depende do nome da máquina:
 
 ```bash
-podman machine inspect <nome-selecionado> --format json
+podman machine inspect <nome-selecionado>
 # DOCKER_HOST=unix://<caminho retornado>
 ```
+
+`machine inspect` já retorna JSON por padrão. Não use `--format json` aqui: esse
+argumento é interpretado como template e imprime o literal `json`. A sintaxe
+`--format json` continua correta para `machine list` e `system connection list`.
+Regressão corrigida em 2026-09-08 após reprodução read-only no CLI Podman 6.0.2;
+isso não substitui smoke real no macOS.
 
 ## Linux
 

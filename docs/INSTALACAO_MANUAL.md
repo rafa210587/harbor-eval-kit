@@ -78,18 +78,39 @@ nativos e chama `taskkill` somente depois de confirmar executável Node, caminho
 
 ## macOS
 
-Crie e inicie uma Podman machine antes do bootstrap:
+Inspecione primeiro a instalação, sem modificar recursos:
 
 ```bash
-podman machine init
-podman machine start
+podman --version
+podman machine list --format json
+podman system connection list --format json
+podman compose version
+```
+
+Se ainda não existir uma máquina, crie-a com `podman machine init`. Inicie a máquina
+existente selecionada com `podman machine start NOME_DA_MAQUINA`; se já estiver
+rodando, não repita init/start. Substitua o nome pelo retornado em machine list.
+Confirme `podman info` antes do bootstrap:
+
+```bash
+podman info
 bash scripts/harbor-eval.sh install
-bash scripts/harbor-eval.sh doctor
 ```
 
 O nome da máquina não é presumido: a conexão efetiva seleciona o nome passado a
 `podman machine inspect`. O socket retornado vira `DOCKER_HOST=unix://...` apenas nos filhos.
 Este ramo possui testes offline de resolução, mas ainda requer um smoke real em hardware macOS.
+
+`install` já executa os gates e smoke do doctor; não precisa repetir imediatamente.
+Para diagnosticar uma instalação existente, use `bash scripts/harbor-eval.sh doctor`.
+Se Compose não for encontrado ou faltar `--wait`/`--pull`, o provider Compose precisa
+ser provisionado conforme os requisitos abaixo; instalar só Podman não basta.
+
+**Correção de 2026-09-08:** versões anteriores do kit chamavam `machine inspect`
+com `--format json`, que imprime texto literal em vez do objeto JSON e impedia
+resolver o socket no macOS. Atualize o clone. O comando correto é
+`podman machine inspect NOME_DA_MAQUINA`, sem flag de formato. Detalhes e limites
+de validação: [diagnóstico macOS](MACOS_VALIDACAO_2026-09-08.md).
 
 ## Linux rootless
 

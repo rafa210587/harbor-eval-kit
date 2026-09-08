@@ -147,7 +147,9 @@ export function resolvePodmanConnection(options: {
 
   if (machines.some(machine => machine.running)) {
     const { machine, connection } = selectEffectiveMachine(connections, machines);
-    const inspect = run("podman", ["machine", "inspect", machine.name, "--format", "json"]);
+    // inspect defaults to JSON. Unlike `machine list`, --format json is a Go
+    // template that prints literal "json", which breaks socket parsing on macOS.
+    const inspect = run("podman", ["machine", "inspect", machine.name]);
     const dockerHost = platform === "win32"
       ? "npipe:////./pipe/docker_engine"
       : asUnixUrl(socketFromInspect(inspect));

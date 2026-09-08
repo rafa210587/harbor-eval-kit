@@ -31,7 +31,10 @@ test("resolver selects the running machine behind the effective connection on ma
   const resolved = resolvePodmanConnection({ platform: "darwin", run: fixtureRunner({
     "podman system connection list --format json": connections,
     "podman machine list --format json": machines,
-    "podman machine inspect work --format json": JSON.stringify([{ ConnectionInfo: { PodmanSocket: { Path: "/tmp/podman-work.sock" } } }]),
+    // Unlike machine list, inspect treats --format as a Go template: the literal
+    // "json" is printed as text. Its default output is the actual JSON array.
+    "podman machine inspect work --format json": "json\n",
+    "podman machine inspect work": JSON.stringify([{ ConnectionInfo: { PodmanSocket: { Path: "/tmp/podman-work.sock" } } }]),
   }, calls) });
   assert.deepEqual(resolved, {
     platform: "darwin",
@@ -41,14 +44,15 @@ test("resolver selects the running machine behind the effective connection on ma
     podmanUri: "ssh://core@127.0.0.1:60000/run/podman.sock",
     source: "machine",
   });
-  assert.ok(calls.includes("podman machine inspect work --format json"));
+  assert.ok(calls.includes("podman machine inspect work"));
 });
 
 test("Windows only chooses the compatibility pipe after selecting a running machine", () => {
   const resolved = resolvePodmanConnection({ platform: "win32", run: fixtureRunner({
     "podman system connection list --format json": connections,
     "podman machine list --format json": machines,
-    "podman machine inspect work --format json": JSON.stringify([{ ConnectionInfo: { PodmanSocket: { Path: "ignored" } } }]),
+    "podman machine inspect work --format json": "json\n",
+    "podman machine inspect work": JSON.stringify([{ ConnectionInfo: { PodmanSocket: { Path: "ignored" } } }]),
   }) });
   assert.equal(resolved.dockerHost, "npipe:////./pipe/docker_engine");
   assert.equal(resolved.machineName, "work");

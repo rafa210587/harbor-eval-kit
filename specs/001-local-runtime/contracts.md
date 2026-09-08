@@ -12,6 +12,11 @@ Node e Python compartilham `<manifest>.runtime-lock` exclusivo modo0600, tentati
 
 ## Resolução e gates Podman
 
+Correção de 2026-09-08: executar `podman machine inspect <nome>` sem --format.
+A saída padrão é JSON; `--format json` imprime literal `json` nesse subcomando,
+diferente de machine list. A fixture antiga ocultava esse erro do CLI. A prova
+read-only do comando não certifica instalação completa no macOS (ver docs/MACOS_VALIDACAO_2026-09-08.md).
+
 Resultado `{platform,dockerHost,connectionName,machineName,podmanUri,source}`. Ler `podman system connection list --format json` e `podman machine list --format json`. Campos JSON são reconhecidos sem distinção de caixa. Mais de uma conexão default recusa; selecionar pares máquina/conexão por nome da máquina ou `<nome>-root`; preferir par default único, senão exigir par único. Não adivinhar entre múltiplos.
 
 Windows/macOS exigem máquina running. Windows usa `npipe:////./pipe/docker_engine`; macOS usa `ConnectionInfo.PodmanSocket.Path` da máquina inspecionada como unix://. Linux usa máquina quando houver running; senão Host.RemoteSocket.Path de `podman info --format json` como rootless. Falha de machine list só é tolerada no Linux.

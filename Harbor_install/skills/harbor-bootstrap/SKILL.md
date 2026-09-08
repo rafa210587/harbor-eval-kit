@@ -85,6 +85,11 @@ Return READY only if:
 
 ## Implemented wrapper scope (2026-09-07)
 
+macOS command correction (2026-09-08): machine inspect must use its default JSON
+output, without `--format json` (that prints a literal Go template). See
+`docs/MACOS_VALIDACAO_2026-09-08.md`; the CLI defect was reproduced read-only, but
+a real macOS installation still needs its own doctor and Oracle/Nop evidence.
+
 Both install wrappers require Node.js 24+ and write/preserve the same dependency snapshot
 before installation. They record Harbor only after successful installation and executable
 discovery. After `uv tool install`, both add `uv tool dir --bin` only to the current process PATH

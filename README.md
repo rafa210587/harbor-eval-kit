@@ -53,6 +53,10 @@ pertence ao proprietário do projeto.
 - macOS e Linux têm testes offline do resolvedor e procedimentos reproduzíveis, sem smoke real
   nesses hosts até agora.
 
+Em 2026-09-08 corrigimos um comando `podman machine inspect` que impedia a leitura
+do socket no macOS e era ocultado pela fixture antiga. Veja o
+[diagnóstico e os gates ainda pendentes no Mac](./docs/MACOS_VALIDACAO_2026-09-08.md).
+
 O adapter gerenciado atual suporta containers Linux, um serviço `main`, rede pública e
 Dockerfile ou imagem prebuilt local. Ele bloqueia antes de criar recursos quando encontra
 Compose customizado/multisserviço, política de rede restrita, imagem com volumes anônimos,
