@@ -64,6 +64,7 @@ Outros achados confirmados na revisão dos fluxos completos:
 | P2 | Preferências de task corrompidas eram tratadas como vazias e sobrescritas | Leitura falha explicitamente, escrita atômica e validação de IDs; regressão preserva o arquivo original |
 | P2 | JSON HTTP com UTF-8 dividido entre chunks podia alterar texto | Contagem em bytes e decodificação após buffering; teste fragmenta cada byte de texto acentuado/emoji e verifica limite de tamanho |
 | P2 | CI não exercitava o contrato Python com Harbor pinado | Job dedicado instala `harbor==0.22.0` e executa testes offline; matriz Node nos três sistemas preservada |
+| P2 | Teste de falha segura do scanner não iniciava em Unix | O CI detectou que retirar PATH também escondia o Bash; a fixture agora resolve seu caminho absoluto antes de simular ferramentas ausentes, mantendo as asserções de recusa |
 | P2 | Guia e skill de portabilidade apontavam para módulos/garantias antigos | Fontes atuais, pin do Harbor, limitações e responsabilidades revisadas no README, manual e skills |
 
 Há ainda correções de diagnóstico da inicialização, exclusões recusadas pelo catálogo,
@@ -192,6 +193,10 @@ O SHA desta entrega é verificável no histórico Git; o resultado por plataform
 [workflow CI](https://github.com/rafa210587/harbor-eval-kit/actions/workflows/ci.yml), associado
 ao commit publicado. Consulte o estado remoto antes de repetir uma publicação. O CI de lógica
 em macOS/Linux não substitui os smokes reais pendentes descritos acima.
+
+O primeiro CI desta publicação (`34c304a`) aprovou Windows e o contrato Python e identificou
+a falha de resolução do Bash no teste Unix descrita acima. A correção complementar mantém
+o teste de ferramentas ausentes; nenhum teste foi removido ou marcado para ignorar a falha.
 
 ### Prompt de continuidade
 
