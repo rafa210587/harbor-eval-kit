@@ -1,3 +1,4 @@
+import { installHarnessPicker } from "./harness-picker.js";
 // The judging side: criteria, reusable criterion sets (Harbor rubrics) and judges.
 import { $, $$, api, escapeHtml, makeRow, checkboxGroup } from "./core.js";
 import { wireEditableForm } from "./forms.js";
@@ -73,6 +74,7 @@ function renderRubricsList() {
 
 // ================= JUDGES =================
 const judgesForm = $("#judges-form");
+const renderJudgeIntegrationSelect = installHarnessPicker(judgesForm);
 judgesForm.dataset.apiPath = "/api/judges";
 const judgesEdit = wireEditableForm(judgesForm, {
   addLabel: "Adicionar juiz",
@@ -80,6 +82,8 @@ const judgesEdit = wireEditableForm(judgesForm, {
     label: form.label.value,
     agentValue: form.agentValue.value,
     modelId: form.modelId.value || undefined,
+    integrationId: form.integrationId.value || undefined,
+    timeoutHours: Number(form.timeoutHours.value),
     promptTemplate: form.promptTemplate.value,
     defaultRubricIds: $$('input[name=defaultRubricIds]:checked', form).map((i) => i.value),
     notes: form.notes.value,
@@ -134,6 +138,8 @@ function renderJudgesList() {
       onEdit: () => judgesEdit.startEdit(item.id, () => {
         judgesForm.label.value = item.label;
         judgesForm.agentValue.value = item.agentValue;
+        renderJudgeIntegrationSelect(item.integrationId || "");
+        judgesForm.timeoutHours.value = item.timeoutHours ?? 8;
         judgesForm.promptTemplate.value = item.promptTemplate || "";
         judgesForm.notes.value = item.notes || "";
         // If the saved judge uses a validation-only model, widen the list before rebuilding it.

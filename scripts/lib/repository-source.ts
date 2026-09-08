@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { assertSafeExport } from "./export-safety.ts";
 
 export interface RepositorySource { kind: "local" | "git"; location: string; ref?: string; includeWorkingTree?: boolean }
@@ -103,6 +103,13 @@ function snapshotDirectory(source: string, destination: string): RepositoryFile[
   return files;
 }
 
+/** Resolve existing ancestors too: macOS temp roots are aliases, and destinations are new. */
+function canonicalDestination(path: string): string {
+  if (existsSync(path)) return realpathSync(path);
+  const parent = dirname(path);
+  return parent === path ? path : join(canonicalDestination(parent), relative(parent, path));
+}
+
 export function prepareRepositorySource(source: RepositorySource, destination: string): RepositorySnapshot {
   if (!source || !["local", "git"].includes(source.kind) || typeof source.location !== "string" || !source.location.trim()) throw new Error("Informe a fonte do repositório.");
   if (source.includeWorkingTree !== undefined && typeof source.includeWorkingTree !== "boolean") throw new Error("Seleção de alterações locais deve ser booleana.");
@@ -116,14 +123,14 @@ export function prepareRepositorySource(source: RepositorySource, destination: s
   }
   const root = resolve(source.location);
   if (!existsSync(root) || !lstatSync(root).isDirectory() || lstatSync(root).isSymbolicLink()) throw new Error("Fonte local deve ser um diretório real.");
-  const rel = relative(realpathSync(root), resolve(destination));
-  if (!rel.startsWith("..") && !isAbsolute(rel)) throw new Error("Snapshot não pode ser criado dentro da fonte.");
+  const rel = relative(realpathSync(root), canonicalDestination(resolve(destination)));
+  if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) throw new Error("Snapshot não pode ser criado dentro da fonte.");
   let revision: string | null = null;
   if (!source.includeWorkingTree) {
     try {
       // A plain folder nested under an unrelated checkout is still only that folder.
       const top = repositoryGit(root, ["rev-parse", "--show-toplevel"]).toString("utf8").trim();
-      if (realpathSync(top) === realpathSync(root)) revision = resolveRepositoryCommit(root, source.ref);
+      if (relative(realpathSync(top), realpathSync(root)) === "") revision = resolveRepositoryCommit(root, source.ref);
       else if (source.ref) throw new Error("A referência exige a raiz do repositório Git.");
     }
     catch (error) { if (source.ref || existsSync(join(root, ".git"))) throw error; }

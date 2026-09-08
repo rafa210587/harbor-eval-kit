@@ -1,5 +1,5 @@
 // Sensitive readers only: no secret-store import, API serialization or child execution.
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, parse, resolve } from "node:path";
 import { getStateDir, safeJoinUnderDir } from "./paths.ts";
 
@@ -9,7 +9,9 @@ function boundedJson(path: string): unknown {
     if (!isAbsolute(path)) throw new Error();
     let ancestor = resolve(path);
     for (;;) {
-      if (lstatSync(ancestor).isSymbolicLink()) throw new Error();
+      // macOS supplies these root aliases; arbitrary user-controlled links still fail closed.
+      if (lstatSync(ancestor).isSymbolicLink() && !(process.platform === "darwin" &&
+          ["/var", "/tmp"].includes(ancestor) && realpathSync(ancestor) === `/private${ancestor}`)) throw new Error();
       if (ancestor === parse(ancestor).root) break;
       ancestor = dirname(ancestor);
     }

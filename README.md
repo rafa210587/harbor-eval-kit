@@ -9,7 +9,7 @@ O runtime local é **Podman somente**. O kit não instala nem chama Docker Engin
 
 O modo **Tasks → Spec de repositório + PR** prepara avaliações de requisitos
 Markdown contra um PR histórico mergeado. Conexões de CLI ficam recolhidas em
-**Agentes**. Veja o [guia de repositórios e harnesses](docs/REPOSITORIOS_E_HARNESSES.md)
+**Credenciais**. Veja o [guia de repositórios e harnesses](docs/REPOSITORIOS_E_HARNESSES.md)
 para configuração, isolamento, import/export e limites de validação desta entrega.
 
 ## O que a plataforma entrega
@@ -352,3 +352,10 @@ pela UI. **Fluxo implementado; certificação completa dos harnesses e sistemas 
 
 O plano AWS é somente documental nesta rodada. Não há deploy, autenticação multiusuário, RBAC
 ou infraestrutura cloud implementada.
+
+
+Para specs longas, configure o prazo em horas na receita de repositório e no juiz
+(padrão 8 h por agente; sem teto fixo de horas). As operações não são encerradas por
+um timeout externo de poucos minutos. Para consultar repos/PRs privados, use
+**Credenciais → Acesso ao GitHub** com o login local do `gh`; consulte o
+[guia de acesso e SSO](docs/ACESSO_GITHUB.md). Tokens nunca entram no catálogo/export.

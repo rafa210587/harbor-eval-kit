@@ -39,6 +39,7 @@ export function recipeProblems(recipe, step = 4) {
   if (step >= 3 && !recipe.checks?.length) errors.push("Cadastre ao menos um check determinístico.");
   if (step >= 3 && recipe.checks && !recipe.checks.some((item) => item.required)) errors.push("Marque ao menos um check como obrigatório.");
   if (step >= 3 && recipe.allowPassingBase === true && !String(recipe.passingBaseReason || "").trim()) errors.push("Justifique por que o código inicial pode passar os checks.");
+  if (step >= 4 && recipe.agentTimeoutSec !== undefined && (!Number.isSafeInteger(recipe.agentTimeoutSec) || recipe.agentTimeoutSec <= 0)) errors.push("Prazo do agente deve resultar em segundos inteiros positivos dentro da precisão segura.");
   if (step >= 4 && recipe.trusted !== true) errors.push("Confirme que a fonte é confiável antes de preparar.");
   return errors;
 }

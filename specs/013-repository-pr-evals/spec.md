@@ -126,7 +126,7 @@ código. Revisar o manifesto resolvido antes de preparar a avaliação.
 
 ### US5 — Configurar harness e modelos na UI (P1)
 
-- FR20: seção **Integrações** dentro de Agents permite perfil para Claude Code,
+- FR20: seção **Integrações** dentro de Credenciais permite perfil para Claude Code,
   Codex CLI, Cursor CLI e OpenCode, reutilizando adapters Harbor. Configurar versão,
   instalação no ambiente de execução, autenticação e opções suportadas tipadas.
   Diagnóstico não roda o binário do projeto nem aceita um comando arbitrário do repo.
@@ -163,7 +163,7 @@ código. Revisar o manifesto resolvido antes de preparar a avaliação.
 - FR28: não adicionar uma aba principal por integração nem exibir todos os campos
   simultaneamente. Tasks mantém escolha simples de modo; o novo assistente mostra
   uma etapa por vez. Campos avançados ficam em disclosure com resumo dos valores
-  efetivos. Agents mantém uma seção recolhível de integrações e edição em painel.
+  efetivos. Credenciais mantém uma seção recolhível de integrações e edição em painel.
   Hints curtos junto aos campos, detalhes sob demanda; erros nunca ficam escondidos.
 - FR29: configuração de harness mostra um fluxo único: escolher CLI → verificar
   versão/ambiente → vincular autenticação → selecionar origem/modelo → testar.
@@ -208,3 +208,29 @@ Criar/alterar/mergear PRs; deploy AWS; serviço multiusuário; execução sem is
 diretamente no checkout do usuário; automação de desktop/login; filesystem remoto
 por comandos SSH; promessa de portabilidade de assinatura entre CLIs.
 Docs e testes offline não certificam macOS/Podman nem integração real com todos os CLIs.
+
+
+### Ajuste aprovado: conexão comum a agentes e juízes
+
+- Credenciais centraliza cadastro, diagnóstico e descoberta; Agentes/Juízes apenas
+  referenciam a conexão por ID. Sem vínculo mantém o comportamento legado.
+- Modo assinatura oculta chave de API e endpoint; apresenta vínculo de sessão Codex
+  ou variável OAuth Claude, sem aceitar valores secretos no cadastro da integração.
+- Analyze reutiliza o resolver dos agentes; modelo/adapter precisam ser compatíveis.
+  Sessão congela identidade/configuração e bloqueia alteração durante comparação.
+- Export contém somente referência local. Sessões/segredos não são exportados;
+  conexão usada por agente ou juiz não pode ser removida sem desfazer o vínculo.
+
+
+### Ajuste aprovado: SDD longo, GitHub e CI
+
+- Prazo candidato configurável na receita em horas; prazo juiz separado no perfil,
+  congelado na sessão. Padrão 8 h, sem teto fixo de horas; números finitos positivos.
+- Remover timeout externo da análise/calibração; manter prazos individuais do Harbor
+  e checks customizados. Export/import preservam apenas números, nunca identidade.
+- Diagnóstico explícito em Credenciais usa login gh local para API/Git somente leitura;
+  resultados booleanos e orientações, sem token, persistência ou login automático.
+- CI anterior: corrigir aliases de sistema macOS, containment com paths canonicalizados,
+  caixa de caminhos Windows e fixture independente de jobs-test preexistente.
+- Validação: testar lógica, UI GitHub/prazos, suite e CI remoto após push. Smoke Codex
+  anterior concluído; não equivale a executar por horas ou certificar macOS/Claude real.

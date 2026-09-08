@@ -325,8 +325,9 @@ NOT_APPLICABLE se não houver evidência suficiente pra avaliar (ex.: o agente n
           <div><label for="f-label-apelido-1">Nome do juiz</label><input id="f-label-apelido-1" type="text" name="label" placeholder="Juiz padrão — alto rigor" required></div>
           <div><label for="f-harbor-agent-value-quem-executa-o-julgam">Adaptador do Harbor que julga</label><input id="f-harbor-agent-value-quem-executa-o-julgam" type="text" name="agentValue" value="claude-code" list="harbor-agents-list" required></div>
         </div>
-        <p class="hint">É um agente Harbor de verdade rodando com acesso a arquivos (não uma chamada de LLM crua) — ele lê <code>result.json</code>, <code>agent/trajectory.json</code>, <code>test-stdout.txt</code> dentro do trial antes de responder. "claude-code" é o mesmo valor aceito em Agents; troque só se quiser outro agente avaliando.</p>
+        <p class="hint">O adapter executa o juiz no Harbor. Tasks tradicionais fornecem arquivos do trial; no modo repositório + PR, o juiz recebe somente os dois diffs, requisitos e checks sanitizados. Se escolher uma conexão de Credenciais abaixo, use o mesmo adapter configurado nela.</p>
 
+        <details><summary>Prazo de execução do juiz</summary><label for="judge-timeout-hours">Prazo por análise (horas)</label><input id="judge-timeout-hours" name="timeoutHours" type="number" min="0.01" step="0.01" value="8" data-field-help="off" aria-describedby="judge-timeout-help"><p id="judge-timeout-help" class="hint">Padrão: 8 horas por tarefa do juiz. Aumente para specs longas; não há teto fixo de horas na plataforma. O prazo é congelado no lote e aplicado pelo Harbor somente ao agente juiz, sem incluir build ou instalação. Não há timeout externo de dois/dez minutos.</p></details>
         <label for="judge-model-select">Modelo do juiz</label>
         <select name="modelId" id="judge-model-select"><option value="">— nenhum —</option></select>
         <p class="hint">A lista mostra modelos cadastrados em Modelos que constam da seleção high-tier do kit. Se estiver vazia, cadastre um destes: <code id="judge-model-values-hint"></code>.</p>

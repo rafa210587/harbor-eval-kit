@@ -1,3 +1,7 @@
+export function harnessAuthFields(adapter, mode) {
+  return { api: mode === "api", authFile: mode === "native" && adapter === "codex", oauth: mode === "native" && adapter === "claude-code" };
+}
+
 export function catalogEntries(payload) {
   const rows = Array.isArray(payload) ? payload : payload?.adapters || payload?.catalog || [];
   return rows.filter((item) => item && typeof item.adapter === "string").map((item) => ({

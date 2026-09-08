@@ -549,8 +549,8 @@ você editar uma Skill, todo Skillset que a usa já reflete a mudança).
 
 ### 10.5 Agentes
 
-A seção recolhível **Integrações de CLI e harness** cadastra conexões reutilizáveis
-para API ou login nativo suportado. Vincule a conexão ao perfil; diagnóstico no
+Cadastre a conexão em **Credenciais → Integrações de CLI e harness** e selecione-a
+no perfil de Agentes ou Juízes. API e assinatura têm campos separados; diagnóstico no
 host não certifica o container. Veja [configuração e limites](docs/REPOSITORIOS_E_HARNESSES.md#conectar-um-harness).
 Um agent aqui é um **perfil de uso**, não só o nome cru do Harbor: junta
 `agentValue` (`claude-code`, `codex`, `oracle`, `nop`, ...) + um **model padrão** + instruções
@@ -1108,3 +1108,10 @@ docs/ENGENHARIA.md            padrões de engenharia e o incidente que originou 
 docs/screenshots/             imagens usadas no README.md
 scripts/python/probe_provider.py  probe explícito de descoberta/teste de provider (Credenciais)
 ```
+
+
+Para specs longas, configure o prazo em horas na receita de repositório e no juiz
+(padrão 8 h por agente; sem teto fixo de horas). As operações não são encerradas por
+um timeout externo de poucos minutos. Para consultar repos/PRs privados, use
+**Credenciais → Acesso ao GitHub** com o login local do `gh`; consulte o
+[guia de acesso e SSO](docs/ACESSO_GITHUB.md). Tokens nunca entram no catálogo/export.

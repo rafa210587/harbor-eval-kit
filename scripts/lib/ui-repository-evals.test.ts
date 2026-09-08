@@ -19,6 +19,10 @@ test("repository sources keep explicit refs for local and remote Git and recipe 
   assert.deepEqual(sourceFromDraft("git", "https://example/repo.git", "main"), { kind: "git", location: "https://example/repo.git", ref: "main" });
   const valid = { label: "Feature", codeSource: { kind: "local", location: "D:/repo" }, specPaths: ["spec.md"], reference: { repository: "owner/repo", prNumber: 42 }, checks: [{ required: true }], trusted: true };
   assert.deepEqual(recipeProblems(valid), []);
+  assert.deepEqual(recipeProblems({ ...valid, agentTimeoutSec: 72 * 3600 }), []);
+  for (const agentTimeoutSec of [0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.match(recipeProblems({ ...valid, agentTimeoutSec }).join(" "), /Prazo do agente/);
+  }
   assert.deepEqual(recipeProblems({ ...valid, threshold: 0.8 }), []);
   assert.match(recipeProblems({ ...valid, threshold: -0.1 }).join(" "), /Limiar/);
   assert.match(recipeProblems({ ...valid, specPaths: [] }, 1).join(" "), /documento/);
@@ -36,4 +40,12 @@ test("import remains a preview and prepare uses the frozen preview id", () => {
   assert.match(source, /function invalidate\(\)[\s\S]*previewId = "";[\s\S]*prepare\.disabled = true/);
   assert.match(source, /\/api\/repository-evals\/import[\s\S]*applyRecipe\(importedRecipe\(response\)\)/);
   assert.match(source, /Usar esta task em Novo experimento[\s\S]*refreshTaskList\(\)[\s\S]*activateTab\("compare"\)/);
+});
+
+test("repository catalog pickers subscribe to registry loading and preserve choices on refresh", () => {
+  const source = readFileSync(new URL("../../gui/app/repository-evals.js", import.meta.url), "utf8");
+  assert.match(source, /onRefresh\(renderCatalogPickers\)/);
+  assert.match(source, /function renderCatalogPickers\(\)[\s\S]*const selectedJudge =/);
+  assert.match(source, /\.value = selectedJudge/);
+  assert.match(source, /input\.checked = selectedRubrics\.has\(input\.value\)/);
 });

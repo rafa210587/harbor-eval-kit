@@ -1,3 +1,4 @@
+import { installHarnessPicker } from "./harness-picker.js";
 // Agents: a usage profile (which harbor --agent, default model, instructions, skill sets).
 import { $, $$, api, escapeHtml, makeRow, checkboxGroup } from "./core.js";
 import { wireEditableForm } from "./forms.js";
@@ -5,16 +6,7 @@ import { state, onRefresh, refreshAll } from "./state.js";
 
 // ================= AGENTS =================
 const agentsForm = $("#agents-form");
-const integrationField = document.createElement("label");
-integrationField.innerHTML = 'Conexão de CLI (opcional)<select name="integrationId" data-field-help="off"><option value="">Padrão atual do Harbor</option></select><span class="hint">Reutiliza versão e autenticação configuradas em Integrações abaixo. O adapter deve coincidir.</span>';
-agentsForm.querySelector('button[type="submit"]').before(integrationField);
-let integrations = [];
-function renderIntegrationSelect(selected = agentsForm.integrationId.value) {
-  agentsForm.integrationId.innerHTML = '<option value="">Padrão atual do Harbor</option>' + integrations.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)} · ${escapeHtml(item.adapter)}</option>`).join("");
-  if (selected && !integrations.some(i => i.id === selected)) agentsForm.integrationId.add(new Option("Conexão local ausente — reconecte", selected));
-  agentsForm.integrationId.value = selected;
-}
-document.addEventListener("hek:harness-integrations-refreshed", event => { integrations = event.detail.integrations; renderIntegrationSelect(); });
+const renderIntegrationSelect = installHarnessPicker(agentsForm);
 agentsForm.dataset.apiPath = "/api/agents";
 const agentsEdit = wireEditableForm(agentsForm, {
   addLabel: "Adicionar agente",

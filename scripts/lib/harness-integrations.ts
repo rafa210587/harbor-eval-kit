@@ -1,7 +1,7 @@
 // Local connection metadata. Never include this store in portable catalog bundles.
 import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync, statSync } from "node:fs";
 import { isAbsolute, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { getStateDir, readRegistry, safeJoinUnderDir } from "./paths.ts";
 import { loadSecretsEnv } from "./secrets.ts";
@@ -97,8 +97,12 @@ export function saveHarnessIntegration(value: unknown, options: HarnessOptions =
 export function deleteHarnessIntegration(id: string, options: HarnessOptions = {}): void {
   get(id, options);
   // An alternate test store has no connection to the real user's agent registry.
-  if (!options.stateDir && readRegistry<{ integrationId?: string }>("agents").some(agent => agent.integrationId === id)) throw new Error("Integração ainda referenciada por um agente.");
+  if (!options.stateDir && (["agents", "judges"] as const).some(registry => readRegistry<{ integrationId?: string }>(registry).some(item => item.integrationId === id))) throw new Error("Integração ainda referenciada por um agente ou juiz.");
   write(read(options).filter(item => item.id !== id), options);
+}
+export function harnessIntegrationFingerprint(id: string, options: HarnessOptions = {}) {
+  const { label, ...binding } = get(id, options);
+  return createHash("sha256").update(JSON.stringify(binding)).digest("hex");
 }
 export type HarnessProbe = (executable: string, args: string[]) => Promise<string>;
 export const runHarnessProbe: HarnessProbe = (executable, args) => new Promise((completeProbe, reject) => {

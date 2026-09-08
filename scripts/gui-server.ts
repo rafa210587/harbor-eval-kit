@@ -1,3 +1,6 @@
+import { registerGithubAccessRoutes } from "./github-access-routes.ts";
+import { stopContainersForJob } from "./lib/exec.ts";
+import { resolveJudgeConnection, type JudgeConnection } from "./lib/judge-harness.ts";
 // Harbor Eval Kit - local GUI server.
 //
 // Plain node:http, no framework, binds 127.0.0.1 only. Serves gui/index.html and a
@@ -409,6 +412,7 @@ interface ViewProcess {
 const viewProcesses = new Map<string, ViewProcess>();
 const activeOperationIds = new Set<string>();
 registerRepositoryRoutes(addRoute, sendJson, activeOperationIds);
+registerGithubAccessRoutes(addRoute, sendJson);
 
 addRoute("POST", "/api/view", async (_req, res, _params, body) => {
   const { jobsDir } = body;
@@ -526,6 +530,8 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
   const frozen = session ? sessionAnalysisInput(session, rubricId) : null;
   let resolvedModel = session?.judgeModel ?? (judgeModel ? String(judgeModel) : undefined);
   let resolvedAgent = session?.agent ?? (agent ? String(agent) : undefined);
+  let judgeConnection: JudgeConnection = session ?? {};
+  let timeoutHours = session?.timeoutHours ?? 8;
   let promptPath: string | undefined;
   if (session) promptPath = frozen?.promptPath;
   else if (judgeId) {
@@ -535,6 +541,8 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     const models = readRegistry<ModelEntry>("models");
     resolvedModel = judge.modelId ? models.find((m) => m.id === judge.modelId)?.value : undefined;
     resolvedAgent = judge.agentValue;
+    judgeConnection = { integrationId: judge.integrationId };
+    timeoutHours = judge.timeoutHours ?? 8;
     if (judge.promptTemplate && judge.promptTemplate.trim()) {
       promptPath = resolveJudgePromptPath(judge.id, judge.promptTemplate);
     }
@@ -560,6 +568,7 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     });
   }
 
+  const connection = resolveJudgeConnection(judgeConnection, resolvedAgent, resolvedModel);
   const operationId = body.operationId;
   assertOperationId(operationId);
   const harborJobName = `harbor-eval-kit-analysis-${operationId.replaceAll("-", "").toLowerCase()}`;
@@ -580,17 +589,18 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
     args.push("--rubric", resolveRubricPath(rubric.id, resolvedCriteria));
   }
   if (resolvedAgent) args.push("--agent", resolvedAgent);
+  if (connection) args.push(...connection.extraArgs);
   if (promptPath) args.push("--prompt", promptPath);
 
   await withAnalysisTarget(String(trialPath), async () => {
-    const secretsEnv = loadSecretsEnv();
-    const inputs = freezeAnalysisInputs(args);
+    const secretsEnv = loadRedactionSecrets();
+    const inputs = freezeAnalysisInputs(args, timeoutHours);
     createOperation({ id: operationId, type: "analyze", targetPath: resolve(String(trialPath)),
       jobsDir: resolve(analysisJobsDir), harborJobName }, secretsEnv);
     activeOperationIds.add(operationId);
     updateOperation(operationId, { status: "running" }, secretsEnv);
     try {
-      const result = await execHarbor(inputs.args, { extraEnv: secretsEnv, timeoutMs: 120_000,
+      const result = await execHarbor(inputs.args, { extraEnv: connection?.extraEnv ?? loadSecretsEnv(), isolatedEnv: !!connection, redactValues: connection?.redactValues,
         onOutput: (channel, text) => appendOperationLog(operationId, channel, text, secretsEnv) });
       if (result.code === 0 && repositoryTarget) restoreRepositoryAnalysisResults(repositoryTarget);
       const artifact = result.code === 0
@@ -629,6 +639,7 @@ addRoute("POST", "/api/analyze", async (_req, res, _params, body) => {
       updateOperation(operationId, { status: "failed", finishedAt: new Date().toISOString(), error: (error as Error).message }, secretsEnv);
       throw error;
     } finally {
+      if (connection) stopContainersForJob(resolve(analysisJobsDir), harborJobName);
       activeOperationIds.delete(operationId);
     }
   });

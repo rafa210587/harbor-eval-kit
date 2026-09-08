@@ -51,8 +51,8 @@ truncamento silencioso. Tasks tradicionais mantêm sua forma anterior de anális
 
 ## Conectar um harness
 
-Em **Agentes → Integrações de CLI e harness**, cadastre uma conexão e vincule-a ao
-perfil de agente. A integração seleciona a credencial explicitamente; os demais
+Em **Credenciais → Integrações de CLI e harness**, cadastre uma conexão e vincule-a ao
+perfil de agente ou juiz. A integração seleciona a credencial explicitamente; os demais
 segredos do ambiente não são repassados ao processo dessa execução. Versão, adapter,
 modo e endpoint públicos ficam registrados no snapshot. O valor da credencial e o
 caminho de sessão nativa não entram no snapshot público ou no export.
@@ -78,6 +78,24 @@ rede pública para inferência; portanto, não há garantia contra busca de resp
 públicas. Credenciais Git e o gabarito local não são montados no candidato. Não use
 este modo para executar repositórios hostis com uma sessão pessoal privilegiada.
 
+## Juiz e assinatura
+
+Agentes e Juízes selecionam uma conexão cadastrada em Credenciais; o adapter do
+perfil precisa coincidir. Em Analyze, a conexão é aplicada ao --agent/--ak e ao
+ambiente isolado do Harbor, mantendo rubrica, modelo curado e regras de evidência.
+O prazo do juiz é configurável em **Juízes → Prazo de execução do juiz**, em horas
+(padrão 8), sem teto fixo de horas. O Harbor limita apenas a execução do juiz;
+build, instalação e verifier mantêm seus próprios prazos. Não há timeout externo
+de 2 ou 10 minutos. A finalização para containers próprios remanescentes.
+Sem conexão, API/LiteLLM continuam com o comportamento anterior. Uma sessão de
+comparação congela o vínculo; alterar sua configuração exige nova sessão de análise.
+
+Ao escolher assinatura, API key e endpoint somem. Codex exibe apenas o vínculo
+explícito de auth.json; Claude exibe o nome da variável OAuth da sessão dedicada
+(ex.: CLAUDE_CODE_OAUTH_TOKEN), cadastrada como credencial customizada nesta aba.
+Não cole o token no formulário de integração. Cursor/OpenCode nativo continuam
+bloqueados. O vínculo do juiz não concede acesso ao repositório completo no modo PR.
+
 ## Instalação e fallback manual
 
 Primeiro siga [a skill do Claude](INSTALACAO_CLAUDE.md) ou
@@ -87,7 +105,7 @@ e confira `gh auth status`. Para fonte SSH, use a autenticação SSH já configu
 Não cole token em URL ou receita. Nenhuma autenticação é criada automaticamente.
 
 Sem skill: inicie a GUI, cadastre somente as chaves necessárias em Credenciais,
-configure a conexão na seção de Agentes e siga o assistente acima. Login nativo
+configure a conexão na seção de Credenciais e siga o assistente acima. Login nativo
 requer vínculo explícito de sessão dedicada; o kit não procura nem copia uma sessão
 pessoal por conta própria. Se um arquivo vinculado ficar inválido, restaure-o ou
 corrija/remova o vínculo local antes de consultar/exportar dados. A proteção contra
@@ -155,3 +173,31 @@ Aprovação ponderada também foi exercitada pela UI, sem LLM, na operação
 `73714e47-7f8d-47b4-bf26-bfe3f077331e`: limiar 0,8, check obrigatório com peso 4
 mais um opcional com peso 1 e falha controlada. A base teve score 0/reprovada;
 a referência teve score 0,8/aprovada. A receita salva anterior permaneceu intacta.
+
+
+Em 2026-09-08, a Análise avulsa foi validada pela UI no Windows/Podman com
+Codex 0.153.4, `openai/gpt-5.6-luna` e assinatura local explicitamente vinculada.
+Resultado: 1 trial, zero erros, 133,529 s; `task_specification` PASS e
+`reward_hacking` N/A porque o pacote de PR omite a trajetória por desenho.
+O teste usou modo validação (não é benchmark). Harbor reportou US$ 0,00536604;
+isso não confirma cobrança extra na assinatura. A primeira tentativa revelou
+um timeout de 120 s; o limite externo foi removido e análises encerram
+containers próprios remanescentes. Cadastros temporários foram removidos; sessão
+e artefatos locais não fazem parte do repo. Claude OAuth real segue não validado.
+
+
+### Execuções SDD longas e identidade GitHub
+
+Na revisão da receita, **Ambiente, prazo do agente e juiz opcionais → Prazo do agente (horas)**
+controla a execução do candidato: padrão 8 horas, alterável sem teto fixo de horas.
+A receita exporta `agentTimeoutSec`; mudar o valor exige preparar novamente.
+Tasks já materializadas mantêm o task.toml original até novo preparo. Os checks
+continuam com timeout individual; a calibração não tem mais limite externo de uma hora.
+O prazo do juiz é separado, congelado com a sessão e exportável no perfil.
+Harbor 0.22 aplica o multiplicador ao template de análise de 1800 segundos.
+Isso permite configurar jornadas de várias horas; não foi realizado um teste de
+duração de horas nesta validação.
+
+Em **Credenciais → Acesso ao GitHub**, verifique o login local e a leitura do repo.
+Consulte [Acesso ao GitHub](ACESSO_GITHUB.md) para login, SSO e execução em outro host.
+Nenhum token é cadastrado nesse formulário ou exportado.

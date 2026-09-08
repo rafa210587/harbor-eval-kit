@@ -13,6 +13,7 @@ import { resumeOperationMonitors } from "./operation-live.js";
 import "./models-skills.js";
 import "./agents.js";
 import "./harness-integrations.js";
+import "./github-access.js";
 import "./repository-evals.js";
 import "./judging.js";
 import "./compare.js";

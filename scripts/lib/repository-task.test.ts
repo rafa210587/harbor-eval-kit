@@ -17,6 +17,7 @@ test("materialized task isolates verifier and exposes full base only to candidat
     assert.deepEqual(readdirSync(join(task, "environment")).sort(), ["Dockerfile", "repo", "setup.sh"]);
     const toml = readFileSync(join(task, "task.toml"), "utf8");
     assert.match(toml, /environment_mode = "separate"/); assert.match(toml, /network_mode = "no-network"/);
+    assert.match(toml, /\[agent\]\ntimeout_sec = 28800/);
     assert.match(toml, /source = "\/workspace", destination = "workspace"/);
     assert.match(readFileSync(join(task, "tests/Dockerfile"), "utf8"), /rm -rf \/workspace/);
     assert.match(readFileSync(join(task, "tests/Dockerfile"), "utf8"), /COPY repository-verifier\.py checks\.json test\.sh \/tests\//);
@@ -38,6 +39,7 @@ test("materialization rejects answer paths, private files and unsafe image/setup
 
 test("materialization accepts a separate Windows drive", { skip: process.platform !== "win32" || parse(tmpdir()).root === parse(process.cwd()).root }, () => {
   const f = fixture();
+  mkdirSync(join(process.cwd(), "jobs-test"), { recursive: true });
   const targetRoot = mkdtempSync(join(process.cwd(), "jobs-test", "harbor-eval-kit-cross-drive-"));
   try {
     const path = materializeRepositoryTask({ ...f.input, destination: join(targetRoot, "task") });
@@ -51,5 +53,17 @@ test("materializer persists approval threshold and rejects invalid limits before
     assert.throws(() => materializeRepositoryTask({ ...f.input, threshold: -1 }), /limiar/);
     const task = materializeRepositoryTask({ ...f.input, threshold: 0.8 });
     assert.equal(JSON.parse(readFileSync(join(task, "tests/checks.json"), "utf8")).threshold, 0.8);
+  } finally { f.cleanup(); }
+});
+
+test("candidate budget supports multi-day specs and rejects invalid seconds before writing", () => {
+  const f = fixture(); try {
+    for (const agentTimeoutSec of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, null, "3600"]) {
+      assert.throws(() => materializeRepositoryTask({ ...f.input, agentTimeoutSec } as RepositoryTaskInput), /Prazo do agente/);
+    }
+    const task = materializeRepositoryTask({ ...f.input, agentTimeoutSec: 72 * 3600 });
+    const toml = readFileSync(join(task, "task.toml"), "utf8");
+    assert.match(toml, /\[agent\]\ntimeout_sec = 259200/);
+    assert.match(toml, /\[verifier\][\s\S]*timeout_sec = 70/);
   } finally { f.cleanup(); }
 });

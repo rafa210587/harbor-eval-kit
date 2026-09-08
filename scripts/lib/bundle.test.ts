@@ -119,3 +119,17 @@ describe("importConfigBundle", () => {
     });
   });
 });
+
+
+test("judge bundle preserves only the connection reference and round-trips without bindings", () => {
+  withStateDir(() => {
+    const judge = { id: "judge", label: "Fixture", agentValue: "codex", integrationId: "local-connection" };
+    writeRegistry("judges", [judge]);
+    const bundle = exportConfigBundle();
+    assert.deepEqual(bundle.registries.judges, [judge]);
+    assert.ok(!JSON.stringify(bundle).includes("authFilePath"));
+    writeRegistry("judges", []);
+    importConfigBundle(bundle);
+    assert.deepEqual(readRegistry("judges"), [judge]);
+  });
+});

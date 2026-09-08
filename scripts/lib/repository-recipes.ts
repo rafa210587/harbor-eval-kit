@@ -8,11 +8,13 @@ import { assertSafeExport } from "./export-safety.ts";
 import { validateRepositoryRemote, type RepositorySource } from "./repository-source.ts";
 import { assertRelativeRepositoryPath, validateSafeVerificationChecks, validateVerificationThreshold, type VerificationCheck } from "./verification-profile.ts";
 
+import { repositoryAgentTimeoutSec } from "./repository-limits.ts";
+
 export interface RepositoryRecipe {
   schemaVersion: 1; id: string; label: string; codeSource: RepositorySource;
   documentSource?: RepositorySource; specPaths: string[];
   reference: { repository: string; prNumber: number; baseSha?: string };
-  checks: VerificationCheck[]; threshold?: number; image: string; setupScript: string;
+  checks: VerificationCheck[]; threshold?: number; agentTimeoutSec?: number; image: string; setupScript: string;
   judgeId?: string; rubricIds?: string[]; trusted: true;
   allowPassingBase?: boolean; passingBaseReason?: string;
 }
@@ -35,7 +37,7 @@ function source(value: unknown): asserts value is RepositorySource {
 export function validateRepositoryRecipe(input: unknown, secrets?: Record<string, string>): RepositoryRecipe {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("receita inválida");
   const value = input as RepositoryRecipe;
-  const allowed = ["schemaVersion", "id", "label", "codeSource", "documentSource", "specPaths", "reference", "checks", "threshold", "image", "setupScript", "judgeId", "rubricIds", "trusted", "allowPassingBase", "passingBaseReason"];
+  const allowed = ["schemaVersion", "id", "label", "codeSource", "documentSource", "specPaths", "reference", "checks", "threshold", "agentTimeoutSec", "image", "setupScript", "judgeId", "rubricIds", "trusted", "allowPassingBase", "passingBaseReason"];
   if (Object.keys(value).some(k => !allowed.includes(k)) || value.schemaVersion !== undefined && value.schemaVersion !== 1) throw new Error("schema de receita não suportado");
   if (value.id !== undefined) assertSafeId(value.id);
   if (typeof value.label !== "string" || !value.label.trim() || value.label.length > 120 || value.trusted !== true) throw new Error("nome e confirmação de repositório confiável são obrigatórios");
@@ -49,6 +51,7 @@ export function validateRepositoryRecipe(input: unknown, secrets?: Record<string
     || !Number.isSafeInteger(ref.prNumber) || ref.prNumber < 1
     || ref.baseSha !== undefined && !/^[a-f0-9]{40,64}$/.test(ref.baseSha)) throw new Error("referência requer owner/repo, número do PR e SHA inicial válido quando informado");
   validateSafeVerificationChecks(value.checks, secrets);
+  repositoryAgentTimeoutSec(value.agentTimeoutSec);
   if (value.threshold !== undefined) validateVerificationThreshold(value.threshold);
   if (typeof value.image !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,240}$/.test(value.image)) throw new Error("imagem inválida; informe imagem Linux com Python 3 e bash");
   if (typeof value.setupScript !== "string" || value.setupScript.length > 32768 || value.setupScript.includes("\0")) throw new Error("script de preparação inválido");

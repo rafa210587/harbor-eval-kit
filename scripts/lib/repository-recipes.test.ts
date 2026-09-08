@@ -76,3 +76,14 @@ test("recipe threshold is optional, bounded and survives portable export", () =>
     assert.throws(() => validateRepositoryRecipe({ ...recipe(), threshold }, {}), /limiar/);
   }
 });
+
+test("candidate budget is optional, portable and invalidates prepared recipe identity", () => {
+  const legacy = validateRepositoryRecipe(recipe(), {});
+  assert.equal(legacy.agentTimeoutSec, undefined);
+  const extended = validateRepositoryRecipe({ ...recipe(), agentTimeoutSec: 72 * 3600 }, {});
+  assert.equal(exportRepositoryRecipe(extended).recipe.agentTimeoutSec, 259200);
+  assert.notEqual(recipeFingerprint(legacy), recipeFingerprint(extended));
+  for (const agentTimeoutSec of [0, -1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 1.5, "3600", null]) {
+    assert.throws(() => validateRepositoryRecipe({ ...recipe(), agentTimeoutSec }, {}), /Prazo do agente/);
+  }
+});

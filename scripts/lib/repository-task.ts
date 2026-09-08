@@ -6,9 +6,11 @@ import { assertSafeExport } from "./export-safety.ts";
 import { safeRepositoryPath } from "./repository-source.ts";
 import { assertSafeId } from "./registry-validation.ts";
 
+import { repositoryAgentTimeoutSec } from "./repository-limits.ts";
+
 export interface RepositoryTaskInput {
   destination: string; baseRoot: string; documents: { path: string; content: string }[];
-  checks: VerificationCheck[]; threshold?: number; image: string; setupScript: string; label: string; recipeId: string;
+  checks: VerificationCheck[]; threshold?: number; agentTimeoutSec?: number; image: string; setupScript: string; label: string; recipeId: string;
   /** Reference material is forbidden in candidate tasks, including optional caller mistakes. */
   referenceDiffPath?: never;
 }
@@ -31,6 +33,7 @@ function copyCleanTree(source: string, destination: string): void {
 export function materializeRepositoryTask(input: RepositoryTaskInput): string {
   assertSafeId(input.recipeId); validateSafeVerificationChecks(input.checks);
   validateVerificationThreshold(input.threshold ?? 1);
+  const agentTimeout = repositoryAgentTimeoutSec(input.agentTimeoutSec);
   if (input.referenceDiffPath !== undefined) throw new Error("Gabarito não pode entrar na task candidata.");
   if (!/^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}$/.test(input.image) || input.image.startsWith("-")) throw new Error("Imagem de container inválida.");
   if (typeof input.setupScript !== "string" || input.setupScript.includes("\0") || input.setupScript.length > 65536) throw new Error("Setup inválido.");
@@ -56,6 +59,6 @@ export function materializeRepositoryTask(input: RepositoryTaskInput): string {
   writeFileSync(join(tests, "test.sh"), "#!/bin/bash\nset -euo pipefail\nexec python3 -I /tests/repository-verifier.py\n");
   writeFileSync(join(destination, "instruction.md"), `# ${input.label}\n\nImplemente os requisitos em /workspace. O repositório completo inicial está disponível.\nLeia as skills fornecidas em /harbor/skills, se houver. Não altere o avaliador nem arquivos de reward.\n\n` + input.documents.map(doc => `## Documento: ${doc.path}\n\n${doc.content}`).join("\n\n"));
   const timeout = input.checks.reduce((sum, check) => sum + check.timeoutSec, 0) + 60;
-  writeFileSync(join(destination, "task.toml"), `schema_version = "1.4"\nartifacts = [{ source = "/workspace", destination = "workspace", exclude = [".git"] }]\n\n[task]\nname = ${JSON.stringify("harbor-eval-kit/" + input.recipeId)}\nversion = "1.0.0"\ndescription = ${JSON.stringify(input.label)}\nauthors = []\nkeywords = ["repository-pr"]\n\n[agent]\ntimeout_sec = 3600\n\n[environment]\nos = "linux"\nnetwork_mode = "public"\nbuild_timeout_sec = 1200\n\n[verifier]\nuser = "root"\nenvironment_mode = "separate"\ntimeout_sec = ${timeout}\n\n[verifier.environment]\nos = "linux"\nnetwork_mode = "no-network"\nbuild_timeout_sec = 1200\n`);
+  writeFileSync(join(destination, "task.toml"), `schema_version = "1.4"\nartifacts = [{ source = "/workspace", destination = "workspace", exclude = [".git"] }]\n\n[task]\nname = ${JSON.stringify("harbor-eval-kit/" + input.recipeId)}\nversion = "1.0.0"\ndescription = ${JSON.stringify(input.label)}\nauthors = []\nkeywords = ["repository-pr"]\n\n[agent]\ntimeout_sec = ${agentTimeout}\n\n[environment]\nos = "linux"\nnetwork_mode = "public"\nbuild_timeout_sec = 1200\n\n[verifier]\nuser = "root"\nenvironment_mode = "separate"\ntimeout_sec = ${timeout}\n\n[verifier.environment]\nos = "linux"\nnetwork_mode = "no-network"\nbuild_timeout_sec = 1200\n`);
   return destination;
 }

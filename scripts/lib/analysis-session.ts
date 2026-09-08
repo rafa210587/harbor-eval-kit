@@ -1,3 +1,4 @@
+import { freezeJudgeConnection, type JudgeConnection } from "./judge-harness.ts";
 // A comparison's judge inputs are frozen once for all candidates and rubrics, even across
 // subsequent HTTP requests or a server restart. Catalog edits only affect new sessions.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -9,13 +10,14 @@ import { resolveRubricCriteria, serializeRubricToml } from "./materialize.ts";
 import { loadSecretsEnv } from "./secrets.ts";
 import type { CriterionEntry, JudgeEntry, ModelEntry, RubricEntry } from "./types.ts";
 
-export interface AnalysisSession {
+export interface AnalysisSession extends JudgeConnection {
   version: 1;
   id: string;
   createdAt: string;
   judgeId: string;
   judgeModel: string;
   agent: string;
+  timeoutHours?: number;
   validationMode: boolean;
   prompt: string | null;
   rubrics: { id: string; content: string | null }[];
@@ -43,7 +45,7 @@ export function createAnalysisSession(input: { judgeId?: unknown; rubricIds?: un
     return { id, content: serializeRubricToml(resolved) };
   });
   const session: AnalysisSession = { version: 1, id: newId(), createdAt: new Date().toISOString(), judgeId: judge.id,
-    judgeModel: model, agent: judge.agentValue, validationMode, prompt: judge.promptTemplate?.trim() ? judge.promptTemplate : null, rubrics: frozen };
+    ...freezeJudgeConnection(judge.integrationId), timeoutHours: judge.timeoutHours ?? 8, judgeModel: model, agent: judge.agentValue, validationMode, prompt: judge.promptTemplate?.trim() ? judge.promptTemplate : null, rubrics: frozen };
   const serialized = JSON.stringify(session);
   if (Object.values(loadSecretsEnv()).some(value => value && serialized.includes(JSON.stringify(value).slice(1, -1)))) throw new Error("credencial nos inputs do juiz; use somente o ambiente de Credenciais");
   const dir = managedPath("analysis-sessions", session.id);

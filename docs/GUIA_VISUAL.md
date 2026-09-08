@@ -207,8 +207,11 @@ fica em Opções avançadas de aprovação e mantém 1 como padrão. A fonte,
 os documentos e o PR ficam nas etapas anteriores; ambiente e juiz ficam recolhidos
 na revisão. A importação preenche o assistente sem gravar antes de Salvar.
 
-![Integração de CLI com nome de variável e versão esperada](screenshots/harness-integration.png)
+![Integração de CLI por assinatura sem campos de API](screenshots/harness-integration.png)
 
-Agentes mantém uma seção recolhível de conexões. O formulário vincula o nome da
-variável, nunca o segredo; a conexão pode ser editada e reutilizada nos perfis.
+Credenciais mantém uma seção recolhível de conexões. No modo API, o formulário vincula o nome da variável; em assinatura, mostra o
+vínculo de sessão específico do CLI. A conexão é selecionada em Agentes e Juízes.
 O [guia do fluxo](REPOSITORIOS_E_HARNESSES.md) detalha pré-requisitos e limitações.
+
+
+![Diagnóstico de acesso GitHub pela sessão local, sem campo de token](screenshots/github-access.png)

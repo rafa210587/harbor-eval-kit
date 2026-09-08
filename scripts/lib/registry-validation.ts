@@ -1,3 +1,4 @@
+import { analysisBudget } from "./analysis-budget.ts";
 import type { RegistryName } from "./types.ts";
 
 export type RegistryItem = { id: string; [key: string]: unknown };
@@ -43,7 +44,7 @@ export function validateRegistryEntry(name: RegistryName, value: unknown): asser
     skills: ["label", "mode", "instructions", "path", "extraFiles"], skillsets: ["label", "skillIds"],
     models: ["label", "value"], agents: ["label", "agentValue", "modelId", "integrationId", "instructions", "defaultSkillsetIds", "notes"],
     criteria: ["name", "description", "guidance"], rubrics: ["label", "criterionIds"],
-    judges: ["label", "agentValue", "modelId", "promptTemplate", "defaultRubricIds", "notes"],
+    judges: ["label", "agentValue", "modelId", "integrationId", "timeoutHours", "promptTemplate", "defaultRubricIds", "notes"],
   };
   if (!fields[name]) throw new Error("registro desconhecido");
   for (const key of Object.keys(item)) if (key !== "id" && !fields[name].includes(key)) throw new Error(`campo não permitido em ${name}`);
@@ -64,6 +65,8 @@ export function validateRegistryEntry(name: RegistryName, value: unknown): asser
         if ([...seen].some(n => n === normalized || n.startsWith(normalized + "/") || normalized.startsWith(n + "/"))) throw new Error("arquivos extras em conflito");
         seen.add(normalized);
       }
+    } else if (name === "judges" && key === "timeoutHours") {
+      analysisBudget(item[key]);
     } else if (typeof item[key] !== "string") throw new Error(`${key} deve ser texto`);
   }
   if (item.modelId) assertSafeId(item.modelId);

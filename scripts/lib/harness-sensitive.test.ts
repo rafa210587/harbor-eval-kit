@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getHarnessSecretValues, readNativeAuthSecretValues } from "./harness-sensitive.ts";
@@ -30,5 +30,15 @@ test("native file parser bounds size and sanitizes malformed JSON", () => {
       writeFileSync(path, content);
       assert.throws(() => readNativeAuthSecretValues(path), error => error instanceof Error && !error.message.includes("synthetic-secret") && /autenticação/.test(error.message));
     }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("native parser rejects user-controlled directory links even when they point to valid JSON", () => {
+  const dir = mkdtempSync(join(tmpdir(), "harbor-eval-kit-native-"));
+  try {
+    const actual = join(dir, "actual"), alias = join(dir, "alias");
+    mkdirSync(actual); writeFileSync(join(actual, "auth.json"), "{}");
+    symlinkSync(actual, alias, process.platform === "win32" ? "junction" : "dir");
+    assert.throws(() => readNativeAuthSecretValues(join(alias, "auth.json")), /autenticação/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

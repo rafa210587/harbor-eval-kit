@@ -1,3 +1,4 @@
+import { harnessAuthFields } from "../../gui/app/harness-integrations-domain.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -35,4 +36,12 @@ test("sanitized integration summaries never expose auth file paths", () => {
   assert.match(source, /\/api\/harness-integrations\/\$\{encodeURIComponent\(item\.id\)\}\/\$\{type === "models" \? "models" : "diagnose"\}/);
   assert.match(source, /Nenhuma inferência foi enviada/);
   assert.match(source, /authFilePath: undefined/);
+});
+
+
+test("subscription forms never show API fields and use adapter-specific session bindings", () => {
+  assert.deepEqual(harnessAuthFields("claude-code", "native"), { api: false, authFile: false, oauth: true });
+  assert.deepEqual(harnessAuthFields("codex", "native"), { api: false, authFile: true, oauth: false });
+  assert.deepEqual(harnessAuthFields("codex", "api"), { api: true, authFile: false, oauth: false });
+  assert.deepEqual(harnessAuthFields("cursor-cli", "native"), { api: false, authFile: false, oauth: false });
 });

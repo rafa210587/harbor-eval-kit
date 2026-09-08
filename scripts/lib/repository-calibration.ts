@@ -40,13 +40,13 @@ export function startRepositoryPreparation(b: { operationId: string; previewId: 
           if (control.cancelled) throw new Error("preparação cancelada");
           log(`Validando ${stage === "base" ? "base histórica" : "gabarito"} sem LLM, em verifier separado.`);
           const task = materializeRepositoryTask({ destination: join(root, stage), baseRoot: stage === "base" ? preview.baseRoot : preview.referenceRoot,
-            documents: preview.documents, checks: preview.recipe.checks, threshold: preview.recipe.threshold, image: preview.recipe.image, setupScript: preview.recipe.setupScript,
+            documents: preview.documents, checks: preview.recipe.checks, threshold: preview.recipe.threshold, agentTimeoutSec: preview.recipe.agentTimeoutSec, image: preview.recipe.image, setupScript: preview.recipe.setupScript,
             label: preview.recipe.label, recipeId: `${stage}-${preview.previewId.slice(0,8)}` });
           const name = `harbor-eval-kit-cal-${b.operationId.slice(0,8)}-${stage}`;
           control.job = name;
           updateOperation(b.operationId, { harborJobName: name }, redactionValues);
           const result = await execHarbor(["run", "--path", task, "--agent", "nop", "--jobs-dir", jobsDir, "--job-name", name, "--n-attempts", "1", "-y"], {
-            isolatedEnv: true, extraEnv: {}, redactValues: Object.values(redactionValues), timeoutMs: 3600000,
+            isolatedEnv: true, extraEnv: {}, redactValues: Object.values(redactionValues),
             onSpawn: child => { control.child = child; }, onOutput: (channel, text) => appendOperationLog(b.operationId, channel, text, redactionValues),
           });
           if (control.cancelled) throw new Error("preparação cancelada");
@@ -56,7 +56,7 @@ export function startRepositoryPreparation(b: { operationId: string; previewId: 
         }
         validateCalibrationResults(results.base, results.reference, preview.recipe.allowPassingBase);
         const taskPath = preparedRepositoryTaskPath(preview.previewId);
-        materializeRepositoryTask({ destination: taskPath, baseRoot: preview.baseRoot, documents: preview.documents, checks: preview.recipe.checks, threshold: preview.recipe.threshold,
+        materializeRepositoryTask({ destination: taskPath, baseRoot: preview.baseRoot, documents: preview.documents, checks: preview.recipe.checks, threshold: preview.recipe.threshold, agentTimeoutSec: preview.recipe.agentTimeoutSec,
           image: preview.recipe.image, setupScript: preview.recipe.setupScript, label: preview.recipe.label, recipeId: preview.recipe.id });
         writeFileSync(join(taskPath, "repository-eval.json"), JSON.stringify({ version: 1, previewId: preview.previewId, calibrated: true,
           baseSha: preview.manifest.baseSha, finalSha: preview.manifest.finalSha }), { flag: "wx" });

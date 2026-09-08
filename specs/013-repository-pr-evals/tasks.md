@@ -110,7 +110,7 @@ Implementação inicial incluída nesta revisão (consulte git log para a public
 - Integrações com bindings explícitos, catálogo, diagnóstico, edição, descoberta
   suportada/manual e snapshot público. Reader de sessão nativa alimenta redatores
   de API/logs/export. Arquivo ilegível produz resposta genérica 503, sem vazar dados.
-- Assistente Tasks e seção Agents recolhidos; inputs seguem tema; viewport 390 px
+- Assistente Tasks e seção de conexões em Credenciais recolhidos; inputs seguem tema; viewport 390 px
   conferido sem overflow. Capturas reais em docs/screenshots/repository-checks.png
   e harness-integration.png, vinculadas em docs/GUIA_VISUAL.md.
 - Guias/README/DOCUMENTACAO/skills atualizados; guia principal novo:
@@ -176,3 +176,49 @@ Próximos passos concretos:
 > evidências, sem alegar certificação de CLI/SO que não ocorreu. A UI de teste usa
 > http://127.0.0.1:44494/; não encerre a GUI original em outras portas. Não exporte
 > credenciais nem dados de sessão. Rode o gate e mantenha os hooks ativos.
+
+
+## Ajuste aprovado — conexões compartilhadas (2026-09-08)
+
+- Centralizar cadastro/diagnóstico em Credenciais; Agentes e Juízes apenas selecionam.
+- Separar API, sessão Codex e OAuth Claude; nenhum campo de API no modo assinatura.
+- Reutilizar resolveHarnessRun no Analyze, com ambiente isolado e parâmetros do adapter.
+- Congelar identidade/configuração da conexão na sessão; recusar edição durante o lote.
+- Preservar análises sem conexão, rubricas, política de modelos e pacote somente diff.
+- Testar regras e UI; atualizar docs/capturas, executar gate e publicar.
+
+Continuidade: conferir git diff antes de repetir etapas. O Analyze instalado aceita
+--agent e --ak; não é necessário um segundo motor de julgamento. Sessões pessoais
+não devem ser vinculadas automaticamente nem usadas em testes sem vínculo explícito.
+
+
+### Validação do ajuste compartilhado
+
+305 testes Node passaram; gate completo passou com imports sem ciclos e scanner
+limpo. UI confirmou formulário API/Claude OAuth/Codex sessão, cadastro compartilhado,
+seleção e reedição do juiz, bloqueio de remoção enquanto vinculado e limpeza dos
+cadastros QA. O usuário autorizou testar a sessão Codex local por assinatura.
+Primeira operação e801f21e-647c-4a55-ad3a-8688d083f3e4 autenticou e escreveu análise,
+mas foi interrompida pelo limite antigo de 120 s durante a primeira inicialização.
+Timeout externo removido; prazo do juiz configurável em horas. Container residual removido com prova no
+manifesto e credencial original fora do repo. Repetição real em andamento na UI.
+Não publicar resultado de sucesso antes de conferir operation/result.json.
+
+
+### Ajuste aprovado: SDD longo, GitHub e CI
+
+- Prazo candidato configurável na receita em horas; prazo juiz separado no perfil,
+  congelado na sessão. Padrão 8 h, sem teto fixo de horas; números finitos positivos.
+- Remover timeout externo da análise/calibração; manter prazos individuais do Harbor
+  e checks customizados. Export/import preservam apenas números, nunca identidade.
+- Diagnóstico explícito em Credenciais usa login gh local para API/Git somente leitura;
+  resultados booleanos e orientações, sem token, persistência ou login automático.
+- CI anterior: corrigir aliases de sistema macOS, containment com paths canonicalizados,
+  caixa de caminhos Windows e fixture independente de jobs-test preexistente.
+- Validação: testar lógica, UI GitHub/prazos, suite e CI remoto após push. Smoke Codex
+  anterior concluído; não equivale a executar por horas ou certificar macOS/Claude real.
+
+Validação local final: login/API/Git confirmados pela UI, juiz de QA salvo com 24 h
+e removido, campo candidato aceita 72 h. Config do Harbor instalado confirma 24 h
+para o juiz. Corrigido também carregamento assíncrono dos catálogos na receita.
+Gate completo e scanner passaram; suite ampliada e CI remoto conferidos ao publicar.

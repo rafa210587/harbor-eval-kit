@@ -12,7 +12,7 @@ e limitações estão em `docs/REPOSITORIOS_E_HARNESSES.md`.
 ## UI e documentação aprovadas
 
 Preservar navegação principal. Tasks abre assistente progressivo do novo modo;
-Agents agrupa conexões em seção recolhível com edição em painel. Uma etapa por vez,
+Credenciais agrupa conexões em seção recolhível com edição em painel. Uma etapa por vez,
 valores avançados recolhidos, resumo final antes de executar e erros visíveis.
 Configuração compartilhada de CLI segue versão/ambiente, autenticação por vínculo,
 origem/modelo e teste explícito; não replicar formulários de credenciais.
@@ -38,7 +38,7 @@ entidades referenciam os registries atuais; campos novos são opcionais no modo 
 | `verification-profile.ts` | Validar checks tipados e calcular resultado determinístico |
 | `reference-evidence.ts` | Diffs históricos/candidatos para juiz; índice e cobertura |
 | `harness-integrations.ts` + adapters pequenos | Diagnóstico, capacidades e descoberta por versão |
-| GUI Tasks/Agents/Analyze | Formulários e revisão usando contratos server-side |
+| GUI Tasks/Credenciais/Agents/Juízes/Analyze | Formulários e revisão usando contratos server-side |
 
 Nomes de módulos são propostos; separar quando chegar a 400 linhas. Rotas apenas
 delegam ao domínio. Não remover o bloqueio atual de `.git` no snapshot: exportar
@@ -217,3 +217,25 @@ Validar macOS/Podman em Mac real; CI e mocks não certificam essa instalação.
 Risco principal: sandbox com acesso ao provedor também permitir exfiltração/leitura
 do gabarito. Segundo risco: inferir incorretamente início de PR rebased. Ambos são
 gates de funcionamento, não detalhes a adiar para depois da UI.
+
+
+### Ajuste de conexões compartilhadas
+
+Cadastro em Credenciais; componente único de seleção reutilizado em Agentes/Juízes.
+Analyze aceita --agent/--ak no Harbor 0.22.0 instalado: reutilizar resolveHarnessRun,
+sem segundo runner. Persistir digest da configuração na AnalysisSession; resolver
+segredos somente no disparo, em env isolado, e recusar configuração alterada.
+
+
+### Ajuste aprovado: SDD longo, GitHub e CI
+
+- Prazo candidato configurável na receita em horas; prazo juiz separado no perfil,
+  congelado na sessão. Padrão 8 h, sem teto fixo de horas; números finitos positivos.
+- Remover timeout externo da análise/calibração; manter prazos individuais do Harbor
+  e checks customizados. Export/import preservam apenas números, nunca identidade.
+- Diagnóstico explícito em Credenciais usa login gh local para API/Git somente leitura;
+  resultados booleanos e orientações, sem token, persistência ou login automático.
+- CI anterior: corrigir aliases de sistema macOS, containment com paths canonicalizados,
+  caixa de caminhos Windows e fixture independente de jobs-test preexistente.
+- Validação: testar lógica, UI GitHub/prazos, suite e CI remoto após push. Smoke Codex
+  anterior concluído; não equivale a executar por horas ou certificar macOS/Claude real.

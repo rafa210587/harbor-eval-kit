@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareRepositorySource, repositoryProcessEnv, safeRepositoryPath, snapshotRepositoryTree, validateRepositoryRemote } from "./repository-source.ts";
@@ -69,6 +69,20 @@ test("plain folder nested under Git does not accidentally snapshot the parent re
   const snapshot = prepareRepositorySource({ kind: "local", location: docs }, join(root, "nested-folder"));
   assert.equal(snapshot.revision, null);
   assert.deepEqual(snapshot.files.map(file => file.path), ["spec.md"]);
+});
+
+test("snapshot containment resolves destination ancestor aliases before writing", t => {
+  const { root, repo } = fixture(t);
+  const alias = join(root, "alias");
+  symlinkSync(repo, alias, process.platform === "win32" ? "junction" : "dir");
+  assert.throws(() => prepareRepositorySource({ kind: "local", location: repo, includeWorkingTree: true }, join(alias, "new", "snapshot")), /dentro da fonte/);
+});
+
+test("Git root accepts Windows path case differences", { skip: process.platform !== "win32" }, t => {
+  const { root, repo, commit } = fixture(t);
+  const base = commit("code.txt", "base\n");
+  const snapshot = prepareRepositorySource({ kind: "local", location: repo.toUpperCase(), ref: base }, join(root, "case-snapshot"));
+  assert.equal(snapshot.revision, base);
 });
 
 test("snapshot refuses credential content even in an ordinary source filename", t => {

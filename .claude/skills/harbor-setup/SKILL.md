@@ -46,8 +46,10 @@ após instalar, encaminhe às skills harbor-up, harbor-down e harbor-status em
 
 Read `docs/REPOSITORIOS_E_HARNESSES.md` from the repository root before configuring
 this optional mode. Keep the standard doctor/install sequence. Tasks has a collapsed
-repository/spec/merged-PR wizard; Agents has reusable CLI integrations. Credentials
-for Git acquisition stay on the host, separate from inference bindings. Both API
+repository/spec/merged-PR wizard; Credentials owns reusable CLI connections, selected
+by both Agents and Judges. Subscription hides API fields and uses an explicit Codex
+session file or Claude OAuth variable binding. Judge sessions freeze connection
+configuration and reject later edits. Credentials for Git acquisition stay on the host, separate from inference bindings. Both API
 and native CLI identity require trusted source code; do not promise a broker or
 adversarial credential isolation. Check the server capability catalog: unsupported
 native adapters must remain blocked. Do not enable LiteLLM or provision AWS implicitly.
@@ -58,3 +60,9 @@ rubric and sanitized check results. Never use raw upstream Analyze on the origin
 repository trial to bypass this evidence boundary. Failed checks block paid judging
 unless the user selects the diagnostic override. The guide also provides the manual
 fallback, local recipe import/export and the actual validation limits.
+
+For repository/PR access, run `gh auth login --hostname github.com` on the service
+host and use Credentials → GitHub access to diagnose repository read permission.
+Never collect or export its token. See docs/ACESSO_GITHUB.md. Long SDD runs configure
+agent hours in the recipe and judge hours in the judge profile (default 8 hours
+each); preserve check-specific budgets and reprepare tasks after budget changes.

@@ -145,6 +145,8 @@ export interface RubricEntry {
  * closest real lever Harbor exposes for shaping how the judge behaves.
  */
 export interface JudgeEntry {
+  timeoutHours?: number;
+  integrationId?: string;
   id: string;
   label: string;
   agentValue: string;

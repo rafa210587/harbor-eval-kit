@@ -326,7 +326,7 @@ O nome do job registra a cadeia inteira e serve de prova de que a skill chegou n
 ## Tasks a partir de repositórios
 
 O assistente fica em **Tasks → Spec de repositório + PR**; conexões reutilizáveis
-ficam em **Agentes → Integrações de CLI e harness**. O [guia específico](REPOSITORIOS_E_HARNESSES.md)
+ficam em **Credenciais → Integrações de CLI e harness**. O [guia específico](REPOSITORIOS_E_HARNESSES.md)
 explica cada etapa, credenciais Git/API/login nativo, calibração sem juiz, evidências
 somente por diff, export/import de receitas e fallback manual. Use apenas fontes
 confiáveis; diagnóstico no host não certifica a sessão do CLI em container.
